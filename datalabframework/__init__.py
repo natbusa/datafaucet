@@ -2,6 +2,7 @@ import os
 import sys
 import io
 import types
+import logging
 
 import nbformat
 
@@ -10,6 +11,15 @@ from IPython.display import HTML
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import (Magics, magics_class, line_magic,
                                 cell_magic, line_cell_magic)
+
+#automatically imports submodules
+from . import export
+from . import log
+from . import notebook
+from . import params
+from . import project
+
+__all__ = ['export', 'log', 'notebook', 'params', 'project']
 
 def detect_filename():
       output = """
@@ -66,12 +76,12 @@ def rootpath(rootfile='main.ipynb', levels=5):
         # we should still be inside a python (hierarchical) package
         # if not, we have gone too far
         if '__init__.py' not in ls:
-            raise 'Not a python package: {}'.format(os.path.abspath(path))
+            return None
 
         path += '/..'
         levels -= 1
 
-    raise 'No {} found traversing {} directories up.'.format(rootfile, levels)
+    return None
 
 @magics_class
 class DataLabFramework(Magics):
@@ -198,8 +208,11 @@ class NotebookFinder(object):
         return self.loaders[key]
 
 
-# Add rootpath()
-if rootpath() not in sys.path: 
+# Add rootpath() if available
+if rootpath() and rootpath() not in sys.path: 
     sys.path.append(rootpath())
 
+# register hook for loading ipynb files
 sys.meta_path.append(NotebookFinder())
+
+# logging
