@@ -8,9 +8,10 @@ import json
 
 import getpass
 import sys
+import os
 
-#disable logging for 'kafka.KafkaProducer'
-logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())
+#import a few __init__ methods
+from . import filename, rootpath
 
 def _default_json_default(obj):
     """
@@ -126,25 +127,39 @@ class KafkaLoggingHandler(logging.Handler):
             self.producer.stop()
         logging.Handler.close(self)
 
-def initLogger(name, kafka_topic, kafka_servers):
-    
-    level = logging.DEBUG
+def initLogger(name, level = logging.DEBUG, kafka_topic=None, kafka_servers=None):
     
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
     # create kafka handler and set level to debug
-    formatterLogstash = LogstashFormatter()
-    handlerKafka = KafkaLoggingHandler(kafka_topic, kafka_servers)
-    handlerKafka.setLevel(level)
-    handlerKafka.setFormatter(formatterLogstash)
-    logger.addHandler(handlerKafka)
-    
+    if kafka_topic and kafka_servers:
+
+        #disable logging for 'kafka.KafkaProducer'
+        logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())
+
+        formatterLogstash = LogstashFormatter()
+        handlerKafka = KafkaLoggingHandler(kafka_topic, kafka_servers)
+        handlerKafka.setLevel(level)
+        handlerKafka.setFormatter(formatterLogstash)
+        logger.addHandler(handlerKafka)
+        
     # create console handler and set level to debug
     formatter = logging.Formatter('%(asctime)s - {} - %(name)s - %(levelname)s - %(message)s - %(lab)s'.format(getpass.getuser()))
     handler = logging.StreamHandler(sys.stdout,)
     handler.setLevel(level)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    
+
+    #first log entry here
+    extra= {'lab':
+        {
+            'filename':filename(), 
+            'rootpath':rootpath(), 
+            'filepath':os.path.dirname(os.path.abspath(filename()))
+        }
+    }
+
+    logger.info('init', extra=extra)
+
     return logger
