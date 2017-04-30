@@ -10,8 +10,8 @@ import getpass
 import sys
 import os
 
-#import a few __init__ methods
-from . import filename, rootpath
+#import a few help methods
+from . import project
 
 def _default_json_default(obj):
     """
@@ -145,18 +145,26 @@ def initLogger(name, level = logging.DEBUG, kafka_topic=None, kafka_servers=None
         logger.addHandler(handlerKafka)
         
     # create console handler and set level to debug
-    formatter = logging.Formatter('%(asctime)s - {} - %(name)s - %(levelname)s - %(message)s - %(lab)s'.format(getpass.getuser()))
+    formatter = logging.Formatter('%(asctime)s - {} - %(name)s - %(levelname)s - %(message)s - %(context)s'.format(getpass.getuser()))
     handler = logging.StreamHandler(sys.stdout,)
     handler.setLevel(level)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
     #first log entry here
-    extra= {'lab':
+    extra= {'context': 
         {
-            'filename':filename(), 
-            'rootpath':rootpath(), 
-            'filepath':os.path.dirname(os.path.abspath(filename()))
+            'notebook': {
+                'filename':project.filename(), 
+                'filepath':os.path.dirname(os.path.abspath(project.filename())) if project.filename() else None
+            },
+            'project': {
+                'main': 'main.ipynb',
+                'rootpath':project.rootpath(), 
+            },
+            'datalab': {
+                'framework': '0.1'
+            }
         }
     }
 
