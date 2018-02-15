@@ -5,39 +5,46 @@ import datetime
 
 import nbformat
 
+import json
+import os.path
+import re
+import ipykernel
+import requests
+
+try:  # Python 3
+    from urllib.parse import urljoin
+except ImportError:  # Python 2
+    from urlparse import urljoin
+
+try:  # Python 3
+    from notebook.notebookapp import list_running_servers
+except ImportError:  # Python 2
+    import warnings
+    from IPython.utils.shimmodule import ShimWarning
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=ShimWarning)
+        from IPython.html.notebookapp import list_running_servers
+            
 from nbconvert.preprocessors import ExecutePreprocessor
 from nbconvert.preprocessors import ClearOutputPreprocessor
 from nbconvert.preprocessors.execute import CellExecutionError
 
-from IPython.display import HTML
-
 from .project import rootpath
 
-def filename(self):
-  try:
-     filename = __NB_FILENAME__
-  except:
-     filename = os.getenv('NB_FILENAME', '')
-  
-  return os.path.basename(filename)
-
-def detect_filename():
-  output = """
-    <script type="text/javascript">
-
-    var nb = IPython.notebook; 
-    var kernel = IPython.notebook.kernel;
-    var filename = nb.notebook_path;
-
-    var basename = filename.substring(filename.lastIndexOf('/') + 1); 
-    document.getElementById("detect_notebook_filename_tag").innerHTML="Detected notebook filename: " + basename;
-
-    var command = "import os; __NB_FILENAME__ = '" + basename + "'";
-    kernel.execute(command);
-    </script><pre id="detect_notebook_filename_tag"></pre>
-  """
-
-  return(HTML(output))
+def get_notebook_filename():
+    """
+    Return the full path of the jupyter notebook.
+    """
+    kernel_id = re.search('kernel-(.*).json',
+                          ipykernel.connect.get_connection_file()).group(1)
+    servers = list_running_servers()
+    for ss in servers:
+        response = requests.get(urljoin(ss['url'], 'api/sessions'),
+                                params={'token': ss.get('token', '')})
+        for nn in json.loads(response.text):
+            if nn['kernel']['id'] == kernel_id:
+                relative_path = nn['notebook']['path']
+                return os.path.join(ss['notebook_dir'], relative_path)
 
 def list_all(path=None, removelist=[]):
     

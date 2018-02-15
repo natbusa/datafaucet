@@ -1,5 +1,9 @@
 import logging
-from kafka import KafkaProducer
+
+try:
+    from kafka import KafkaProducer
+except:
+    KafkaProducer=None
 
 import socket
 import datetime
@@ -133,7 +137,7 @@ def initLogger(name, level = logging.DEBUG, kafka_topic=None, kafka_servers=None
     logger.setLevel(level)
 
     # create kafka handler and set level to debug
-    if kafka_topic and kafka_servers:
+    if KafkaProducer and kafka_topic and kafka_servers:
 
         #disable logging for 'kafka.KafkaProducer'
         logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())

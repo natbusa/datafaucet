@@ -2,6 +2,10 @@ from setuptools import setup
 
 setup(name='datalabframework',
       version='0.1',
+      install_requires=[
+        'requests',
+        'kafka-python'
+      ],
       description='Scaffolding Data Science with Python Notebooks',
       url='http://github.com/natbusa/datalabframework',
       author='Natalino Busa',

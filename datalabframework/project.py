@@ -5,58 +5,12 @@ import types
 import logging
 
 import nbformat
-
-from IPython.display import HTML
 from IPython.core.interactiveshell import InteractiveShell
 
-def detect_filename():
-      output = """
-        <script type="text/javascript">
-        
-        var nb = null;
-        var kernel = null;
-
-        if (IPython && 
-            IPython.notebook && 
-            IPython.notebook.kernel &&
-            IPython.notebook.kernel.info_reply &&
-            IPython.notebook.kernel.info_reply.status &&
-            IPython.notebook.kernel.info_reply.status == "ok") {
-            nb = IPython.notebook; 
-            kernel = IPython.notebook.kernel;
-        }
-        
-        if (nb && kernel) {
-            var filename = nb.notebook_path;
-            var basename = filename.substring(filename.lastIndexOf('/') + 1);
-            var msg = 'Detected filename: '+basename;
-            document.getElementById("detected_notebook_filename_tag").innerHTML=msg;
-            var command = "import os; os.environ['NB_FILENAME']= '" + basename + "'";
-            kernel.execute(command);
-        } else {
-            var msg = 'Not connected to kernel.';
-            document.getElementById("detected_notebook_filename_tag").innerHTML=msg;
-        }
-        </script><pre id="detected_notebook_filename_tag"></pre>
-      """
-      return(HTML(output))
-
-def filename():
-    # env variable is overwritten by the cell magic datalabframework
-    
-    # when using nbconvert also consider injecting __NB_ROOTPATH__  
-    # and __NB_FILENAME__ as a cell in the dictionary of the notebook
-
-    return os.getenv('NB_FILENAME')
-
-
-def rootpath(rootfile='main.ipynb', levels=5):
-    # start from here and go up
-    # till you find a main.ipynb
-    global __NB_ROOTPATH__ 
+def rootpath(rootfile='main.ipynb'):
 
     path = '.'
-    while levels>0:
+    while True:
         ls = os.listdir(path)
         if rootfile in ls:
             return os.path.abspath(path)
@@ -67,7 +21,6 @@ def rootpath(rootfile='main.ipynb', levels=5):
             return None
 
         path += '/..'
-        levels -= 1
 
     return None
 
@@ -106,7 +59,6 @@ class NotebookLoader(object):
         with io.open(path, 'r', encoding='utf-8') as f:
             nb = nbformat.read(f, 4)
         
-        
         # create the module and add it to sys.modules
         # if name in sys.modules:
         #    return sys.modules[name]
@@ -123,7 +75,7 @@ class NotebookLoader(object):
         
         try:
           for cell in nb.cells:
-            if cell['cell_type'] == 'code' and cell['source'].startswith('# EXPORT'):
+            if cell['cell_type'] == 'code' and cell['source'].startswith('#EXPORT'):
                 # transform the input to executable Python
                 code = self.shell.input_transformer_manager.transform_cell(cell.source)
 
