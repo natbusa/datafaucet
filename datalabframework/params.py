@@ -1,37 +1,63 @@
-import os, json, base64, binascii
+import os
+import base64
+import binascii
 
-from collections import namedtuple
-import copy
+import yaml
 
-def config_fromdict(arg_dict, varname='NB_PARAMS', encode=None):
-    try:
-        pdata = os.getenv(varname)
+from . import project
+
+from copy import deepcopy
+
+def merge(a, b):
+    if isinstance(b, dict) and isinstance(a, dict):
+        a_and_b = a.keys() & b.keys()
+        every_key = a.keys() | b.keys()
+        return {k: merge(a[k], b[k]) if k in a_and_b else 
+                   deepcopy(a[k] if k in a else b[k]) for k in every_key}
+    return deepcopy(b)
+
+_metadata = dict()
+
+def read_metadata(envvar='DLF_METADATA', encode='utf-8'):
+    global _metadata
     
-        if pdata:
+    v = os.getenv(envvar)
+    metadata = dict()
+    if v:
+        try:
+            md = envvar
             if encode=='base64':
-                pdata = base64.b64decode(pdata)
-                pdata = pdata.decode('utf-8')
-            else:
-                pass
-        else:
-            pdata = '{}'
-        
-        params = json.loads(pdata)
-        
-    except json.JSONDecodeError as e:
-        print('Invalid json in env variable {}'.format(varname))
-        raise(e)
-    except binascii.Error as e:
-        print('Invalid base64 encoding in env variable {}'.format(varname))
-        raise(e)
-    except UnicodeDecodeError as e:
-        print('Invalid utf-8 encoding in env variable {}'.format(varname))
-        raise(e)
-
-    # update the args
-    arg_dict.update(params)
+                md = base64.b64decode(v)
+                md = pdata.decode('utf-8')
+            
+            params = yaml.load(md)
+            metadata = merge(metadata, params)
+        except:
+            pass
     
-    #return the updated arg_dict as a named tuple
-    obj = namedtuple('GenericDict', arg_dict.keys())(**arg_dict)
+        try:
+            f = open(v,'r')
+            params = yaml.load(f)
+            metadata = merge(metadata, params)
+        except:
+            pass
+
+    else:
+        filenames = [
+            project.rootpath()+'/metadata.yml',
+            './metadata.yml'
+        ]
         
-    return obj
+        for filename in filenames:
+            f = open(filename,'r')
+            params = yaml.load(f)
+            metadata = merge(metadata, params)
+
+    #return the updated arg_dict as a named tuple
+    _metadata = metadata
+
+def metadata():
+    if not _metadata:
+        read_metadata()
+        
+    return _metadata
