@@ -5,6 +5,7 @@ import binascii
 import yaml
 
 from . import project
+from . import notebook
 
 from copy import deepcopy
 
@@ -17,6 +18,21 @@ def merge(a, b):
     return deepcopy(b)
 
 _metadata = dict()
+
+def get_metadata():
+    
+    path  = project.rootpath()
+    if not path:
+        path  = '.'
+
+    lst = list()
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if file=='metadata.yml':
+                basedir = root[len(path):].lstrip('/')
+                filename = os.path.join(basedir, file)
+                lst.append(filename)
+    return lst
 
 def read_metadata(envvar='DLF_METADATA', encode='utf-8'):
     global _metadata
@@ -43,14 +59,29 @@ def read_metadata(envvar='DLF_METADATA', encode='utf-8'):
             pass
 
     else:
-        filenames = [
-            project.rootpath()+'/metadata.yml',
-            './metadata.yml'
-        ]
+        l = ['project.yml'] + get_metadata()
+        filenames = ['{}/{}'.format(project.rootpath(),name) for name in l]
         
         for filename in filenames:
             f = open(filename,'r')
             params = yaml.load(f)
+            
+            path = notebook.filename(filename, '')[0].replace('/','.')
+            prefix = '.' if path else ''
+            try:
+                d = params['data']['resources']
+                r = dict()
+                for k,v in d.items():
+                    if k.startswith('.'):
+                        r[k] = v
+                    else:
+                        alias_abs = '{}{}.{}'.format(prefix, path,k)
+                        r[alias_abs] = v
+                        
+                params['data']['resources'] = r
+            except:
+                pass
+            
             metadata = merge(metadata, params)
 
     #return the updated arg_dict as a named tuple

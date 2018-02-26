@@ -19,14 +19,29 @@ class PandasEngine():
     def context(self):
         return self.ctx
     
-    def load(self, resource):
-        uri = data.geturi(resource)
-        return self.ctx.read_csv(uri)
-     
+    def read(self, resource):
+        uri = data.uri(resource)
+        path = data.path(resource)
+        md = data.metadata(resource)
+        
+        if md['format']=='csv':
+            return self.ctx.read_csv(path)
+        if md['format']=='hdf':
+            return self.ctx.read_hdf(path, uri.replace('.','_'))     
+        
+    def write(self, obj, resource):
+        uri = data.uri(resource)
+        path = data.path(resource)
+        md = data.metadata(resource)
+        
+        if md['format']=='csv':
+            return obj.to_csv(path)
+        if md['format']=='hdf':
+            return obj.to_hdf(path, uri.replace('.','_'))
 
 def get(name):
     global engines
-    
+
     #get
     engine = engines.get(name)
     
@@ -37,6 +52,10 @@ def get(name):
 
         if cn['kernel']=='python' and cn['loader']=='pandas':
             engine = PandasEngine(name)
+            engines[name] = engine
+
+        if cn['kernel']=='python' and cn['loader']=='numpy':
+            engine = NumpyEngine(name)
             engines[name] = engine
 
     return engine

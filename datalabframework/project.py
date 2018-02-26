@@ -2,10 +2,24 @@ import os
 import sys
 import io
 import types
-import logging
+import subprocess
 
 import nbformat
 from IPython.core.interactiveshell import InteractiveShell
+
+def gitinfo():
+    PIPE = subprocess.PIPE
+
+    process = subprocess.Popen(['git', 'show', '-s', '--pretty=format:"%h,%an,%ae,%at"'], stdout=PIPE, stderr=PIPE)
+    [shorthash, author, email, ts] = process.stdout.read().decode('UTF-8')[1:-1].split(',')
+
+    process = subprocess.Popen(['git', 'show', '--shortstat'], stdout=PIPE, stderr=PIPE)
+    dirty = process.stdout.read().decode('UTF-8')[1:-1]!=''
+    
+    process = subprocess.Popen(['git', 'remote', 'get-url', 'origin'], stdout=PIPE, stderr=PIPE)
+    basename = os.path.basename(process.stdout.read().decode('UTF-8')[1:-1])
+    
+    return {'hash':shorthash, 'author':author, 'email':email, 'date':ts, 'dirty':dirty, 'repo': basename}
 
 def rootpath(rootfile='main.ipynb'):
 

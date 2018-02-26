@@ -10,12 +10,21 @@ import datetime
 import traceback as tb
 import json
 
-import getpass
 import sys
 import os
 
 #import a few help methods
 from . import project
+from . import notebook
+from . import params
+
+_logger = None
+
+def logger():
+    global _logger
+    if not _logger:
+        init()
+    return _logger
 
 def _default_json_default(obj):
     """
@@ -109,8 +118,6 @@ class LogstashFormatter(logging.Formatter):
     def _build_fields(self, defaults, fields):
         d = defaults.get('@fields', {})
         d.update(fields)
-        d.update({'username':getpass.getuser()})
-
         return d
 
 class KafkaLoggingHandler(logging.Handler):
@@ -131,47 +138,50 @@ class KafkaLoggingHandler(logging.Handler):
             self.producer.stop()
         logging.Handler.close(self)
 
-def initLogger(name, level = logging.DEBUG, kafka_topic=None, kafka_servers=None):
+loggingLevels = {
+    'debug': logging.DEBUG,
+    'info': logging.INFO, 
+    'warnning': logging.WARNING, 
+    'error': logging.ERROR,
+    'fatal': logging.FATAL
+}
+        
+def init():
+    global _logger
     
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
+    md = params.metadata()
+    info = list(project.gitinfo().values()) + list(notebook.filename())
 
-    # create kafka handler and set level to debug
-    if KafkaProducer and kafka_topic and kafka_servers:
+    logger = logging.getLogger()
+    level = loggingLevels.get(md['logging'].get('severity'))
+    logger.setLevel(level)
+    
+    p = md['logging']['handlers'].get('stream')
+    if p and p['enable']:
+        level = loggingLevels.get(p.get('severity'))
+
+        # create console handler and set level to debug
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - {} - {} - {} - {} - {} - {} - {} - {} - %(message)s'.format(*info))
+        handler = logging.StreamHandler(sys.stdout,)
+        handler.setLevel(level)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+
+    p = md['logging']['handlers'].get('kafka')
+    if p and p['enable']:
+        
+        level = loggingLevels.get(p.get('severity'))
+        topic = p.get('topic')
+        hosts = p.get('hosts')
 
         #disable logging for 'kafka.KafkaProducer'
         logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())
 
         formatterLogstash = LogstashFormatter()
-        handlerKafka = KafkaLoggingHandler(kafka_topic, kafka_servers)
+        handlerKafka = KafkaLoggingHandler(topic, hosts)
         handlerKafka.setLevel(level)
         handlerKafka.setFormatter(formatterLogstash)
         logger.addHandler(handlerKafka)
-        
-    # create console handler and set level to debug
-    formatter = logging.Formatter('%(asctime)s - {} - %(name)s - %(levelname)s - %(message)s - %(context)s'.format(getpass.getuser()))
-    handler = logging.StreamHandler(sys.stdout,)
-    handler.setLevel(level)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
 
-    #first log entry here
-    extra= {'context': 
-        {
-            'notebook': {
-                'filename':project.filename(), 
-                'filepath':os.path.dirname(os.path.abspath(project.filename())) if project.filename() else None
-            },
-            'project': {
-                'main': 'main.ipynb',
-                'rootpath':project.rootpath(), 
-            },
-            'datalab': {
-                'framework': '0.1'
-            }
-        }
-    }
-
-    logger.info('init', extra=extra)
-
-    return logger
+    _logger = logger

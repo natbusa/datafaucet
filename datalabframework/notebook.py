@@ -31,6 +31,13 @@ from nbconvert.preprocessors.execute import CellExecutionError
 
 from .project import rootpath
 
+def lrchop(s, b='', e='.ipynb'):
+    if s.startswith(b) and len(b)>0:
+        s = s[len(b):]
+    if s.endswith(e) and len(e)>0:
+        s = s[:-len(e)]
+    return s
+
 def get_notebook_filename():
     """
     Return the full path of the jupyter notebook.
@@ -46,6 +53,14 @@ def get_notebook_filename():
                 relative_path = nn['notebook']['path']
                 return os.path.join(ss['notebook_dir'], relative_path)
 
+def filename(s=None, ext='.ipynb'):
+    if not s:
+        s = get_notebook_filename()
+        
+    s = lrchop(s,rootpath(), ext).lstrip('/')
+    (path, name) = os.path.split(s)
+    return (path, name)
+            
 def list_all(path=None, removelist=[]):
     
     if not path:

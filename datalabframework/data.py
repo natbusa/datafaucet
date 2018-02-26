@@ -1,10 +1,24 @@
 from . import params
 from . import project
+from . import notebook
 
-def geturi(datasource):
-    md = params.metadata()
+def uri(datasource):
+    if not datasource.startswith('.'):
+        path = notebook.filename()[0].replace('/','.')
+        prefix = '.' if path else ''
+        datasource = '{}{}.{}'.format(prefix, path,datasource)
     
-    ds = md['data']['resources'].get(datasource)
+    return datasource
+
+def metadata(datasource):
+    md = params.metadata()
+    ds = md['data']['resources'].get(uri(datasource))
+
+    return ds
+
+def path(datasource):
+    md = params.metadata()
+    ds = metadata(datasource)
     pd = md['data']['providers'][ds['provider']]
     
     if pd['service']=='fs':
@@ -17,4 +31,3 @@ def geturi(datasource):
         return path
     
     return None
-   

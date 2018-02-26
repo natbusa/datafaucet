@@ -17,3 +17,6 @@ if project.rootpath() and project.rootpath() not in sys.path:
 
 # register hook for loading ipynb files
 sys.meta_path.append(project.NotebookFinder())
+
+# read metadata on module loading
+params.read_metadata()
