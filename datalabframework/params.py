@@ -10,11 +10,18 @@ from . import notebook
 from copy import deepcopy
 
 def merge(a, b):
+    if not a:
+        a = dict()
+    
+    if not b:
+        b = dict()
+    
     if isinstance(b, dict) and isinstance(a, dict):
         a_and_b = a.keys() & b.keys()
         every_key = a.keys() | b.keys()
         return {k: merge(a[k], b[k]) if k in a_and_b else 
                    deepcopy(a[k] if k in a else b[k]) for k in every_key}
+    
     return deepcopy(b)
 
 _metadata = dict()
@@ -88,7 +95,5 @@ def read_metadata(envvar='DLF_METADATA', encode='utf-8'):
     _metadata = metadata
 
 def metadata():
-    if not _metadata:
-        read_metadata()
-        
+    read_metadata()
     return _metadata

@@ -17,9 +17,20 @@ def gitinfo():
     dirty = process.stdout.read().decode('UTF-8')[1:-1]!=''
     
     process = subprocess.Popen(['git', 'remote', 'get-url', 'origin'], stdout=PIPE, stderr=PIPE)
-    basename = os.path.basename(process.stdout.read().decode('UTF-8')[1:-1])
+    origin = process.stdout.read().decode('UTF-8')[:-1]
+    basename = os.path.splitext(os.path.basename(origin))[0]
     
-    return {'hash':shorthash, 'author':author, 'email':email, 'date':ts, 'dirty':dirty, 'repo': basename}
+    d = {
+        'git_commit_hash':shorthash, 
+        'git_commit_author':author, 
+        'git_commit_email':email, 
+        'git_commit_date':ts, 
+        'git_commit_dirty':dirty, 
+        'git_origin': origin, 
+        'git_repo': basename
+    }
+
+    return d
 
 def rootpath(rootfile='main.ipynb'):
 
