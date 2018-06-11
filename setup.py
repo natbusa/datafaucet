@@ -5,7 +5,7 @@ setup(name='datalabframework',
       install_requires=[
         'requests',
         'kafka-python',
-        'yaml'
+        'PyYAML'
       ],
       description='Scaffolding Data Science with Python Notebooks',
       url='http://github.com/natbusa/datalabframework',
