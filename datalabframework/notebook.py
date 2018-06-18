@@ -1,6 +1,4 @@
-import os.walk
-import os.path
-
+import os
 import datetime
 import nbformat
 
