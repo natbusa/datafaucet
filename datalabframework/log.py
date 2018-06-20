@@ -136,7 +136,6 @@ def init():
 
     info = dict()
     info.update({'username': getpass.getuser()})
-    info.update(project.gitinfo())
     info.update({'filename': notebook.filename(ext='')[1], 'filepath': notebook.filename()[0]})
 
     logger = logging.getLogger()

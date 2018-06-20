@@ -7,32 +7,9 @@ import subprocess
 import nbformat
 from IPython.core.interactiveshell import InteractiveShell
 
-def gitinfo():
-    PIPE = subprocess.PIPE
+def rootpath():
 
-    process = subprocess.Popen(['git', 'show', '-s', '--pretty=format:"%h,%an,%ae,%at"'], stdout=PIPE, stderr=PIPE)
-    [shorthash, author, email, ts] = process.stdout.read().decode('UTF-8')[1:-1].split(',')
-
-    process = subprocess.Popen(['git', 'show', '--shortstat'], stdout=PIPE, stderr=PIPE)
-    dirty = process.stdout.read().decode('UTF-8')[1:-1]!=''
-    
-    process = subprocess.Popen(['git', 'remote', 'get-url', 'origin'], stdout=PIPE, stderr=PIPE)
-    origin = process.stdout.read().decode('UTF-8')[:-1]
-    basename = os.path.splitext(os.path.basename(origin))[0]
-    
-    d = {
-        'git_commit_hash':shorthash, 
-        'git_commit_author':author, 
-        'git_commit_email':email, 
-        'git_commit_date':ts, 
-        'git_commit_dirty':dirty, 
-        'git_origin': origin, 
-        'git_repo': basename
-    }
-
-    return d
-
-def rootpath(rootfile='main.ipynb'):
+    rootfile='main.ipynb'
 
     path = '.'
     while True:
@@ -51,7 +28,7 @@ def rootpath(rootfile='main.ipynb'):
 
 def find_notebook(fullname, path=None):
     """find a notebook, given its fully qualified name and an optional path
-    
+
     This turns "foo.bar" into "foo/bar.ipynb"
     and tries turning "Foo_Bar" into "Foo Bar" if Foo_Bar
     does not exist.
@@ -73,17 +50,17 @@ class NotebookLoader(object):
     def __init__(self, path=None):
         self.shell = InteractiveShell.instance()
         self.path = path
-    
+
     def load_module(self, fullname):
         """import a notebook as a module"""
         path = find_notebook(fullname, self.path)
-        
+
         print ("importing Jupyter notebook from %s" % path)
-                                       
+
         # load the notebook object
         with io.open(path, 'r', encoding='utf-8') as f:
             nb = nbformat.read(f, 4)
-        
+
         # create the module and add it to sys.modules
         # if name in sys.modules:
         #    return sys.modules[name]
@@ -92,12 +69,12 @@ class NotebookLoader(object):
         mod.__loader__ = self
         mod.__dict__['get_ipython'] = get_ipython
         sys.modules[fullname] = mod
-        
+
         # extra work to ensure that magics that would affect the user_ns
         # actually affect the notebook module's ns
         save_user_ns = self.shell.user_ns
         self.shell.user_ns = mod.__dict__
-        
+
         try:
           for cell in nb.cells:
             if cell['cell_type'] == 'code' and cell['source'].startswith('#EXPORT'):
@@ -114,17 +91,17 @@ class NotebookFinder(object):
     """Module finder that locates Jupyter Notebooks"""
     def __init__(self):
         self.loaders = {}
-    
+
     def find_module(self, fullname, path=None):
         nb_path = find_notebook(fullname, path)
         if not nb_path:
             return
-        
+
         key = path
         if path:
             # lists aren't hashable
             key = os.path.sep.join(path)
-        
+
         if key not in self.loaders:
             self.loaders[key] = NotebookLoader(path)
         return self.loaders[key]
