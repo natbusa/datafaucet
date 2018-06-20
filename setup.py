@@ -6,7 +6,7 @@ setup(name='datalabframework',
         'requests',
         'pyyaml'
       ],
-      description='Scaffolding Data Science with Python Notebooks',
+      description='Productivity Utilities for Data Science with Python Notebooks',
       url='http://github.com/natbusa/datalabframework',
       author='Natalino Busa',
       author_email='natalino.busa@gmail.com',
