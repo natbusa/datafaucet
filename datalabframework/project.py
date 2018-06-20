@@ -9,7 +9,7 @@ from IPython.core.interactiveshell import InteractiveShell
 
 def rootpath():
 
-    rootfile='main.ipynb'
+    rootfile='__main__.py'
 
     path = '.'
     while True:
