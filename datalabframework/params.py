@@ -36,7 +36,7 @@ def get_metadata_files():
         dirs[:] = [d for d in dirs if d not in exclude]
         for file in files:
             if file=='metadata.yml':
-                basedir = root[len(path):].lstrip('/')
+                basedir = root[len(top):].lstrip('/')
                 filename = os.path.join(basedir, file)
                 lst.append(filename)
     return lst
