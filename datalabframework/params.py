@@ -26,14 +26,14 @@ def merge(a, b):
 
 _metadata = dict()
 
-def get_metadata():
+def get_metadata_files():
 
-    path  = project.rootpath()
-    if not path:
-        path  = '.'
+    top  = project.rootpath()
+    exclude = ['metadata.ignore.yml']
 
     lst = list()
-    for root, dirs, files in os.walk(path):
+    for root, dirs, files in os.walk(top, topdown=True):
+        dirs[:] = [d for d in dirs if d not in exclude]
         for file in files:
             if file=='metadata.yml':
                 basedir = root[len(path):].lstrip('/')
@@ -66,7 +66,7 @@ def read_metadata(envvar='DLF_METADATA', encode='utf-8'):
             pass
 
     else:
-        l = get_metadata()
+        l = get_metadata_files()
         filenames = ['{}/{}'.format(project.rootpath(),name) for name in l]
 
         for filename in filenames:
