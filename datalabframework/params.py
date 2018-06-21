@@ -30,15 +30,19 @@ def get_metadata_files():
 
     top  = project.rootpath()
     exclude = ['metadata.ignore.yml']
+    metadata_filename = 'metadata.yml'
 
     lst = list()
     for root, dirs, files in os.walk(top, topdown=True):
-        dirs[:] = [d for d in dirs if d not in exclude]
-        for file in files:
-            if file=='metadata.yml':
+        if any(x in files for x in exclude):
+            dirs[:] = []
+            next
+        
+        if metadata_filename in files:
                 basedir = root[len(top):].lstrip('/')
-                filename = os.path.join(basedir, file)
+                filename = os.path.join(basedir, metadata_filename)
                 lst.append(filename)
+    
     return lst
 
 def read_metadata(envvar='DLF_METADATA', encode='utf-8'):
