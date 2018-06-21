@@ -26,19 +26,27 @@ class SparkEngine():
     def context(self):
         return self._ctx
 
-    def read(self, resource):
+    def read(self, resource, **kargs):
         path = data.path(resource)
         md = data.metadata(resource)
 
         if md['format']=='csv':
-            return self._ctx.read.csv(path, inferSchema="true", header="true")
-
-    def write(self, obj, resource):
+            return self._ctx.read.csv(path, **kargs)
+        elif md['format']=='parquet':
+            return self._ctx.read.parquet(path, **kargs)
+        else
+            raise('downt know how to handle this')
+            
+    def write(self, obj, resource, **kargs):
         path = data.path(resource)
         md = data.metadata(resource)
 
         if md['format']=='csv':
-            return obj.write.csv(path, mode='overwrite', header="true")
+            return obj.write.csv(path, **kargs)
+        elif md['format']=='parquet':
+            return obj.write.parquet(path, **kargs)
+        else
+            raise('downt know how to handle this')
 
 class PandasEngine():
     def __init__(self, name, config):
@@ -50,25 +58,29 @@ class PandasEngine():
     def context(self):
         return self._ctx
 
-    def read(self, resource):
+    def read(self, resource, **kargs):
         uri = data.uri(resource)
         path = data.path(resource)
         md = data.metadata(resource)
 
         if md['format']=='csv':
-            return self._ctx.read_csv(path)
-        if md['format']=='hdf':
-            return self._ctx.read_hdf(path, uri.replace('.','_'))
+            return self._ctx.read_csv(path, **kargs)
+        elif md['format']=='parquet':
+            return self._ctx.read_parquet(path, **kargs)
+        else
+            raise('downt know how to handle this')
 
-    def write(self, obj, resource):
+    def write(self, obj, resource, **kargs):
         uri = data.uri(resource)
         path = data.path(resource)
         md = data.metadata(resource)
 
         if md['format']=='csv':
-            return obj.to_csv(path)
-        if md['format']=='hdf':
-            return obj.to_hdf(path, uri.replace('.','_'))
+            return obj.to_csv(path, **kargs)
+        elif md['format']=='parquet':
+            return obj.tp_parquet(path, **kargs)
+        else
+            raise('downt know how to handle this')
 
 class NumpyEngine():
     def __init__(self, name, config):
@@ -80,21 +92,25 @@ class NumpyEngine():
     def context(self):
         return self._ctx
 
-    def read(self, resource):
+    def read(self, resource, **kargs):
         uri = data.uri(resource)
         path = data.path(resource)
         md = data.metadata(resource)
 
         if md['format']=='csv':
-            return self._ctx.genfromtxt(path, delimiter=',')
+            return self._ctx.genfromtxt(path, **kargs)
+        else
+            raise('downt know how to handle this')
 
-    def write(self, obj, resource):
+    def write(self, obj, resource, **kargs):
         uri = data.uri(resource)
         path = data.path(resource)
         md = data.metadata(resource)
 
         if md['format']=='csv':
-            return self._ctx.savetxt(path, obj, delimiter=',')
+            return self._ctx.savetxt(path, obj, **kargs)
+        else
+            raise('downt know how to handle this')
 
 def get(name):
     global engines
