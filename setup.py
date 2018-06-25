@@ -1,10 +1,11 @@
 from setuptools import setup
 
 setup(name='datalabframework',
-      version='0.1.8',
+      version='0.1.9',
       install_requires=[
         'requests',
-        'pyyaml'
+        'pyyaml',
+        'jupyter'
       ],
       description='Productivity Utilities for Data Science with Python Notebooks',
       url='http://github.com/natbusa/datalabframework',

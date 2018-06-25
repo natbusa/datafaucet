@@ -11,7 +11,7 @@ from . import engines
 __all__ = ['log', 'notebook', 'project', 'params', 'data', 'engines']
 
 # Add rootpath() if available
-if project.rootpath() and project.rootpath() not in sys.path: 
+if project.rootpath() and project.rootpath() not in sys.path:
     sys.path.append(project.rootpath())
 
 # register hook for loading ipynb files
