@@ -1,25 +1,27 @@
 from . import params
 from . import project
 from . import notebook
+from . import utils
 
 def uri(datasource):
     if not datasource.startswith('.'):
-        path = notebook.filename()[0].replace('/','.')
-        prefix = '.' if path else ''
-        datasource = '{}{}.{}'.format(prefix, path, datasource)
-
+        f = notebook.get_filename()
+        p = f.rfind('/')
+        resource_path = f[:p+1].replace('/','.') if p>0 else '.'
+        datasource = '{}{}'.format(resource_path, datasource)
+    
     return datasource
 
 def metadata(datasource):
     md = params.metadata()
-    ds = md['data']['resources'].get(uri(datasource))
+    ds = md['resources'].get(uri(datasource))
 
     return ds
 
 def path(datasource):
     md = params.metadata()
     ds = metadata(datasource)
-    pd = md['data']['providers'][ds['provider']]
+    pd = md['providers'][ds['provider']]
 
     if pd['service']=='fs':
 

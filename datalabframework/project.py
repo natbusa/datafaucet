@@ -7,24 +7,17 @@ import subprocess
 import nbformat
 from IPython.core.interactiveshell import InteractiveShell
 
-def rootpath():
-
-    rootfile='__main__.py'
-
+def rootpath(rootfile='__main__.py'):
     path = '.'
     while True:
-        ls = os.listdir(path)
-        if rootfile in ls:
-            return os.path.abspath(path)
-
-        # we should still be inside a python (hierarchical) package
-        # if not, we have gone too far
-        if '__init__.py' not in ls:
-            return None
-
+        try:
+            ls = os.listdir(path)
+            if rootfile in ls:
+                return os.path.abspath(path)
+        except:
+            break
         path += '/..'
-
-    return None
+    raise('Could not find __main__.py')
 
 def find_notebook(fullname, path=None):
     """find a notebook, given its fully qualified name and an optional path

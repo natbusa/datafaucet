@@ -121,7 +121,7 @@ def get(name):
     if not engine:
         #create
         md = params.metadata()
-        cn = md['execution']['engines'].get(name)
+        cn = md['engines'].get(name)
         config = cn.get('config', {})
 
         if cn['context']=='spark':

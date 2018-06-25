@@ -1,103 +1,45 @@
 import os
-import base64
-import binascii
-
 import yaml
 
-from . import project
-from . import notebook
+from . import utils
 
-from copy import deepcopy
+DLF_METADATA_FILE = 'DLF_MD_FILE'
+DLF_METADATA_RUN  = 'DLF_MD_RUN'
 
-def merge(a, b):
-    if not a:
-        a = dict()
-
-    if not b:
-        b = dict()
-
-    if isinstance(b, dict) and isinstance(a, dict):
-        a_and_b = a.keys() & b.keys()
-        every_key = a.keys() | b.keys()
-        return {k: merge(a[k], b[k]) if k in a_and_b else
-                   deepcopy(a[k] if k in a else b[k]) for k in every_key}
-
-    return deepcopy(b)
-
-_metadata = dict()
-
-def get_metadata_files():
-
-    top  = project.rootpath()
-    exclude = ['metadata.ignore.yml']
-    metadata_filename = 'metadata.yml'
-
-    lst = list()
-    for root, dirs, files in os.walk(top, topdown=True):
-        if any(x in files for x in exclude):
-            dirs[:] = []
-            next
-        
-        if metadata_filename in files:
-                basedir = root[len(top):].lstrip('/')
-                filename = os.path.join(basedir, metadata_filename)
-                lst.append(filename)
+def _hierarchical_resource(filename, params):
+    f = utils.relative_filename(filename)
+    p = f.rfind('/')
+    resource_path = f[:p+1].replace('/','.') if p>0 else ''
     
-    return lst
+    d = params.get('resources', {})
+    r = dict()
+    for k,v in d.items():
+        if k.startswith('.'):
+            r[k] = v
+        else:
+            alias_abs = '.{}{}'.format(resource_path,k)
+            r[alias_abs] = v
+    return r
 
-def read_metadata(envvar='DLF_METADATA', encode='utf-8'):
-    global _metadata
+def metadata(all_runs=False):
+    v = os.getenv(DLF_METADATA_FILE)
+    mf = utils.get_project_files(ext='metadata.yml', ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
+    filenames = [v] if v else mf
+    
+    runs = {}
+    
+    for filename in filenames:
+        f = open(filename,'r')
+        docs = list(yaml.load_all(f))
+        for params in docs:
+            k = params['run'] if 'run' in params else 'default'
+            params['resources'] = _hierarchical_resource(filename, params)
+            runs[k] = utils.merge(runs.get(k,{}), params)
+    
+    v = os.getenv(DLF_METADATA_RUN)
+    r = v if v else 'default'
+    
+    return runs if all_runs else runs[r] 
 
-    v = os.getenv(envvar)
-    metadata = dict()
-    if v:
-        try:
-            md = envvar
-            if encode=='base64':
-                md = base64.b64decode(v)
-                md = pdata.decode('utf-8')
-
-            params = yaml.load(md)
-            metadata = merge(metadata, params)
-        except:
-            pass
-
-        try:
-            f = open(v,'r')
-            params = yaml.load(f)
-            metadata = merge(metadata, params)
-        except:
-            pass
-
-    else:
-        l = get_metadata_files()
-        filenames = ['{}/{}'.format(project.rootpath(),name) for name in l]
-
-        for filename in filenames:
-            f = open(filename,'r')
-            params = yaml.load(f)
-
-            path = notebook.filename(filename, '')[0].replace('/','.')
-            prefix = '.' if path else ''
-            try:
-                d = params['data']['resources']
-                r = dict()
-                for k,v in d.items():
-                    if k.startswith('.'):
-                        r[k] = v
-                    else:
-                        alias_abs = '{}{}.{}'.format(prefix, path,k)
-                        r[alias_abs] = v
-
-                params['data']['resources'] = r
-            except:
-                pass
-
-            metadata = merge(metadata, params)
-
-    #return the updated arg_dict as a named tuple
-    _metadata = metadata
-
-def metadata():
-    read_metadata()
-    return _metadata
+def pretty_print(metadata):
+    print(yaml.dump(metadata, indent=2, default_flow_style=False))

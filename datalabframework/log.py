@@ -124,7 +124,7 @@ class KafkaLoggingHandler(logging.Handler):
 loggingLevels = {
     'debug': logging.DEBUG,
     'info': logging.INFO,
-    'warnning': logging.WARNING,
+    'warning': logging.WARNING,
     'error': logging.ERROR,
     'fatal': logging.FATAL
 }
@@ -141,17 +141,15 @@ def init():
     logger = logging.getLogger()
     logger.handlers = []
 
-    level = loggingLevels.get(md['logging'].get('severity'))
-    logger.setLevel(level)
-
-    p = md['logging']['handlers'].get('kafka')
+    p = md['loggers'].get('kafka')
     if p and p['enable'] and KafkaProducer:
 
         level = loggingLevels.get(p.get('severity'))
         topic = p.get('topic')
         hosts = p.get('hosts')
 
-        #disable logging for 'kafka.KafkaProducer'
+        # disable logging for 'kafka.KafkaProducer' 
+        # to avoid infinite logging recursion on kafka 
         logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())
 
         formatterLogstash = LogstashFormatter(json.dumps({'extra':info}))
@@ -161,7 +159,7 @@ def init():
         logger.addHandler(handlerKafka)
 
 
-    p = md['logging']['handlers'].get('stream')
+    p = md['loggers'].get('stream')
     if p and p['enable']:
         level = loggingLevels.get(p.get('severity'))
 
@@ -176,8 +174,6 @@ def init():
 
 def logger():
     global _logger
-
     if not _logger:
         init()
-
     return _logger
