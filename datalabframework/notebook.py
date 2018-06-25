@@ -4,24 +4,19 @@ import nbformat
 
 import json
 import re
-import ipykernel
+
 import requests
+
+try:
+    import ipykernel
+    from notebook.notebookapp import list_running_servers
+except:
+    ipykernel=None
 
 try:  # Python 3
     from urllib.parse import urljoin
 except ImportError:  # Python 2
     from urlparse import urljoin
-
-try:  # Python 3
-    from notebook.notebookapp import list_running_servers
-except ImportError:  # Python 2
-    import warnings
-    from IPython.utils.shimmodule import ShimWarning
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=ShimWarning)
-        from IPython.html.notebookapp import list_running_servers
-
-from nbconvert.preprocessors import ClearOutputPreprocessor
 
 from . import utils
 
@@ -29,6 +24,9 @@ def _get_filename():
     """
     Return the full path of the jupyter notebook.
     """
+    if not ipykernel:
+        return ''
+
     kernel_id = re.search('kernel-(.*).json',
                           ipykernel.connect.get_connection_file()).group(1)
     servers = list_running_servers()

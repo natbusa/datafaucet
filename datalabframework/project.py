@@ -5,7 +5,6 @@ import types
 import subprocess
 
 import nbformat
-from IPython.core.interactiveshell import InteractiveShell
 
 def rootpath(rootfile='__main__.py'):
     path = '.'
@@ -17,7 +16,15 @@ def rootpath(rootfile='__main__.py'):
         except:
             break
         path += '/..'
-    raise('Could not find __main__.py')
+
+    path = os.getcwd()
+    print('Could not find {}, defaulting to {}'.format(rootfile, path))
+    return path
+
+try:
+    from IPython.core.interactiveshell import InteractiveShell
+except:
+    InteractiveShell=None
 
 def find_notebook(fullname, path=None):
     """find a notebook, given its fully qualified name and an optional path
@@ -41,10 +48,16 @@ def find_notebook(fullname, path=None):
 class NotebookLoader(object):
     """Module Loader for Jupyter Notebooks"""
     def __init__(self, path=None):
+        if not InteractiveShell:
+            return
+
         self.shell = InteractiveShell.instance()
         self.path = path
 
     def load_module(self, fullname):
+        if not InteractiveShell:
+            return
+
         """import a notebook as a module"""
         path = find_notebook(fullname, self.path)
 
@@ -96,5 +109,8 @@ class NotebookFinder(object):
             key = os.path.sep.join(path)
 
         if key not in self.loaders:
-            self.loaders[key] = NotebookLoader(path)
+            mod = NotebookLoader(path)
+            if mod:
+                self.loaders[key] = NotebookLoader(path)
+
         return self.loaders[key]

@@ -11,8 +11,8 @@ def merge(a, b):
         b = dict()
 
     if isinstance(b, dict) and isinstance(a, dict):
-        a_and_b = a.keys() & b.keys()
-        every_key = a.keys() | b.keys()
+        a_and_b = a.keys() and b.keys()
+        every_key = a.keys() or b.keys()
         return {k: merge(a[k], b[k]) if k in a_and_b else
                    deepcopy(a[k] if k in a else b[k]) for k in every_key}
 
@@ -29,13 +29,10 @@ def relative_filename(s):
     return lrchop(s,rootpath()).lstrip('/')
 
 def absolute_filename(s):
-    return s if s.beginswith('/') else '{}/{}'.format(rootpath(),s)
+    return s if s.startswith('/') else '{}/{}'.format(rootpath(),s)
 
 def get_project_files(ext, exclude_dirs=[], ignore_dir_with_file='', relative_path=True):
     top  = rootpath()
-
-    exclude = ['metadata.ignore.yml']
-    metadata_filename = 'metadata.yml'
 
     lst = list()
     for root, dirs, files in os.walk(top, topdown=True):
@@ -46,12 +43,12 @@ def get_project_files(ext, exclude_dirs=[], ignore_dir_with_file='', relative_pa
         if ignore_dir_with_file in files:
             dirs[:] = []
             next
-        
+
         for file in files:
             if file.endswith(ext):
                 f = os.path.join(root, file)
                 lst.append(relative_filename(f) if relative_path else f)
-    
+
     return lst
 
 #get_project_files(ext='metadata.yml', ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
