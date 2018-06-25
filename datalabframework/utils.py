@@ -26,6 +26,7 @@ def lrchop(s, b='', e=''):
     return s
 
 def relative_filename(s):
+    print(rootpath())
     return lrchop(s,rootpath()).lstrip('/')
 
 def absolute_filename(s):
