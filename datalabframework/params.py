@@ -50,5 +50,5 @@ def metadata_info():
         relative_path=True)
     rootpath=project.rootpath()
     runs = metadata(True).keys()
-    info = {'files': mf, 'runs': runs, 'rootpath': rootpath}
+    info = {'files': mf, 'runs': list(runs), 'rootpath': rootpath}
     return info
