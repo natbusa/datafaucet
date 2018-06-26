@@ -1,4 +1,5 @@
 import os
+import yaml
 from copy import deepcopy
 
 def merge(a, b):
@@ -49,5 +50,8 @@ def get_project_files(ext, rootpath='.', exclude_dirs=[], ignore_dir_with_file='
 
     return lst
 
+def pretty_print(metadata):
+    print(yaml.dump(metadata, indent=2, default_flow_style=False))
+    
 #get_project_files(ext='metadata.yml', ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
 #get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
