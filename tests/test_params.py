@@ -92,3 +92,37 @@ class Test_rootpath(object):
             'default': {'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}},
             'second': {'c': {'d': 'lalala'},'resources': {'.abc.world': {'b': 2}},'run': 'second'}
             })
+
+class Test_metadata_info(object):
+    def test_multiple_files(self,dir):
+        yml_1 = '''\
+                ---
+                a:
+                    b: 'ohoh'
+                ---
+                run: second
+                c:
+                    d: 'lalala'
+               '''
+        yml_2 = '''\
+                ---
+                resources:
+                    hello:
+                        a:1
+                ---
+                run: second
+                resources:
+                    world:
+                        b: 2
+               '''
+
+        subdir = dir.makedir('abc')
+        dir.write('__main__.py', b'')
+        dir.write('metadata.yml', dedent(yml_1).encode())
+        dir.write('abc/metadata.yml', dedent(yml_2).encode())
+        res = {
+            'files': ['metadata.yml', 'abc/metadata.yml'],
+            'rootpath': dir.path,
+            'runs': ['default', 'second']
+            }
+        assert(params.metadata_info()==res)

@@ -29,7 +29,6 @@ def metadata(all_runs=False):
 
     runs = {}
 
-    print(filenames)
     for filename in filenames:
         f = open(filename,'r')
         docs = list(yaml.load_all(f))
@@ -42,3 +41,14 @@ def metadata(all_runs=False):
     r = v if v else 'default'
 
     return runs if all_runs else runs[r]
+
+def metadata_info():
+    mf = utils.get_project_files(
+        ext='metadata.yml',
+        rootpath=project.rootpath(),
+        ignore_dir_with_file='metadata.ignore.yml',
+        relative_path=True)
+    rootpath=project.rootpath()
+    runs = metadata(True).keys()
+    info = {'files': mf, 'runs': runs, 'rootpath': rootpath}
+    return info
