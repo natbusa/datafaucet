@@ -19,16 +19,21 @@ except ImportError:  # Python 2
     from urlparse import urljoin
 
 from . import utils
+from . import project
 
 def _get_filename():
     """
     Return the full path of the jupyter notebook.
     """
     if not ipykernel:
-        return ''
+        return os.path.basename(__file__)
 
-    kernel_id = re.search('kernel-(.*).json',
-                          ipykernel.connect.get_connection_file()).group(1)
+    try:
+        kernel_filename = ipykernel.connect.get_connection_file()
+    except:
+        return os.path.basename(__file__)
+
+    kernel_id = re.search('kernel-(.*).json',kernel_filename).group(1)
     servers = list_running_servers()
     for ss in servers:
         response = requests.get(urljoin(ss['url'], 'api/sessions'),
@@ -40,11 +45,11 @@ def _get_filename():
 
 def get_filename(relative_path=True):
     f = _get_filename()
-    return utils.relative_filename(f) if relative_path else f
+    return utils.relative_filename(f, project.rootpath()) if relative_path else f
 
 def statistics(filename):
     data = {}
-    with open(utils.absolute_filename(filename)) as f:
+    with open(utils.absolute_filename(filename, project.rootpath())) as f:
         data = json.load(f)
 
     #todo: check for filetype

@@ -26,7 +26,7 @@ try:
 except:
     InteractiveShell=None
 
-def find_notebook(fullname, path=None):
+def find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
 
     This turns "foo.bar" into "foo/bar.ipynb"
@@ -34,9 +34,9 @@ def find_notebook(fullname, path=None):
     does not exist.
     """
     name = fullname.rsplit('.', 1)[-1]
-    if not path:
-        path = ['']
-    for d in path:
+    if not paths:
+        paths = ['']
+    for d in paths:
         nb_path = os.path.join(d, name + ".ipynb")
         if os.path.isfile(nb_path):
             return nb_path

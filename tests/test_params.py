@@ -15,18 +15,18 @@ def dir():
 
 class Test_rootpath(object):
     def test_minimal(self, dir):
-        yml = b'''\
+        yml = '''\
                ---
                a:
                  b: 'ohoh'
                  c: 42
                  s: 1
                '''
-        dir.write('metadata.yml', dedent(yml))
+        dir.write('metadata.yml', dedent(yml).encode())
         assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': {}})
 
     def test_minimal_with_resources(self, dir):
-        yml = b'''\
+        yml = '''\
                 ---
                 a:
                     b: 'ohoh'
@@ -36,11 +36,11 @@ class Test_rootpath(object):
                     hello:
                         best:resource
                '''
-        dir.write('metadata.yml', dedent(yml))
+        dir.write('metadata.yml', dedent(yml).encode())
         assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': { '.hello': 'best:resource'}})
 
     def test_multiple_docs(self,dir):
-        yml = b'''\
+        yml = '''\
                 ---
                 a:
                     b: 'ohoh'
@@ -55,7 +55,7 @@ class Test_rootpath(object):
                     world:
                         b: 2
                '''
-        dir.write('metadata.yml', dedent(yml))
+        dir.write('metadata.yml', dedent(yml).encode())
         assert(params.metadata()=={'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'}})
         assert(params.metadata(True)=={
             'default': {'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'}},
@@ -63,7 +63,7 @@ class Test_rootpath(object):
             })
 
     def test_multiple_files(self,dir):
-        yml_1 = b'''\
+        yml_1 = '''\
                 ---
                 a:
                     b: 'ohoh'
@@ -72,7 +72,7 @@ class Test_rootpath(object):
                 c:
                     d: 'lalala'
                '''
-        yml_2 = b'''\
+        yml_2 = '''\
                 ---
                 resources:
                     hello:
@@ -85,8 +85,8 @@ class Test_rootpath(object):
                '''
 
         subdir = dir.makedir('abc')
-        dir.write('metadata.yml', dedent(yml_1))
-        dir.write('abc/metadata.yml', dedent(yml_2))
+        dir.write('metadata.yml', dedent(yml_1).encode())
+        dir.write('abc/metadata.yml', dedent(yml_2).encode())
         assert(params.metadata()=={'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}})
         assert(params.metadata(True)=={
             'default': {'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}},

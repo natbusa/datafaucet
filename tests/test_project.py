@@ -29,3 +29,13 @@ class Test_rootpath(object):
         os.chdir(subdir)
         assert(project.rootpath()==dir.path)
         assert(project.rootpath('test.123')==dir.path)
+
+def test_find_notebook(dir):
+    subdir = dir.makedir('abc')
+    dir.write('foo.ipynb', b'')
+    dir.write('foo bar.ipynb', b'')
+    dir.write('abc/bar.ipynb', b'')
+    assert(project.find_notebook('foo', [dir.path])==dir.path+'/foo.ipynb')
+    assert(project.find_notebook('foo')=='foo.ipynb')
+    assert(project.find_notebook('abc.bar', ['abc'])=='abc/bar.ipynb')
+    assert(project.find_notebook('foo_bar')=='foo bar.ipynb')
