@@ -1,8 +1,6 @@
 import os
 from copy import deepcopy
 
-from .project import rootpath
-
 def merge(a, b):
     if not a:
         a = dict()
@@ -11,8 +9,8 @@ def merge(a, b):
         b = dict()
 
     if isinstance(b, dict) and isinstance(a, dict):
-        a_and_b = a.keys() and b.keys()
-        every_key = a.keys() or b.keys()
+        a_and_b = set(a.keys()) & set(b.keys())
+        every_key = set(a.keys()) | set(b.keys())
         return {k: merge(a[k], b[k]) if k in a_and_b else
                    deepcopy(a[k] if k in a else b[k]) for k in every_key}
 
@@ -25,15 +23,14 @@ def lrchop(s, b='', e=''):
         s = s[:-len(e)]
     return s
 
-def relative_filename(s):
-    print(rootpath())
-    return lrchop(s,rootpath()).lstrip('/')
+def relative_filename(s, rootpath='.'):
+    return lrchop(s,rootpath).lstrip('/')
 
-def absolute_filename(s):
-    return s if s.startswith('/') else '{}/{}'.format(rootpath(),s)
+def absolute_filename(s, rootpath='.'):
+    return s if s.startswith('/') else '{}/{}'.format(rootpath,s)
 
-def get_project_files(ext, exclude_dirs=[], ignore_dir_with_file='', relative_path=True):
-    top  = rootpath()
+def get_project_files(ext, rootpath='.', exclude_dirs=[], ignore_dir_with_file='', relative_path=True):
+    top  = rootpath
 
     lst = list()
     for root, dirs, files in os.walk(top, topdown=True):
@@ -44,11 +41,11 @@ def get_project_files(ext, exclude_dirs=[], ignore_dir_with_file='', relative_pa
         if ignore_dir_with_file in files:
             dirs[:] = []
             next
-
-        for file in files:
-            if file.endswith(ext):
-                f = os.path.join(root, file)
-                lst.append(relative_filename(f) if relative_path else f)
+        else:
+            for file in files:
+                if file.endswith(ext):
+                    f = os.path.join(root, file)
+                    lst.append(relative_filename(f,rootpath) if relative_path else f)
 
     return lst
 

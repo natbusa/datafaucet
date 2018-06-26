@@ -18,7 +18,7 @@ def rootpath(rootfile='__main__.py'):
         path += '/..'
 
     path = os.getcwd()
-    print('Could not find {}, defaulting to {}'.format(rootfile, path))
+    print('Could not find {}, defaulting to current workdir: {}'.format(rootfile, path))
     return path
 
 try:

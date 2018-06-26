@@ -1,0 +1,11 @@
+[run]
+branch = True
+source =
+    datalabframework
+    tests
+
+[paths]
+source =
+    datalabframework
+    .tox/*/lib/python*/site-packages/datalabframework
+    .tox/pypy/site-packages/datalabframework
