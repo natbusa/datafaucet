@@ -40,6 +40,9 @@ def metadata(all_runs=False):
     v = os.getenv(DLF_METADATA_RUN)
     r = v if v else 'default'
 
+    # rendering of jinja constructs
+    runs = utils.render(runs)
+
     return runs if all_runs else runs[r]
 
 def metadata_info():

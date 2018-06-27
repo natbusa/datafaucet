@@ -1,10 +1,11 @@
 from setuptools import setup
 
 setup(name='datalabframework',
-      version='0.2.3',
+      version='0.2.4',
       install_requires=[
         'requests',
         'pyyaml',
+        'jinja2'
         'jupyter'
       ],
       description='Productivity Utilities for Data Science with Python Notebooks',

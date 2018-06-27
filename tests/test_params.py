@@ -1,6 +1,7 @@
 from datalabframework import params
 
 import os
+
 from textwrap import dedent
 
 import pytest
@@ -38,6 +39,20 @@ class Test_rootpath(object):
                '''
         dir.write('metadata.yml', dedent(yml).encode())
         assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': { '.hello': 'best:resource'}})
+
+    def test_minimal_with_rendering(self, dir):
+        yml = '''\
+                ---
+                a:
+                    b: 'ohoh'
+                    c: 42
+                    s: ping-{{ foo.bar.best }}
+                foo:
+                    bar:
+                        best: pong
+               '''
+        dir.write('metadata.yml', dedent(yml).encode())
+        assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'foo': { 'bar': {'best':'pong'}}, 'resources': {}})
 
     def test_multiple_docs(self,dir):
         yml = '''\

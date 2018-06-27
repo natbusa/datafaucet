@@ -1,5 +1,8 @@
 import os
+
 import yaml
+from jinja2 import Template
+
 from copy import deepcopy
 
 def merge(a, b):
@@ -52,6 +55,23 @@ def get_project_files(ext, rootpath='.', exclude_dirs=[], ignore_dir_with_file='
 
 def pretty_print(metadata):
     print(yaml.dump(metadata, indent=2, default_flow_style=False))
-    
+
+def render(m, passes=10):
+    doc = {}
+    for k in m.keys():
+        doc[k] = yaml.dump(m[k])
+        print(k,doc[k])
+
+    for k in doc.keys():
+        for i in range(passes):
+            template = Template(doc[k])
+            doc[k] = template.render(yaml.load(doc[k]))
+
+    d = {}
+    for k in doc.keys():
+        d[k] = yaml.load(doc[k])
+
+    return d
+
 #get_project_files(ext='metadata.yml', ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
 #get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])

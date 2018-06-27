@@ -1,6 +1,9 @@
 from datalabframework import utils
 
 import os
+import yaml
+from textwrap import dedent
+
 import pytest
 from testfixtures import TempDirectory
 
@@ -85,3 +88,44 @@ def test_get_project_files():
         assert(l== ['md.yml','123/md.yml','123/xyz/md.yml','abc/def/md.yml'])
         l = utils.get_project_files('md.yml', '.', ['excluded'], 'ignored.yml', False)
         assert(l== ['./md.yml','./123/md.yml','./123/xyz/md.yml','./abc/def/md.yml'])
+
+
+def test_render():
+    doc = '''
+        ---
+        default:
+            run: default
+            resources:
+                input:
+                    path: datasets/extract/{{ run }}
+                    format: parquet
+                    provider: local-other
+        test:
+            run: test
+            resources:
+                oh : '{{run}}'
+                data:
+                    path: datasets/extract/{{ resources.oh }}
+                    format: parquet-{{resources.data.provider}}
+                    provider: local-{{resources.data.path}}
+        '''
+
+    ref =  {'default': {
+                'resources': {
+                    'input': {
+                        'format': 'parquet',
+                        'path': 'datasets/extract/default',
+                        'provider': 'local-other'}},
+                'run': 'default'},
+            'test': {
+                'resources': {
+                    'data': {
+                        'format': 'parquet-local-datasets/extract/test',
+                        'path': 'datasets/extract/test',
+                        'provider': 'local-datasets/extract/test'},
+                        'oh': 'test'},
+                'run': 'test'}}
+
+    metadata = yaml.load(dedent(doc))
+    res = utils.render(metadata)
+    assert(res==ref)
