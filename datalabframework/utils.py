@@ -27,11 +27,15 @@ def lrchop(s, b='', e=''):
         s = s[:-len(e)]
     return s
 
-def relative_filename(s, rootpath='.'):
-    return lrchop(s,rootpath).lstrip('/')
+def relative_filename(fullpath_filename, rootpath='/'):
+    r = lrchop(fullpath_filename,rootpath)
+    return r.lstrip('/') if r and r[0]=='/' else r
 
 def absolute_filename(s, rootpath='.'):
     return s if s.startswith('/') else '{}/{}'.format(rootpath,s)
+
+def breadcrumb_path(fullpath, rootpath='/'):
+    return '.' + relative_filename(fullpath, rootpath).replace('/','.')
 
 def get_project_files(ext, rootpath='.', exclude_dirs=[], ignore_dir_with_file='', relative_path=True):
     top  = rootpath

@@ -7,19 +7,26 @@ from . import project
 DLF_METADATA_FILE = 'DLF_MD_FILE'
 DLF_METADATA_RUN  = 'DLF_MD_RUN'
 
-def _hierarchical_resource(filename, params):
-    f = utils.relative_filename(filename, rootpath=project.rootpath())
-    p = f.rfind('/')
-    resource_path = f[:p+1].replace('/','.') if p>0 else ''
 
+def resource_unique_name(resource, fullpath_filename):
+    unique_name = resource
+
+    if not resource.startswith('.'):
+        filename_path = os.path.split(fullpath_filename)[0]
+        if not 'metadata.yml' in os.listdir(filename_path):
+            raise ValueError('No metadata file, in the current dir')
+
+        path = utils.breadcrumb_path(filename_path, rootpath=project.rootpath())
+        unique_name = '.'+resource if path=='.' else '{}.{}'.format(path, resource)
+
+    return unique_name
+
+def rename_resources(fullpath_filename, params):
     d = params.get('resources', {})
     r = dict()
     for k,v in d.items():
-        if k.startswith('.'):
-            r[k] = v
-        else:
-            alias_abs = '.{}{}'.format(resource_path,k)
-            r[alias_abs] = v
+        alias = resource_unique_name(k,fullpath_filename)
+        r[alias] = v
     return r
 
 def metadata(all_runs=False):
@@ -34,7 +41,7 @@ def metadata(all_runs=False):
         docs = list(yaml.load_all(f))
         for params in docs:
             k = params['run'] if 'run' in params else 'default'
-            params['resources'] = _hierarchical_resource(filename, params)
+            params['resources'] = rename_resources(filename, params)
             runs[k] = utils.merge(runs.get(k,{}), params)
 
     v = os.getenv(DLF_METADATA_RUN)

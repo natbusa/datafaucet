@@ -27,12 +27,22 @@ def test_merge():
     r2 = {'a': 1, 'd': 'add', 'b': 'override', 'c': {'merge2': 4, 'merge1': 2}}
     assert(r1==r2)
 
+def test_breadcrumb_path():
+    assert(utils.breadcrumb_path('/')=='.')
+    assert(utils.breadcrumb_path('/aaa')=='.aaa')
+    assert(utils.breadcrumb_path('/oh/aaa/123')=='.oh.aaa.123')
+    assert(utils.breadcrumb_path('/oh/aaa/123','/la')=='.oh.aaa.123')
+    assert(utils.breadcrumb_path('/oh/aaa/123','/oh')=='.aaa.123')
+    assert(utils.breadcrumb_path('/oh/ww/aaa/123','/oh')=='.ww.aaa.123')
+    assert(utils.breadcrumb_path('/oh/ww/aaa/123','/oh/')=='.ww.aaa.123')
+
 def test_relative_filename():
     assert(utils.relative_filename('/aaa')=='aaa')
     assert(utils.relative_filename('aaa')=='aaa')
 
-    assert(utils.relative_filename('/aaa', '/the/rootpath')=='aaa')
-    assert(utils.relative_filename('aaa', '/the/rootpath')=='aaa')
+    assert(utils.relative_filename('/aaa', '/the/rootpath')=='aaa') # should return error?
+    assert(utils.relative_filename('/aaa/dd/s', '/the/rootpath')=='aaa/dd/s') # should return error?
+    assert(utils.relative_filename('aaa', '/the/rootpath')=='aaa')  # should return error?
 
     assert(utils.relative_filename('/the/rootpath/abc/aaa', '/the/rootpath')=='abc/aaa')
     assert(utils.relative_filename('/the/rootpath/aaa', '/the/rootpath')=='aaa')
