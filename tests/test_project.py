@@ -7,8 +7,10 @@ from testfixtures import TempDirectory
 @pytest.fixture()
 def dir():
     with TempDirectory() as dir:
+        original_dir = os.getcwd()
         os.chdir(dir.path)
         yield dir
+        os.chdir(original_dir)
 
 class Test_rootpath(object):
     def test_emptydir(self, dir):

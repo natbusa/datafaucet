@@ -8,7 +8,6 @@ def uri(resource):
 def metadata(resource):
     md = params.metadata()
     ds = md['resources'].get(uri(resource))
-
     return ds
 
 def path(resource):
