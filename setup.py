@@ -5,7 +5,7 @@ from setuptools import setup
 pjoin = os.path.join
 
 setup(name='datalabframework',
-      version='0.2.5',
+      version='0.2.6',
       install_requires=[
         'requests',
         'pyyaml',
