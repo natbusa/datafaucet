@@ -11,12 +11,16 @@ def dir():
     with TempDirectory() as dir:
         yield dir
 
-class Test_get_filename(object):
+class Test_underscore_get_filename(object):
     def test_minimal(self, dir):
         assert(notebook._get_filename() in ['notebook.py', 'notebook.pyc'])
+#
+# class Test_get_filename(object):
+#     def test_minimal(self, dir):
+#         assert(notebook.get_filename() in ['notebook.py', 'notebook.pyc'])
 
 def test_statistics(dir):
-    with open('tests/notebooks/a.ipynb', 'rb') as input:
+    with open('./tests/notebooks/a.ipynb', 'rb') as input:
           dir.write('a.ipynb', input.read())
           dir.write('__main__.py',b'')
           os.chdir(dir.path)
