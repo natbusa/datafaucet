@@ -64,7 +64,6 @@ def render(m, passes=10):
     doc = {}
     for k in m.keys():
         doc[k] = yaml.dump(m[k])
-        print(k,doc[k])
 
     for k in doc.keys():
         for i in range(passes):
