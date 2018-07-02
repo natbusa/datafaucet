@@ -18,7 +18,6 @@ def rootpath(rootfile='__main__.py'):
         path += '/..'
 
     path = os.getcwd()
-    print('Could not find {}, defaulting to current workdir: {}'.format(rootfile, path))
     return path
 
 try:
@@ -114,3 +113,41 @@ class NotebookFinder(object):
                 self.loaders[key] = NotebookLoader(path)
 
         return self.loaders[key]
+
+# Singleton/ClassVariableSingleton.py
+class Singleton(object):
+    _instance = None
+    def __new__(class_, *args, **kwargs):
+        if not isinstance(class_._instance, class_):
+            class_._instance = object.__new__(class_, *args, **kwargs)
+        else:
+            class_._instance.__init__(*args, **kwargs)
+        return class_._instance
+
+class Init(Singleton):
+    _rootpath = None
+    _filename = None
+    _cwd = None
+
+    def __init__(self, cwd=None, filename=None):
+        if cwd and self._cwd != cwd:
+            self._cwd = cwd
+            self._filename = None
+            self._rootpath = None
+
+            os.chdir(cwd)
+            print('Working dir: {}'.format(os.getcwd()))
+
+        if filename and not self._filename:
+            self._filename = filename
+            print('Notebook filename: {}'.format(self._filename))
+
+        if not self._rootpath:
+            self._rootpath = rootpath()
+            print('Project rootpath: {}'.format(self._rootpath))
+
+            if self._rootpath not in sys.path:
+                sys.path.append(self._rootpath)
+
+            # register hook for loading ipynb files
+            sys.meta_path.append(NotebookFinder())

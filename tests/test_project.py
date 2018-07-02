@@ -12,6 +12,19 @@ def dir():
         yield dir
         os.chdir(original_dir)
 
+def test_init(dir):
+    subdir = dir.makedir('abc')
+    dir.write('__main__.py', b'')
+    dir.write('abc/test.ipynb', b'')
+    p = project.Init(subdir, subdir+'/test.ipynb')
+    assert(p._rootpath==dir.path)
+    assert(p._filename==os.path.join(subdir,'test.ipynb'))
+    assert(p._cwd==subdir)
+    p1 = project.Init()
+    assert(p1._rootpath==dir.path)
+    assert(p1._filename==os.path.join(subdir,'test.ipynb'))
+    assert(p1._cwd==subdir)
+
 class Test_rootpath(object):
     def test_emptydir(self, dir):
         assert(project.rootpath()==dir.path)
