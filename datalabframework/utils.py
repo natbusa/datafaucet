@@ -1,3 +1,4 @@
+import errno
 import os
 
 import yaml
@@ -75,6 +76,20 @@ def render(m, passes=10):
         d[k] = yaml.load(doc[k])
 
     return d
+
+def ensure_dir_exists(path, mode=0o777):
+    """ensure that a directory exists
+    If it doesn't exist, try to create it, protecting against a race condition
+    if another process is doing the same.
+    The default permissions are determined by the current umask.
+    """
+    try:
+        os.makedirs(path, mode=mode)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+    if not os.path.isdir(path):
+        raise IOError("%r exists but is not a directory" % path)
 
 #get_project_files(ext='metadata.yml', ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
 #get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
