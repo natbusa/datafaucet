@@ -4,6 +4,7 @@ import glob
 
 from textwrap import dedent
 
+from .utils import pretty_print
 from .application import DatalabframeworkApp
 
 import nbformat
@@ -91,6 +92,33 @@ class DlfRunApp(DatalabframeworkApp):
                     filenames.append(filename)
         self.notebooks = filenames
 
+    def notebook_statistics(self,data):
+        #todo: check for filetype
+        stats = {'cells': len(data['cells'])}
+
+        h = dict()
+        for c in data['cells']:
+            count = h.get(c['cell_type'], 0)
+            h[c['cell_type']] = count + 1
+        stats.update(h)
+
+        error = {'ename': None, 'evalue': None}
+        for c in data['cells']:
+            if c['cell_type']=='code':
+                for o in c['outputs']:
+                    if o['output_type'] == 'error':
+                        error = {'ename': o['ename'], 'evalue': o['evalue']}
+                        break
+        stats.update(error)
+
+        count =0
+        for c in data['cells']:
+            if c['cell_type']=='code' and c['execution_count']:
+                count +=1
+        stats.update({'executed': count})
+
+        return stats
+
 
     def initialize(self, argv=None):
         self.parse_command_line(argv)
@@ -113,23 +141,17 @@ class DlfRunApp(DatalabframeworkApp):
             dlf.project.Init('{}', '{}')
             """.format(cwd,fullpath_filename))
 
-        print(init_str)
-
         nc = nbformat.v4.new_code_cell(init_str)
         nb['cells'].insert(0, nc)
 
         resources ={}
         resources['metadata'] = {'path': os.getcwd()}
 
+        print('-- filename: {}'.format(fullpath_filename))
         (nb_out, resources_out) = self.ep.preprocess(nb, resources)
-        print(nb_out)
+        pretty_print(self.notebook_statistics(nb_out))
 
     def start(self):
-        print("app.config:")
-        print(self.config)
-
-        print(self.notebooks)
-
         for notebook_filename in self.notebooks:
             self.run_single_notebook(notebook_filename)
 
