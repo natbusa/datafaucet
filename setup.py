@@ -2,28 +2,43 @@ import os
 from glob import glob
 from setuptools import setup
 
-pjoin = os.path.join
+# the name of the package
+name = 'datalabframework'
 
-setup(name='datalabframework',
-      version='0.2.9',
-      install_requires=[
-        'requests',
-        'pyyaml',
-        'jinja2',
-        'jupyter'
-      ],
-      description='Productivity Utilities for Data Science with Python Notebooks',
-      url='http://github.com/natbusa/datalabframework',
-      author='Natalino Busa',
-      author_email='natalino.busa@gmail.com',
-      license='MIT',
-      packages=['datalabframework'],
-      scripts = glob(pjoin('scripts', '*')),
-      zip_safe=False,
-      platforms       = "Linux, Mac OS X, Windows",
-      keywords        = ['Interactive', 'Interpreter', 'Shell', 'Web'],
-      classifiers     = [
+pjoin = os.path.join
+here = os.path.abspath(os.path.dirname(__file__))
+pkg_root = pjoin(here, name)
+
+version_ns = {}
+with open(pjoin(here, name, '_version.py')) as f:
+    exec(f.read(), {}, version_ns)
+
+setup_args = dict(
+    name         = name,
+    version      = version_ns['__version__'],
+    description  = 'Productivity Utilities for Data Science with Python Notebooks',
+    url          = 'http://github.com/natbusa/datalabframework',
+    author       = 'Natalino Busa',
+    author_email = 'natalino.busa@gmail.com',
+    license      = 'MIT',
+    packages     = [name],
+    scripts      = glob(pjoin('scripts', '*')),
+    zip_safe     = False,
+    platforms    = "Linux, Mac OS X, Windows",
+    keywords     = ['Interactive', 'Interpreter', 'Shell', 'Web'],
+    classifiers  = [
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
-        'Intended Audience :: Science/Research']
+        'Intended Audience :: Science/Research'],
 )
+
+setup_args['install_requires']=[
+    'requests',
+    'pyyaml',
+    'jinja2',
+    'jupyter',
+    'traitlets',
+]
+
+if __name__ == '__main__':
+    setup(**setup_args)

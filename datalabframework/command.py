@@ -15,7 +15,7 @@ import os
 import sys
 from subprocess import Popen
 
-from .version import __version__
+from ._version import __version__
 
 class DatalabframeworkParser(argparse.ArgumentParser):
 
