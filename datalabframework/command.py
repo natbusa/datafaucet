@@ -25,7 +25,7 @@ class DatalabframeworkParser(argparse.ArgumentParser):
 
         Avoids searching PATH for subcommands unless help output is requested.
         """
-        return 'Available subcommands: %s' % ' '.join(list_subcommands())
+        return 'Available subcommands: %s' % ', '.join(list_subcommands())
 
     @epilog.setter
     def epilog(self, x):

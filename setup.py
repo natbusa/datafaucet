@@ -13,6 +13,8 @@ version_ns = {}
 with open(pjoin(here, name, '_version.py')) as f:
     exec(f.read(), {}, version_ns)
 
+print(version_ns['__version__'])
+
 setup_args = dict(
     name         = name,
     version      = version_ns['__version__'],
