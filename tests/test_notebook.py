@@ -14,10 +14,6 @@ def dir():
         yield dir
         os.chdir(original_dir)
 
-class Test_underscore_get_filename(object):
-    def test_minimal(self, dir):
-        assert(notebook._get_filename() in ['notebook.py', 'notebook.pyc'])
-
 def test_statistics():
     dir = TempDirectory()
     original_dir = os.getcwd()

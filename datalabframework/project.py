@@ -1,12 +1,22 @@
 import os
-import sys
 import io
+import sys
 import types
 import subprocess
 
-import nbformat
+import json
+import re
+import requests
+from urllib.parse import urljoin
 
-def rootpath(rootfile='__main__.py'):
+import ipykernel
+from IPython.core.interactiveshell import InteractiveShell
+from notebook.notebookapp import list_running_servers
+
+import nbformat
+from . import utils
+
+def _rootpath(rootfile='__main__.py'):
     path = '.'
     while True:
         try:
@@ -20,12 +30,37 @@ def rootpath(rootfile='__main__.py'):
     path = os.getcwd()
     return path
 
-try:
-    from IPython.core.interactiveshell import InteractiveShell
-except:
-    InteractiveShell=None
+def _get_current_notebook():
+    """
+    Return the full path of the jupyter notebook.
+    """
 
-def find_notebook(fullname, paths=None):
+    # when running not in and interactive shell,
+    # just get the filename of the main script
+    try:
+        import __main__ as main
+        filename = os.path.basename(main.__file__)
+    except:
+        filename = ''
+
+    try:
+        kernel_filename = ipykernel.connect.get_connection_file()
+        kernel_id = re.search('kernel-(.*).json',kernel_filename).group(1)
+
+        for s in list_running_servers():
+            url =urljoin(s['url'], 'api/sessions')
+            params={'token': s.get('token', '')}
+            response = requests.get(url,params)
+            for nn in json.loads(response.text):
+                if nn['kernel']['id'] == kernel_id:
+                    relative_path = nn['notebook']['path']
+                    filename = os.path.join(s['notebook_dir'], relative_path)
+    except:
+        pass
+
+    return filename
+
+def _find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
 
     This turns "foo.bar" into "foo/bar.ipynb"
@@ -58,7 +93,7 @@ class NotebookLoader(object):
             return
 
         """import a notebook as a module"""
-        path = find_notebook(fullname, self.path)
+        path = _find_notebook(fullname, self.path)
 
         print ("importing Jupyter notebook from %s" % path)
 
@@ -98,7 +133,7 @@ class NotebookFinder(object):
         self.loaders = {}
 
     def find_module(self, fullname, path=None):
-        nb_path = find_notebook(fullname, path)
+        nb_path = _find_notebook(fullname, path)
         if not nb_path:
             return
 
@@ -119,12 +154,12 @@ class Singleton(object):
     _instance = None
     def __new__(class_, *args, **kwargs):
         if not isinstance(class_._instance, class_):
-            class_._instance = object.__new__(class_, *args, **kwargs)
-        else:
-            class_._instance.__init__(*args, **kwargs)
+            class_._instance = object.__new__(class_)
+
+        class_._instance.__init__(*args, **kwargs)
         return class_._instance
 
-class Init(Singleton):
+class Config(Singleton):
     _rootpath = None
     _filename = None
     _cwd = None
@@ -136,18 +171,39 @@ class Init(Singleton):
             self._rootpath = None
 
             os.chdir(cwd)
-            print('Working dir: {}'.format(os.getcwd()))
 
         if filename and not self._filename:
             self._filename = filename
-            print('Notebook filename: {}'.format(self._filename))
+
+        if not self._filename:
+            self._filename = _get_current_notebook()
+
+        if not self._cwd:
+            self._cwd = os.getcwd()
 
         if not self._rootpath:
-            self._rootpath = rootpath()
-            print('Project rootpath: {}'.format(self._rootpath))
+            self._rootpath = _rootpath()
 
             if self._rootpath not in sys.path:
                 sys.path.append(self._rootpath)
 
             # register hook for loading ipynb files
             sys.meta_path.append(NotebookFinder())
+
+    def filename(self, relative_path=True):
+        rel_filename = utils.relative_filename(self._filename, self._rootpath)
+        return rel_filename if relative_path else self._filename
+
+    def rootpath(self):
+        return self._rootpath
+
+    def working_dir(self):
+        return self._cwd
+
+def rootpath():
+    c = Config()
+    return c.rootpath()
+
+def filename(relative_path=True):
+    c = Config()
+    return c.filename(relative_path)

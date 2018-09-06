@@ -7,5 +7,3 @@ from . import engines
 from . import project
 
 __all__ = ['log', 'notebook', 'project', 'params', 'data', 'engines']
-
-project.Init()

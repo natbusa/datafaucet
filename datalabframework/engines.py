@@ -19,7 +19,6 @@ class SparkEngine():
             conf.setAppName(config.get('jobname'))
 
         conf.setMaster(config.get('master', 'local[4]'))
-
         self._ctx = SQLContext(SparkContext(conf=conf))
         self.info = {'name': name, 'context':'spark', 'config': config}
 
@@ -36,7 +35,7 @@ class SparkEngine():
             return self._ctx.read.parquet(path, **kargs)
         else:
             raise('downt know how to handle this')
-            
+
     def write(self, obj, resource, **kargs):
         path = data.path(resource)
         md = data.metadata(resource)

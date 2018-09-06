@@ -9,32 +9,38 @@ def dir():
     with TempDirectory() as dir:
         original_dir = os.getcwd()
         os.chdir(dir.path)
+        project.Config(dir.path)
         yield dir
         os.chdir(original_dir)
 
-def test_init(dir):
-    subdir = dir.makedir('abc')
-    dir.write('__main__.py', b'')
-    dir.write('abc/test.ipynb', b'')
-    p = project.Init(subdir, subdir+'/test.ipynb')
-    assert(p._rootpath==dir.path)
-    assert(p._filename==os.path.join(subdir,'test.ipynb'))
-    assert(p._cwd==subdir)
-    p1 = project.Init()
-    assert(p1._rootpath==dir.path)
-    assert(p1._filename==os.path.join(subdir,'test.ipynb'))
-    assert(p1._cwd==subdir)
+class Test_init(object):
+    def test_init(self):
+
+        p = project.Config()
+        del p.__class__._instance; del p
+        p = project.Config()
+
+        assert(p._rootpath==os.getcwd())
+        assert(p._cwd==os.getcwd())
+
+    def test_init_params(self,dir):
+        subdir = dir.makedir('abc')
+        dir.write('__main__.py', b'')
+        dir.write('abc/test.ipynb', b'')
+        p = project.Config(subdir, subdir+'/test.ipynb')
+        assert(p._rootpath==dir.path)
+        assert(p._filename==os.path.join(subdir,'test.ipynb'))
+        assert(p._cwd==subdir)
 
 class Test_rootpath(object):
     def test_emptydir(self, dir):
+        project.Config()._cwd = None
         assert(project.rootpath()==dir.path)
-        assert(project.rootpath('aaa')==dir.path)
 
     def test_main(self, dir):
         dir.write('__main__.py', b'')
         dir.write('test.123', b'')
         assert(project.rootpath()==dir.path)
-        assert(project.rootpath('test.123')==dir.path)
 
     def test_submodule(self, dir):
         subdir = dir.makedir('abc')
@@ -43,14 +49,13 @@ class Test_rootpath(object):
         dir.write('abc/__init__.py', b'')
         os.chdir(subdir)
         assert(project.rootpath()==dir.path)
-        assert(project.rootpath('test.123')==dir.path)
 
 def test_find_notebook(dir):
     subdir = dir.makedir('abc')
     dir.write('foo.ipynb', b'')
     dir.write('foo bar.ipynb', b'')
     dir.write('abc/bar.ipynb', b'')
-    assert(project.find_notebook('foo', [dir.path])==dir.path+'/foo.ipynb')
-    assert(project.find_notebook('foo')=='foo.ipynb')
-    assert(project.find_notebook('abc.bar', ['abc'])=='abc/bar.ipynb')
-    assert(project.find_notebook('foo_bar')=='foo bar.ipynb')
+    assert(project._find_notebook('foo', [dir.path])==dir.path+'/foo.ipynb')
+    assert(project._find_notebook('foo')=='foo.ipynb')
+    assert(project._find_notebook('abc.bar', ['abc'])=='abc/bar.ipynb')
+    assert(project._find_notebook('foo_bar')=='foo bar.ipynb')
