@@ -7,6 +7,9 @@ from textwrap import dedent
 import pytest
 from testfixtures import TempDirectory
 
+from datalabframework.utils import os_sep
+
+
 def test_lrchop():
     s = utils.lrchop('asd12345aaa','asd','aaa')
     assert(s=='12345')
@@ -28,34 +31,34 @@ def test_merge():
     assert(r1==r2)
 
 def test_breadcrumb_path():
-    assert(utils.breadcrumb_path('/')=='.')
-    assert(utils.breadcrumb_path('/aaa')=='.aaa')
-    assert(utils.breadcrumb_path('/oh/aaa/123')=='.oh.aaa.123')
-    assert(utils.breadcrumb_path('/oh/aaa/123','/la')=='.oh.aaa.123')
-    assert(utils.breadcrumb_path('/oh/aaa/123','/oh')=='.aaa.123')
-    assert(utils.breadcrumb_path('/oh/ww/aaa/123','/oh')=='.ww.aaa.123')
-    assert(utils.breadcrumb_path('/oh/ww/aaa/123','/oh/')=='.ww.aaa.123')
+    assert(utils.breadcrumb_path(os.sep)=='.')
+    assert(utils.breadcrumb_path(os_sep('/aaa'))=='.aaa')
+    assert(utils.breadcrumb_path(os_sep('/oh/aaa/123'))=='.oh.aaa.123')
+    assert(utils.breadcrumb_path(os_sep('/oh/aaa/123'), os_sep('/la'))=='.oh.aaa.123')
+    assert(utils.breadcrumb_path(os_sep('/oh/aaa/123'), os_sep('/oh'))=='.aaa.123')
+    assert(utils.breadcrumb_path(os_sep('/oh/ww/aaa/123'), os_sep('/oh'))=='.ww.aaa.123')
+    assert(utils.breadcrumb_path(os_sep('/oh/ww/aaa/123'), os_sep('/oh/'))=='.ww.aaa.123')
 
 def test_relative_filename():
-    assert(utils.relative_filename('/aaa')=='aaa')
+    assert(utils.relative_filename(os_sep('/aaa'))=='aaa')
     assert(utils.relative_filename('aaa')=='aaa')
 
-    assert(utils.relative_filename('/aaa', '/the/rootpath')=='aaa') # should return error?
-    assert(utils.relative_filename('/aaa/dd/s', '/the/rootpath')=='aaa/dd/s') # should return error?
-    assert(utils.relative_filename('aaa', '/the/rootpath')=='aaa')  # should return error?
+    assert(utils.relative_filename(os_sep('/aaa'), os_sep('/the/rootpath'))=='aaa') # should return error?
+    assert(utils.relative_filename(os_sep('/aaa/dd/s'), os_sep('/the/rootpath'))==os_sep('aaa/dd/s')) # should return error?
+    assert(utils.relative_filename('aaa', os_sep('/the/rootpath'))=='aaa')  # should return error?
 
-    assert(utils.relative_filename('/the/rootpath/abc/aaa', '/the/rootpath')=='abc/aaa')
-    assert(utils.relative_filename('/the/rootpath/aaa', '/the/rootpath')=='aaa')
+    assert(utils.relative_filename(os_sep('/the/rootpath/abc/aaa'), os_sep('/the/rootpath'))==os_sep('abc/aaa'))
+    assert(utils.relative_filename(os_sep('/the/rootpath/aaa'), os_sep('/the/rootpath'))==os_sep('aaa'))
 
 def test_absolute_filename():
-    assert(utils.absolute_filename('/aaa')=='/aaa')
-    assert(utils.absolute_filename('aaa')=='./aaa')
+    assert(utils.absolute_filename(os_sep('/aaa'))== os_sep('/aaa'))
+    assert(utils.absolute_filename('aaa')==os_sep('./aaa'))
 
-    assert(utils.absolute_filename('/aaa', '/the/rootpath')=='/aaa')
-    assert(utils.absolute_filename('aaa', '/the/rootpath')=='/the/rootpath/aaa')
+    assert(utils.absolute_filename(os_sep('/aaa'), os_sep('/the/rootpath'))==os_sep('/aaa'))
+    assert(utils.absolute_filename('aaa', os_sep('/the/rootpath'))==os_sep('/the/rootpath/aaa'))
 
-    assert(utils.absolute_filename('/the/rootpath/abc/aaa', '/the/rootpath')=='/the/rootpath/abc/aaa')
-    assert(utils.absolute_filename('/the/rootpath/aaa', '/the/rootpath')=='/the/rootpath/aaa')
+    assert(utils.absolute_filename(os_sep('/the/rootpath/abc/aaa'), os_sep('/the/rootpath'))==os_sep('/the/rootpath/abc/aaa'))
+    assert(utils.absolute_filename(os_sep('/the/rootpath/aaa'), os_sep('/the/rootpath'))==os_sep('/the/rootpath/aaa'))
 
 def test_get_project_files():
     with TempDirectory() as dir:
@@ -86,18 +89,18 @@ def test_get_project_files():
         os.chdir(dir.path)
 
         l = utils.get_project_files('.txt', '.', ['excluded'], '.ignored', True)
-        assert(l==['1.txt', 'abc/2.txt', 'abc/def/3.txt'])
+        assert(l==['1.txt', os_sep('abc/2.txt'), os_sep('abc/def/3.txt')])
         l = utils.get_project_files('.txt', '.', ['excluded'], '.ignored', False)
-        assert(l==['./1.txt', './abc/2.txt', './abc/def/3.txt'])
+        assert(l==[os_sep('./1.txt'), os_sep('./abc/2.txt'), os_sep('./abc/def/3.txt')])
         l = utils.get_project_files('.txt', dir.path, ['excluded'], '.ignored', True)
-        assert(l==['1.txt', 'abc/2.txt', 'abc/def/3.txt'])
+        assert(l==['1.txt', os_sep('abc/2.txt'), os_sep('abc/def/3.txt')])
         l = utils.get_project_files('.txt', dir.path, ['excluded'], '.ignored', False)
-        assert(l==[dir.path+'/1.txt', dir.path+'/abc/2.txt', dir.path+'/abc/def/3.txt'])
+        assert(l==[os.path.join(dir.path, '1.txt'), os.path.join(dir.path, 'abc', '2.txt'), os.path.join(dir.path, 'abc', 'def', '3.txt')])
 
         l = utils.get_project_files('md.yml', '.', ['excluded'], 'ignored.yml', True)
-        assert(l== ['md.yml','123/md.yml','123/xyz/md.yml','abc/def/md.yml'])
+        assert(l== ['md.yml',os_sep('123/md.yml'),os_sep('123/xyz/md.yml'),os_sep('abc/def/md.yml')])
         l = utils.get_project_files('md.yml', '.', ['excluded'], 'ignored.yml', False)
-        assert(l== ['./md.yml','./123/md.yml','./123/xyz/md.yml','./abc/def/md.yml'])
+        assert(l== [os_sep('./md.yml'), os_sep('./123/md.yml'), os_sep('./123/xyz/md.yml'), os_sep('./abc/def/md.yml')])
 
 
 def test_render():

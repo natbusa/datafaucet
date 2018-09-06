@@ -138,7 +138,7 @@ class Test_metadata_info(object):
         dir.write('metadata.yml', dedent(yml_1).encode())
         dir.write('abc/metadata.yml', dedent(yml_2).encode())
         res = {
-            'files': ['metadata.yml', 'abc/metadata.yml'],
+            'files': ['metadata.yml', os.path.join('abc', 'metadata.yml')],
             'rootpath': dir.path,
             'runs': ['default', 'second']
             }

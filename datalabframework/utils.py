@@ -21,6 +21,9 @@ def merge(a, b):
 
     return deepcopy(b)
 
+def os_sep(path):
+    return path.replace("/", os.sep)
+
 def lrchop(s, b='', e=''):
     if s.startswith(b) and len(b)>0:
         s = s[len(b):]
