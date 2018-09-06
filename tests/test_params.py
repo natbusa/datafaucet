@@ -1,4 +1,4 @@
-from datalabframework import params
+from datalabframework import params, project
 
 import os
 
@@ -7,12 +7,12 @@ from textwrap import dedent
 import pytest
 from testfixtures import TempDirectory
 
-
 @pytest.fixture()
 def dir():
     with TempDirectory() as dir:
         original_dir = os.getcwd()
         os.chdir(dir.path)
+        project.Config(dir.path)
         yield dir
         os.chdir(original_dir)
 

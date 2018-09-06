@@ -1,9 +1,8 @@
 from . import params
 from . import project
-from . import notebook
 
 def uri(resource):
-    return params.resource_unique_name(resource, notebook.get_filename(False))
+    return params.resource_unique_name(resource, project.filename(False))
 
 def metadata(resource):
     md = params.metadata()

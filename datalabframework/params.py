@@ -7,7 +7,6 @@ from . import project
 DLF_METADATA_FILE = 'DLF_MD_FILE'
 DLF_METADATA_RUN  = 'DLF_MD_RUN'
 
-
 def resource_unique_name(resource, fullpath_filename):
     unique_name = resource
 
@@ -31,11 +30,15 @@ def rename_resources(fullpath_filename, params):
 
 def metadata(all_runs=False):
     v = os.getenv(DLF_METADATA_FILE)
-    mf = utils.get_project_files(ext='metadata.yml', rootpath=project.rootpath(), ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
+    mf = utils.get_project_files(
+        ext='metadata.yml',
+        rootpath=project.rootpath(),
+        ignore_dir_with_file='metadata.ignore.yml',
+        relative_path=False)
+
     filenames = [v] if v else mf
 
     runs = {}
-
     for filename in filenames:
         f = open(filename,'r')
         docs = list(yaml.load_all(f))

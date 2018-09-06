@@ -5,47 +5,8 @@ import nbformat
 import json
 import re
 
-import requests
-
-try:
-    import ipykernel
-    from notebook.notebookapp import list_running_servers
-except:
-    ipykernel=None
-
-try:  # Python 3
-    from urllib.parse import urljoin
-except ImportError:  # Python 2
-    from urlparse import urljoin
-
 from . import utils
 from . import project
-
-def _get_filename():
-    """
-    Return the full path of the jupyter notebook.
-    """
-    if not ipykernel:
-        return os.path.basename(__file__)
-
-    try:
-        kernel_filename = ipykernel.connect.get_connection_file()
-    except:
-        return os.path.basename(__file__)
-
-    kernel_id = re.search('kernel-(.*).json',kernel_filename).group(1)
-    servers = list_running_servers()
-    for ss in servers:
-        response = requests.get(urljoin(ss['url'], 'api/sessions'),
-                                params={'token': ss.get('token', '')})
-        for nn in json.loads(response.text):
-            if nn['kernel']['id'] == kernel_id:
-                relative_path = nn['notebook']['path']
-                return os.path.join(ss['notebook_dir'], relative_path)
-
-def get_filename(relative_path=True):
-    f = _get_filename()
-    return utils.relative_filename(f, project.rootpath()) if relative_path else f
 
 def statistics(filename):
     data = {}

@@ -16,31 +16,12 @@ from traitlets import (
     Bool, Unicode, Int, List, Dict
 )
 
-class Foo(Configurable):
-    """A class that has configurable, typed attributes.
-    """
-
-    timeout = Int(0, help="The timeout.").tag(config=True)
-    i = Int(0, help="The integer i.").tag(config=True)
-    j = Int(1, help="The integer j.").tag(config=True)
-    name = Unicode(u'Brian', help="First name.").tag(config=True)
-
-
-class Bar(Configurable):
-
-    enabled = Bool(True, help="Enable bar.").tag(config=True)
-
-
 class DlfRunApp(DatalabframeworkApp):
 
     name = Unicode(u'datalabframework-run')
     description = "Executing a datalabframework notebook"
 
-
-    running = Bool(False,
-                   help="Is the app running?").tag(config=True)
-
-    classes = List([Bar, Foo, ExecutePreprocessor])
+    classes = List([ExecutePreprocessor])
 
     config_file = Unicode(u'',
                    help="Load this config file").tag(config=True)
@@ -51,21 +32,10 @@ class DlfRunApp(DatalabframeworkApp):
                      """
     ).tag(config=True)
 
-    aliases = Dict(dict(timeout='ExecutePreprocessor.timeout', i='Foo.i',j='Foo.j',name='Foo.name', running='DlfRunApp.running',
-                        enabled='Bar.enabled', log_level='DlfRunApp.log_level'))
+    aliases = Dict(dict(timeout='ExecutePreprocessor.timeout',
+                        log_level='DlfRunApp.log_level'))
 
-    flags = Dict(dict(enable=({'Bar': {'enabled' : True}}, "Enable Bar"),
-                  disable=({'Bar': {'enabled' : False}}, "Disable Bar"),
-                  debug=({'MyApp':{'log_level':10}}, "Set loglevel to DEBUG")
-            ))
-
-    def init_foo(self):
-        # Pass config to other classes for them to inherit the config.
-        self.foo = Foo(config=self.config)
-
-    def init_bar(self):
-        # Pass config to other classes for them to inherit the config.
-        self.bar = Bar(config=self.config)
+    flags = Dict(dict(debug=({'DlfRunApp':{'log_level':10}}, "Set loglevel to DEBUG")))
 
     def init_preprocessor(self):
         self.ep = ExecutePreprocessor(config=self.config)
@@ -125,8 +95,6 @@ class DlfRunApp(DatalabframeworkApp):
         if self.config_file:
             self.load_config_file(self.config_file)
         self.init_notebooks()
-        self.init_foo()
-        self.init_bar()
         self.init_preprocessor()
 
     def run_single_notebook(self,filename):
@@ -138,7 +106,7 @@ class DlfRunApp(DatalabframeworkApp):
         init_str = dedent("""
             # added by dlf-run
             import datalabframework as dlf
-            dlf.project.Init('{}', '{}')
+            dlf.project.Config('{}', '{}')
             """.format(cwd,fullpath_filename))
 
         nc = nbformat.v4.new_code_cell(init_str)
@@ -147,9 +115,9 @@ class DlfRunApp(DatalabframeworkApp):
         resources ={}
         resources['metadata'] = {'path': os.getcwd()}
 
-        print('-- filename: {}'.format(fullpath_filename))
+        print('running {} (cwd={})'.format(fullpath_filename, cwd))
         (nb_out, resources_out) = self.ep.preprocess(nb, resources)
-        pretty_print(self.notebook_statistics(nb_out))
+        print(self.notebook_statistics(nb_out))
 
     def start(self):
         for notebook_filename in self.notebooks:
