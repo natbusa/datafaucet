@@ -73,7 +73,6 @@ class LogstashFormatter(logging.Formatter):
         fields.
         """
 
-        print(record)
         d = record.__dict__.copy()
         loginfo = {k:d.get(k,None) for k in ['created', 'levelname', 'exc_info']}
 
@@ -136,7 +135,7 @@ def init():
 
     info = dict()
     info.update({'username': getpass.getuser()})
-    info.update({'filename': notebook.filename(ext='')[1], 'filepath': notebook.filename()[0]})
+    info.update({'filename': project.filename()})
 
     logger = logging.getLogger()
     logger.handlers = []
@@ -148,8 +147,8 @@ def init():
         topic = p.get('topic')
         hosts = p.get('hosts')
 
-        # disable logging for 'kafka.KafkaProducer' 
-        # to avoid infinite logging recursion on kafka 
+        # disable logging for 'kafka.KafkaProducer'
+        # to avoid infinite logging recursion on kafka
         logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())
 
         formatterLogstash = LogstashFormatter(json.dumps({'extra':info}))
@@ -164,7 +163,7 @@ def init():
         level = loggingLevels.get(p.get('severity'))
 
         # create console handler and set level to debug
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - {} - {} - {} - {} - {} - {} - {} - {} - {} - {} - %(message)s'.format(*info.values()))
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - {} - {} - %(message)s'.format(*info.values()))
         handler = logging.StreamHandler(sys.stdout,)
         handler.setLevel(level)
         handler.setFormatter(formatter)
