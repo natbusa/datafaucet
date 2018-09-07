@@ -18,7 +18,7 @@ class SparkEngine():
         if 'jobname' in config:
             conf.setAppName(config.get('jobname'))
 
-        conf.setMaster(config.get('master', 'local[4]'))
+        conf.setMaster(config.get('master', 'local[*]'))
         self._ctx = SQLContext(SparkContext(conf=conf))
         self.info = {'name': name, 'context':'spark', 'config': config}
 
