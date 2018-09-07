@@ -58,7 +58,7 @@ def _get_current_notebook():
     except:
         pass
 
-    return filename
+    return os.path.abspath(filename)
 
 def _find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
@@ -173,7 +173,7 @@ class Config(Singleton):
             os.chdir(cwd)
 
         if filename and not self._filename:
-            self._filename = filename
+            self._filename = os.path.abspath(filename)
 
         if not self._filename:
             self._filename = _get_current_notebook()
