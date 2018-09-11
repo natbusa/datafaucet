@@ -162,13 +162,15 @@ class Singleton(object):
 class Config(Singleton):
     _rootpath = None
     _filename = None
+    _run = None
     _cwd = None
 
-    def __init__(self, cwd=None, filename=None):
+    def __init__(self, cwd=None, filename=None, run=None):
         if cwd and self._cwd != cwd:
             self._cwd = cwd
             self._filename = None
             self._rootpath = None
+            self._run = None
 
             os.chdir(cwd)
 

@@ -4,9 +4,6 @@ import yaml
 from . import utils
 from . import project
 
-DLF_METADATA_FILE = 'DLF_MD_FILE'
-DLF_METADATA_RUN  = 'DLF_MD_RUN'
-
 def resource_unique_name(resource, fullpath_filename):
     unique_name = resource
 
@@ -28,32 +25,34 @@ def rename_resources(fullpath_filename, params):
         r[alias] = v
     return r
 
-def metadata(all_runs=False):
-    v = os.getenv(DLF_METADATA_FILE)
-    mf = utils.get_project_files(
+def metadata(run='default', all_runs=False):
+    filenames = utils.get_project_files(
         ext='metadata.yml',
         rootpath=project.rootpath(),
         ignore_dir_with_file='metadata.ignore.yml',
         relative_path=False)
-
-    filenames = [v] if v else mf
 
     runs = {}
     for filename in filenames:
         f = open(filename,'r')
         docs = list(yaml.load_all(f))
         for params in docs:
-            k = params['run'] if 'run' in params else 'default'
+            if 'run' not in params:
+                params['run'] = 'default'
             params['resources'] = rename_resources(filename, params)
+            k = params['run']
             runs[k] = utils.merge(runs.get(k,{}), params)
 
-    v = os.getenv(DLF_METADATA_RUN)
-    r = v if v else 'default'
+    # inherit from default if not vailable in the run
+    for r in set(runs.keys()).difference({'default'}):
+        for k in ['resources','providers', 'engines']:
+            if k not in runs[r] or not runs[r][k]:
+                runs[r][k] = runs['default'][k]
 
     # rendering of jinja constructs
     runs = utils.render(runs)
 
-    return runs if all_runs else runs[r]
+    return runs if all_runs else runs[run]
 
 def metadata_info():
     mf = utils.get_project_files(
