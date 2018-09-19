@@ -17,32 +17,45 @@ import nbformat
 from . import utils
 
 def _rootpath(rootfile='__main__.py'):
-    path = '.'
+    path = os.getcwd()
     while True:
         try:
             ls = os.listdir(path)
             if rootfile in ls:
                 return os.path.abspath(path)
+            else:
+                path += '/..'
         except:
             break
-        path += '/..'
 
+    #fallback: current dir
     path = os.getcwd()
     return path
 
-def _get_current_notebook():
+def _get_filename(f=None):
     """
     Return the full path of the jupyter notebook.
     """
-
     # when running not in and interactive shell,
     # just get the filename of the main script
+
+    #raise  ValueError('filename: {}'.format(f))
+
+    # default filename (injected)
+    try:
+        os.stat(f)
+        return os.path.abspath(f)
+    except:
+        pass
+
+    # fallback 1: main file name (python files)
     try:
         import __main__ as main
-        filename = os.path.basename(main.__file__)
+        return os.path.abspath(os.path.basename(main.__file__))
     except:
-        filename = ''
+        pass
 
+    #fallback 2: interactive shell
     try:
         kernel_filename = ipykernel.connect.get_connection_file()
         kernel_id = re.search('kernel-(.*).json',kernel_filename).group(1)
@@ -54,11 +67,13 @@ def _get_current_notebook():
             for nn in json.loads(response.text):
                 if nn['kernel']['id'] == kernel_id:
                     relative_path = nn['notebook']['path']
-                    filename = os.path.join(s['notebook_dir'], relative_path)
+                    f = os.path.join(s['notebook_dir'], relative_path)
+                    return os.path.abspath(f)
     except:
         pass
 
-    return os.path.abspath(filename)
+    #nothing found. Stop
+    raise  ValueError('could not infer the filename: {}'.format(f))
 
 def _find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
@@ -149,48 +164,48 @@ class NotebookFinder(object):
 
         return self.loaders[key]
 
-# Singleton/ClassVariableSingleton.py
-class Singleton(object):
-    _instance = None
-    def __new__(class_, *args, **kwargs):
-        if not isinstance(class_._instance, class_):
-            class_._instance = object.__new__(class_)
+class Singleton(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
 
-        class_._instance.__init__(*args, **kwargs)
-        return class_._instance
-
-class Config(Singleton):
+class Config(metaclass=Singleton):
     _rootpath = None
     _filename = None
-    _run = None
-    _cwd = None
+    _workdir  = None
+    _workrun  = None
 
-    def __init__(self, cwd=None, filename=None, run=None):
-        if cwd and self._cwd != cwd:
-            self._cwd = cwd
-            self._filename = None
-            self._rootpath = None
-            self._run = None
+    def _init_sys_paths(self):
+        # add roothpath to the list of python sys paths
+        if self._rootpath not in sys.path:
+            sys.path.append(self._rootpath)
 
-            os.chdir(cwd)
-
-        if filename and not self._filename:
-            self._filename = os.path.abspath(filename)
-
-        if not self._filename:
-            self._filename = _get_current_notebook()
-
-        if not self._cwd:
-            self._cwd = os.getcwd()
-
-        if not self._rootpath:
-            self._rootpath = _rootpath()
-
-            if self._rootpath not in sys.path:
-                sys.path.append(self._rootpath)
-
-            # register hook for loading ipynb files
+        # register hook for loading ipynb files
+        if 'NotebookFinder' not in str(sys.meta_path):
             sys.meta_path.append(NotebookFinder())
+
+    def __init__(self, cwd=None, filename=None, run='default'):
+        #set workdir
+        try:
+            os.chdir(cwd)
+        except:
+            pass
+        finally:
+            self._workdir = os.getcwd()
+
+        # set filename
+        self._filename = _get_filename(filename)
+
+        # set metadata run
+        self._workrun = run
+
+        # set rootpath
+        self._rootpath = _rootpath()
+
+        # set python paths
+        self._init_sys_paths()
 
     def filename(self, relative_path=True):
         rel_filename = utils.relative_filename(self._filename, self._rootpath)
@@ -199,13 +214,29 @@ class Config(Singleton):
     def rootpath(self):
         return self._rootpath
 
-    def working_dir(self):
-        return self._cwd
+    def workdir(self):
+        return self._workdir
+
+    def workrun(self):
+        return self._workrun
 
 def rootpath():
     c = Config()
     return c.rootpath()
 
+def workdir():
+    c = Config()
+    return c.workdir()
+
 def filename(relative_path=True):
     c = Config()
     return c.filename(relative_path)
+
+def workrun():
+    c = Config()
+    return c.workrun()
+
+def info():
+    k = ['workrun','filename','rootpath', 'workdir']
+    v = [eval(x+'()') for x in k]
+    return dict(zip(k,v))

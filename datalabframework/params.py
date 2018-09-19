@@ -1,5 +1,6 @@
 import os
 import yaml
+import copy
 
 from . import utils
 from . import project
@@ -43,24 +44,27 @@ def metadata(run='default', all_runs=False):
             k = params['run']
             runs[k] = utils.merge(runs.get(k,{}), params)
 
+    elements = ['resources','providers', 'engines', 'loggers']
+
+    # empty list for default missing elements:
+    for k in elements:
+        if k not in runs['default'].keys():
+            runs['default'][k] = {}
+
     # inherit from default if not vailable in the run
     for r in set(runs.keys()).difference({'default'}):
-        for k in ['resources','providers', 'engines']:
+        for k in elements:
             if k not in runs[r] or not runs[r][k]:
-                runs[r][k] = runs['default'][k]
+                runs[r][k] = copy.deepcopy(runs['default'][k])
 
     # rendering of jinja constructs
     runs = utils.render(runs)
 
     return runs if all_runs else runs[run]
 
-def metadata_info():
-    mf = utils.get_project_files(
+def metadata_files():
+    return utils.get_project_files(
         ext='metadata.yml',
         rootpath=project.rootpath(),
         ignore_dir_with_file='metadata.ignore.yml',
         relative_path=True)
-    rootpath=project.rootpath()
-    runs = metadata(True).keys()
-    info = {'files': mf, 'runs': list(runs), 'rootpath': rootpath}
-    return info

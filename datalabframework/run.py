@@ -118,7 +118,7 @@ class DlfRunApp(DatalabframeworkApp):
         #print('running {} (cwd={})'.format(fullpath_filename, cwd))
         (nb_out, resources_out) = self.ep.preprocess(nb, resources)
         #print(self.notebook_statistics(nb_out))
-
+        
     def start(self):
         for notebook_filename in self.notebooks:
             self.run_single_notebook(notebook_filename)

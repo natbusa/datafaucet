@@ -110,17 +110,17 @@ def test_render():
             run: default
             resources:
                 input:
-                    path: datasets/extract/{{ run }}
+                    path: datasets/extract/{{ default.run }}
                     format: parquet
                     provider: local-other
         test:
             run: test
             resources:
-                oh : '{{run}}'
+                oh : '{{ default.run }}'
                 data:
-                    path: datasets/extract/{{ resources.oh }}
-                    format: parquet-{{resources.data.provider}}
-                    provider: local-{{resources.data.path}}
+                    path: datasets/extract/{{ test.resources.oh }}
+                    format: parquet-{{ test.resources.data.provider }}
+                    provider: local-{{ test.resources.data.path }}
         '''
 
     ref =  {'default': {
@@ -133,10 +133,10 @@ def test_render():
             'test': {
                 'resources': {
                     'data': {
-                        'format': 'parquet-local-datasets/extract/test',
-                        'path': 'datasets/extract/test',
-                        'provider': 'local-datasets/extract/test'},
-                        'oh': 'test'},
+                        'format': 'parquet-local-datasets/extract/default',
+                        'path': 'datasets/extract/default',
+                        'provider': 'local-datasets/extract/default'},
+                        'oh': 'default'},
                 'run': 'test'}}
 
     metadata = yaml.load(dedent(doc))

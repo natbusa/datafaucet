@@ -65,20 +65,26 @@ def pretty_print(metadata):
     print(yaml.dump(metadata, indent=2, default_flow_style=False))
 
 def render(m, passes=10):
-    doc = {}
-    for k in m.keys():
-        doc[k] = yaml.dump(m[k])
+    # doc = {}
+    # for k in m.keys():
+    #     doc[k] = yaml.dump(m[k])
 
-    for k in doc.keys():
-        for i in range(passes):
-            template = Template(doc[k])
-            doc[k] = template.render(yaml.load(doc[k]))
+    doc = yaml.dump(m)
 
-    d = {}
-    for k in doc.keys():
-        d[k] = yaml.load(doc[k])
+    for i in range(passes):
+        template = Template(doc)
+        doc = template.render(yaml.load(doc))
+    #
+    # for k in doc.keys():
+    #     for i in range(passes):
+    #         doc[k] = template.render(yaml.load(doc[k]))
+    #
+    # d = {}
+    # for k in doc.keys():
+    #     d[k] = yaml.load(doc[k])
 
-    return d
+    doc = yaml.load(doc)
+    return doc
 
 def ensure_dir_exists(path, mode=0o777):
     """ensure that a directory exists

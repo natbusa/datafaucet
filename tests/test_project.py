@@ -9,6 +9,10 @@ def dir():
     with TempDirectory() as dir:
         original_dir = os.getcwd()
         os.chdir(dir.path)
+
+        p = project.Config()
+        p.__class__._instances={};
+
         project.Config(dir.path)
         yield dir
         os.chdir(original_dir)
@@ -17,24 +21,28 @@ class Test_init(object):
     def test_init(self):
 
         p = project.Config()
-        del p.__class__._instance; del p
+        p.__class__._instances={};
         p = project.Config()
 
         assert(p._rootpath==os.getcwd())
-        assert(p._cwd==os.getcwd())
+        assert(p._workdir==os.getcwd())
 
     def test_init_params(self,dir):
         subdir = dir.makedir('abc')
         dir.write('__main__.py', b'')
         dir.write('abc/test.ipynb', b'')
+
+        p = project.Config()
+        p.__class__._instances={};
         p = project.Config(subdir, os.path.join(subdir, 'test.ipynb'))
+
         assert(p._rootpath==dir.path)
         assert(p._filename==os.path.join(subdir,'test.ipynb'))
-        assert(p._cwd==subdir)
+        assert(p._workdir==subdir)
 
 class Test_rootpath(object):
     def test_emptydir(self, dir):
-        project.Config()._cwd = None
+        project.Config()._workdir = None
         assert(project.rootpath()==dir.path)
 
     def test_main(self, dir):
