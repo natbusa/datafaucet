@@ -1,3 +1,5 @@
+import os
+
 from . import params
 from . import data
 
@@ -14,6 +16,10 @@ class SparkEngine():
         from pyspark import SparkContext, SparkConf
         from pyspark.sql import SQLContext
 
+        path = os.path.dirname(os.path.realpath(__file__))
+        sqlite_jar  = os.path.join(path, 'spark/libs/sqlite-jdbc-3.23.1.jar')
+        os.environ['PYSPARK_SUBMIT_ARGS'] = '--jars {} pyspark-shell'.format(sqlite_jar)
+
         conf = SparkConf()
         if 'jobname' in config:
             conf.setAppName(config.get('jobname'))
@@ -29,10 +35,18 @@ class SparkEngine():
         path = data.path(resource)
         md = data.metadata(resource)
 
+        #reference provider from data alias
+        pd = params.metadata()['providers'][md['provider']]
+
         if md['format']=='csv':
             return self._ctx.read.csv(path, **kargs)
         elif md['format']=='parquet':
             return self._ctx.read.parquet(path, **kargs)
+        elif md['format']=='sqlite':
+            url = "jdbc:sqlite:" + pd['path']
+            driver = "org.sqlite.JDBC"
+            return self._ctx.read.format('jdbc').option('url', url)\
+                   .option("dbtable", md['table']).option("driver", driver).load(**kargs)
         else:
             raise('downt know how to handle this')
 
@@ -40,10 +54,24 @@ class SparkEngine():
         path = data.path(resource)
         md = data.metadata(resource)
 
+        #reference provider from data alias
+        pd = params.metadata()['providers'][md['provider']]
+
         if md['format']=='csv':
             return obj.write.csv(path, **kargs)
         elif md['format']=='parquet':
             return obj.write.parquet(path, **kargs)
+        elif md['format']=='sqlite':
+            url = "jdbc:sqlite:" + pd['path']
+            driver = "org.sqlite.JDBC"
+
+            mode = kargs.get('mode', 'append')
+            if mode=='overwrite':
+                    obj.write.format('jdbc').option('url', url)\
+                             .option("dbtable", md['table']).option("driver", driver).save(**kargs)
+
+            return obj.write.format('jdbc').option('url', url)\
+                      .option("dbtable", md['table']).option("driver", driver).save(**kargs)
         else:
             raise('downt know how to handle this')
 
@@ -77,7 +105,7 @@ class PandasEngine():
         if md['format']=='csv':
             return obj.to_csv(path, **kargs)
         elif md['format']=='parquet':
-            return obj.tp_parquet(path, **kargs)
+            return obj.to_parquet(path, **kargs)
         else:
             raise('downt know how to handle this')
 

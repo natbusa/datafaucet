@@ -42,5 +42,7 @@ setup_args['install_requires']=[
     'traitlets',
 ]
 
+setup_args['include_package_data'] = True
+
 if __name__ == '__main__':
     setup(**setup_args)
