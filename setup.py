@@ -40,6 +40,7 @@ setup_args['install_requires']=[
     'jinja2',
     'jupyter',
     'traitlets',
+    'cookiecutter'
 ]
 
 setup_args['include_package_data'] = True

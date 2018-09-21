@@ -1,0 +1,11 @@
+{
+    "full_name": "Natalino Busa",
+    "email": "natalino.busa@gmail.com",
+    "project_name": "titanic",
+    "project_short_description": "Project scaffolding for ETL and Data Science",
+    "licence":"MIT",
+    "_copy_without_render": [
+        "*metadata.yml",
+        "data"
+    ]
+}

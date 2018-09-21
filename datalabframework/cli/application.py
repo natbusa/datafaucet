@@ -27,7 +27,7 @@ from traitlets.config.application import Application, catch_config_error
 from traitlets.config.loader import ConfigFileNotFound
 from traitlets import Unicode, Bool, List
 
-from .utils import ensure_dir_exists
+from ..utils import ensure_dir_exists
 
 
 # aliases and flags

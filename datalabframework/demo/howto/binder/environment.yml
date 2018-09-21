@@ -1,0 +1,8 @@
+name: titanic
+dependencies:
+  - python=3.6
+  - pyspark
+  - pyarrow
+  - jupyterlab
+  - pip:
+    - git+https://github.com/natbusa/datalabframework.git

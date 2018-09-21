@@ -1,0 +1,11 @@
+---
+resources:
+    train:
+        path: datasets/raw/train.csv
+        format: csv
+        provider: local
+
+    test:
+        path : datasets/raw/test.csv
+        format: csv
+        provider: local
