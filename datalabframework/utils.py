@@ -72,8 +72,8 @@ def render(m, passes=10):
 
     doc = yaml.dump(m)
 
+    filters.FILTERS['env'] = lambda value, key: os.getenv(key, value)
     for i in range(passes):
-        filters.FILTERS['env'] = lambda value, key: os.getenv(key, value)
         template = Template(doc)
         doc = template.render(yaml.load(doc))
     #
