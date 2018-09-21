@@ -18,7 +18,25 @@ class SparkEngine():
 
         path = os.path.dirname(os.path.realpath(__file__))
         sqlite_jar  = os.path.join(path, 'spark/libs/sqlite-jdbc-3.23.1.jar')
-        os.environ['PYSPARK_SUBMIT_ARGS'] = '--jars {} pyspark-shell'.format(sqlite_jar)
+        mysql_jar   = os.path.join(path, 'spark/libs/mysql-connector-java-8.0.11.jar')
+
+        submit_args = ''
+
+        jars = [] #[sqlite_jar, mysql_jar]
+        jars += config.get('jars', [])
+        if jars:
+            submit_jars = ' '.join(jars)
+            submit_args = '{} --jars {}'.format(submit_args, submit_jars)
+
+        packages = config.get('packages', [])
+        if packages:
+            submit_packages = ','.join(packages)
+            submit_args = '{} --packages {}'.format(submit_args, submit_packages)
+
+        submit_args = '{} pyspark-shell'.format(submit_args)
+
+        os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args
+        print(submit_args)
 
         conf = SparkConf()
         if 'jobname' in config:
@@ -38,15 +56,25 @@ class SparkEngine():
         #reference provider from data alias
         pd = params.metadata()['providers'][md['provider']]
 
-        if md['format']=='csv':
-            return self._ctx.read.csv(path, **kargs)
-        elif md['format']=='parquet':
-            return self._ctx.read.parquet(path, **kargs)
-        elif md['format']=='sqlite':
+        if pd['service'] == 'fs':
+            if md['format']=='csv':
+                return self._ctx.read.csv(path, **kargs)
+            elif md['format']=='parquet':
+                return self._ctx.read.parquet(path, **kargs)
+        elif pd['service'] == 'sqlite':
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
             return self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", md['table']).option("driver", driver).load(**kargs)
+                   .option("dbtable", md['table']).option("driver", driver)\
+                   .load(**kargs).cache()
+        elif pd['service'] == 'mysql':
+            url = "jdbc:mysql://{}:{}/{}".format(pd['hostname'],pd.get('port', '3306'),pd['database'])
+            print(url)
+            driver = "com.mysql.jdbc.Driver"
+            return self._ctx.read.format('jdbc').option('url', url)\
+                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("user",pd['username']).option('password',pd['password'])\
+                   .load(**kargs).cache()
         else:
             raise('downt know how to handle this')
 
@@ -57,21 +85,23 @@ class SparkEngine():
         #reference provider from data alias
         pd = params.metadata()['providers'][md['provider']]
 
-        if md['format']=='csv':
-            return obj.write.csv(path, **kargs)
-        elif md['format']=='parquet':
-            return obj.write.parquet(path, **kargs)
-        elif md['format']=='sqlite':
+        if pd['service'] == 'fs':
+            if md['format']=='csv':
+                return obj.write.csv(path, **kargs)
+            elif md['format']=='parquet':
+                return obj.write.parquet(path, **kargs)
+        elif pd['service'] == 'sqlite':
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
-
-            mode = kargs.get('mode', 'append')
-            if mode=='overwrite':
-                    obj.write.format('jdbc').option('url', url)\
-                             .option("dbtable", md['table']).option("driver", driver).save(**kargs)
-
             return obj.write.format('jdbc').option('url', url)\
                       .option("dbtable", md['table']).option("driver", driver).save(**kargs)
+        elif pd['service'] == 'mysql':
+            url = "jdbc:mysql://{}:{}/{}".format(pd['hostname'],pd.get('port', '3306'),pd['database'])
+            driver = "com.mysql.jdbc.Driver"
+            return obj.write.format('jdbc').option('url', url)\
+                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("user",pd['username']).option('password',pd['password'])\
+                   .save(**kargs)
         else:
             raise('downt know how to handle this')
 
