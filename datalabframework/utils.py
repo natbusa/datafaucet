@@ -2,7 +2,7 @@ import errno
 import os
 
 import yaml
-from jinja2 import Template
+from jinja2 import Template, filters
 
 from copy import deepcopy
 
@@ -64,6 +64,7 @@ def get_project_files(ext, rootpath='.', exclude_dirs=[], ignore_dir_with_file='
 def pretty_print(metadata):
     print(yaml.dump(metadata, indent=2, default_flow_style=False))
 
+
 def render(m, passes=10):
     # doc = {}
     # for k in m.keys():
@@ -72,6 +73,7 @@ def render(m, passes=10):
     doc = yaml.dump(m)
 
     for i in range(passes):
+        filters.FILTERS['env'] = lambda value, key: os.getenv(key, value)
         template = Template(doc)
         doc = template.render(yaml.load(doc))
     #
