@@ -1,0 +1,197 @@
+version: '2'
+services:
+  concourse-db:
+    image: postgres
+    environment:
+    - POSTGRES_DB=concourse
+    - POSTGRES_PASSWORD=concourse
+    - POSTGRES_USER=concourse
+    volumes:
+      - .volumes/concourse:/var/lib/postgresql/data
+
+  concourse:
+    image: concourse/concourse
+    command: quickstart
+    privileged: true
+    depends_on: [concourse-db]
+    ports: ["8088:8080"]
+    environment:
+    - CONCOURSE_POSTGRES_HOST=concourse-db
+    - CONCOURSE_POSTGRES_USER=concourse
+    - CONCOURSE_POSTGRES_PASSWORD=concourse
+    - CONCOURSE_POSTGRES_DATABASE=concourse
+    - CONCOURSE_EXTERNAL_URL
+    - CONCOURSE_ADD_LOCAL_USER=test:$$2a$$10$$0W9/ilCpYXY/yCPpaOD.6eCrGda/fnH3D4lhsw1Mze0WTID5BuiTW
+    - CONCOURSE_MAIN_TEAM_ALLOW_ALL_USERS=true
+    - CONCOURSE_WORKER_GARDEN_NETWORK
+
+  postgres:
+    image: postgres
+    environment:
+    - POSTGRES_DB=demo
+    - POSTGRES_PASSWORD=test
+    - POSTGRES_USER=test
+    volumes:
+      - .volumes/postgres:/var/lib/postgresql/data
+
+  mysql:
+    image: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - ./volumes/mysql:/var/lib/mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+
+  redis:
+    image: redis
+    restart: always
+    volumes:
+      - ./volumes/redis:/data
+
+  cassandra:
+    image: cassandra
+    restart: always
+    volumes:
+      - ./volumes/cassandra:/var/lib/cassandra
+    environment:
+      - DS_LICENSE=accept
+      - MAX_HEAP_SIZE=256M
+      - HEAP_NEWSIZE=64M
+
+  notebook:
+    build: jupyter
+    command: start.sh jupyter lab
+    volumes:
+      - ./jupyter:/home/jovyan
+    environment:
+      SPARK_OPTS: '--master=spark://spark-master:7077'
+    ports:
+      - 8888:8888
+
+  zookeeper:
+    image: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zookeeper:2888:3888
+
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "datalabframework:1:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  elasticsearch:
+    build: elasticsearch/
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+
+  logstash:
+    build: logstash/
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    build: kibana/
+    volumes:
+      - ./kibana/config/:/usr/share/kibana/config
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+  spark-master:
+    image: jupyter/pyspark-notebook
+    command: /usr/local/spark/bin/spark-class org.apache.spark.deploy.master.Master -h spark-master
+    hostname: spark-master
+    environment:
+      MASTER: spark://spark-master:7077
+      SPARK_CONF_DIR: /conf
+      SPARK_PUBLIC_DNS: localhost
+    ports:
+      - 4040
+      - 6066
+      - 7001
+      - 7002
+      - 7003
+      - 7004
+      - 7005
+      - 7006
+      - 7077
+      - 8080:8080
+    volumes:
+      - ./spark/conf/master:/conf
+      - ./volumes/spark/master/data:/tmp/data
+
+  spark-worker:
+    image: jupyter/pyspark-notebook
+    command: /usr/local/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    hostname: spark-worker
+    environment:
+      SPARK_CONF_DIR: /conf
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_WORKER_PORT: 8881
+      SPARK_WORKER_WEBUI_PORT: 8081
+      SPARK_PUBLIC_DNS: localhost
+    ports:
+      - 7012
+      - 7013
+      - 7014
+      - 7015
+      - 7016
+      - 8081:8081
+    volumes:
+      - ./spark/conf/worker:/conf
+      - ./volumes/spark/worker/data:/tmp/data
+      - ./volumes/spark/worker/work:/usr/local/spark/work
+
+  hdfs-nn:
+    image: itrust/hdfs:2.7.1
+    hostname: hdfs-nn
+    command: /run-namenode.sh
+    volumes:
+      - ./volumes/hdfs/namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+      - CORE_CONF_fs_defaultFS=hdfs://hdfs-nn:8020
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - CORE_CONF_hadoop_proxyuser_hue_hosts=*
+      - CORE_CONF_hadoop_proxyuser_hue_groups=*
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+    ports:
+      - 50070:50070
+
+  hdfs-dn:
+    image: itrust/hdfs:2.7.1
+    links:
+        - hdfs-nn
+    command: /run-datanode.sh
+    volumes:
+      - ./volumes/hdfs/datanode:/hadoop/dfs/data
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hdfs-nn:8020
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - CORE_CONF_hadoop_proxyuser_hue_hosts=*
+      - CORE_CONF_hadoop_proxyuser_hue_groups=*
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false

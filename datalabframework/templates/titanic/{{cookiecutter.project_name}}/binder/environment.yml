@@ -1,0 +1,4 @@
+name: {{cookiecutter.project_name}}
+dependencies:
+  - pip:
+    - git+https://github.com/natbusa/datalabframework.git

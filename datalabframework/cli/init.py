@@ -14,9 +14,16 @@ class DlfInitApp(DatalabframeworkApp):
     description = "Generating a data science project template"
 
     config_file  = Unicode(u'',help="Load this config file").tag(config=True)
+    template_name = Unicode(u'titanic', help="Project template").tag(config=True)
+
+    user_name = Unicode(u'natbusa', help="Project name")
     project_name = Unicode(u'', help="Project name")
 
-    aliases = Dict(dict(log_level='DlfInitApp.log_level'))
+    aliases = Dict(
+                dict(
+                    template_name='DlfInitApp.template_name',
+                    log_level='DlfInitApp.log_level'))
+
     flags = Dict(dict(debug=({'DlfInitApp':{'log_level':10}}, "Set loglevel to DEBUG")))
 
     def initialize(self, argv=None):
@@ -27,14 +34,17 @@ class DlfInitApp(DatalabframeworkApp):
         if self.extra_args:
             self.project_name = self.extra_args[0]
         else:
-            self.project_name = self.output_path
+            self.project_name = self.template_name
 
     def start(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        dir_path = os.path.abspath(os.path.join(dir_path, '../template'))
+        dir_path = os.path.abspath(os.path.join(dir_path, '../templates'))
+
+        template_dir = os.path.join(dir_path, self.template_name)
+        print(template_dir)
 
         # Create project from the cookiecutter-pypackage/ template
-        cookiecutter(dir_path, extra_context={'project_name': self.project_name})
+        cookiecutter(template_dir, extra_context={'user_name':self.user_name, 'project_name': self.project_name})
 
 def main():
     app = DlfInitApp()
