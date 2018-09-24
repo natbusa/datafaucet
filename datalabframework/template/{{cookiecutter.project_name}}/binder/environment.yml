@@ -1,4 +1,4 @@
-name: titanic
+name: {{cookiecutter.project_name}}
 dependencies:
   - python=3.6
   - pyspark
