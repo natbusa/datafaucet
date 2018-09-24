@@ -1,7 +1,3 @@
-./{{cookiecutter.project_name}}/src/etl/models/lr/lr2/metadata/.part-00000.crc
-./{{cookiecutter.project_name}}/src/etl/models/lr/lr2/stages/0_LogisticRegression_4ee3bacb41294613fa65/metadata/.part-00000.crc
-./{{cookiecutter.project_name}}/src/etl/models/lr/lr2/stages/0_LogisticRegression_4ee3bacb41294613fa65/data/part-00000-4554c38e-0539-45ae-8411-478563702005-c000.snappy.parquet
-./{{cookiecutter.project_name}}/src/etl/models/lr/lr2/stages/0_LogisticRegression_4ee3bacb41294613fa65/data/.part-00000-4554c38e-0539-45ae-8411-478563702005-c000.snappy.parquet.crc
 ./{{cookiecutter.project_name}}/src/etl/features/__pycache__/__init__.cpython-36.pyc
 ./{{cookiecutter.project_name}}/src/publish/assets/img/rectanglelogo-greytext-orangebody-greymoons.png
 ./{{cookiecutter.project_name}}/src/publish/reports/howto/__pycache__/util.cpython-36.pyc

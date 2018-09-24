@@ -6,6 +6,7 @@
     "licence":"MIT",
     "_copy_without_render": [
         "*metadata.yml",
-        "data"
+        "data",
+        "assets"
     ]
 }
