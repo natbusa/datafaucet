@@ -4,6 +4,8 @@ from setuptools import setup
 
 # the name of the package
 name = 'datalabframework'
+submodules = ['cli']
+packages = [name] + ['{}.{}'.format(name, sm) for sm in submodules]
 
 pjoin = os.path.join
 here = os.path.abspath(os.path.dirname(__file__))
@@ -23,7 +25,7 @@ setup_args = dict(
     author       = 'Natalino Busa',
     author_email = 'natalino.busa@gmail.com',
     license      = 'MIT',
-    packages     = [name],
+    packages     = packages ,
     scripts      = glob(pjoin('scripts', '*')),
     zip_safe     = False,
     platforms    = "Linux, Mac OS X, Windows",

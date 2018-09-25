@@ -7,7 +7,4 @@ develop:
 tox-test:
 	@tox
 
-release:
-	python scripts/make-release.py
-
 .PHONY: test
