@@ -6,4 +6,4 @@ from . import data
 from . import engines
 from . import project
 
-__all__ = ['log', 'notebook', 'project', 'params', 'data', 'engines']
+__all__ = ['cli', 'log', 'notebook', 'project', 'params', 'data', 'engines']
