@@ -7,7 +7,7 @@ services:
     - POSTGRES_PASSWORD=concourse
     - POSTGRES_USER=concourse
     volumes:
-      - .volumes/concourse:/var/lib/postgresql/data
+      - ./volumes/concourse:/var/lib/postgresql/data
 
   concourse:
     image: concourse/concourse
@@ -28,11 +28,11 @@ services:
   postgres:
     image: postgres
     environment:
-    - POSTGRES_DB=demo
-    - POSTGRES_PASSWORD=test
-    - POSTGRES_USER=test
+    - POSTGRES_PASSWORD=root
+    - POSTGRES_USER=root
     volumes:
-      - .volumes/postgres:/var/lib/postgresql/data
+      - ./volumes/postgres:/var/lib/postgresql/data
+      - ./postgres/data:/docker-entrypoint-initdb.d
 
   mysql:
     image: mysql
@@ -40,7 +40,6 @@ services:
     volumes:
       - ./volumes/mysql/lib:/var/lib/mysql
       - ./mysql/data:/docker-entrypoint-initdb.d
-    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
 
