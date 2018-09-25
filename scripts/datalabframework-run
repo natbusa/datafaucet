@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .cli.run import main
+from datalabframework.cli.run import main
 
 if __name__ == '__main__':
     main()
