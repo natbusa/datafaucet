@@ -27,18 +27,18 @@ services:
 
   postgres:
     image: postgres
-    environment:
-    - POSTGRES_PASSWORD=root
-    - POSTGRES_USER=root
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
       - ./postgres/data:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: root
+      POSTGRES_USER: postgres
 
   mysql:
     image: mysql
     command: --default-authentication-plugin=mysql_native_password
     volumes:
-      - ./volumes/mysql/lib:/var/lib/mysql
+      - ./volumes/mysql:/var/lib/mysql
       - ./mysql/data:/docker-entrypoint-initdb.d
     environment:
       MYSQL_ROOT_PASSWORD: root

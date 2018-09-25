@@ -19,7 +19,7 @@ COMMENT ON SCHEMA public IS 'Standard public schema';
 -- Name: plpgsql; Type: PROCEDURAL LANGUAGE; Schema: -; Owner: postgres
 --
 
-CREATE PROCEDURAL LANGUAGE plpgsql;
+-- CREATE PROCEDURAL LANGUAGE plpgsql;
 
 
 ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
@@ -44,7 +44,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: actor; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: actor; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE actor (
@@ -125,7 +125,7 @@ CREATE SEQUENCE category_category_id_seq
 ALTER TABLE public.category_category_id_seq OWNER TO postgres;
 
 --
--- Name: category; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: category; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE category (
@@ -151,7 +151,7 @@ CREATE SEQUENCE film_film_id_seq
 ALTER TABLE public.film_film_id_seq OWNER TO postgres;
 
 --
--- Name: film; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: film; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE film (
@@ -175,7 +175,7 @@ CREATE TABLE film (
 ALTER TABLE public.film OWNER TO postgres;
 
 --
--- Name: film_actor; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: film_actor; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE film_actor (
@@ -188,7 +188,7 @@ CREATE TABLE film_actor (
 ALTER TABLE public.film_actor OWNER TO postgres;
 
 --
--- Name: film_category; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: film_category; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE film_category (
@@ -224,7 +224,7 @@ CREATE SEQUENCE address_address_id_seq
 ALTER TABLE public.address_address_id_seq OWNER TO postgres;
 
 --
--- Name: address; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: address; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE address (
@@ -255,7 +255,7 @@ CREATE SEQUENCE city_city_id_seq
 ALTER TABLE public.city_city_id_seq OWNER TO postgres;
 
 --
--- Name: city; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: city; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE city (
@@ -282,7 +282,7 @@ CREATE SEQUENCE country_country_id_seq
 ALTER TABLE public.country_country_id_seq OWNER TO postgres;
 
 --
--- Name: country; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: country; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE country (
@@ -308,7 +308,7 @@ CREATE SEQUENCE customer_customer_id_seq
 ALTER TABLE public.customer_customer_id_seq OWNER TO postgres;
 
 --
--- Name: customer; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: customer; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE customer (
@@ -361,7 +361,7 @@ CREATE SEQUENCE inventory_inventory_id_seq
 ALTER TABLE public.inventory_inventory_id_seq OWNER TO postgres;
 
 --
--- Name: inventory; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: inventory; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE inventory (
@@ -388,7 +388,7 @@ CREATE SEQUENCE language_language_id_seq
 ALTER TABLE public.language_language_id_seq OWNER TO postgres;
 
 --
--- Name: language; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: language; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE language (
@@ -424,7 +424,7 @@ CREATE SEQUENCE payment_payment_id_seq
 ALTER TABLE public.payment_payment_id_seq OWNER TO postgres;
 
 --
--- Name: payment; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE payment (
@@ -440,7 +440,7 @@ CREATE TABLE payment (
 ALTER TABLE public.payment OWNER TO postgres;
 
 --
--- Name: payment_p2007_01; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment_p2007_01; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE payment_p2007_01 (CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date >= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-02-01 00:00:00'::timestamp without time zone)))
@@ -451,7 +451,7 @@ INHERITS (payment);
 ALTER TABLE public.payment_p2007_01 OWNER TO postgres;
 
 --
--- Name: payment_p2007_02; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment_p2007_02; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE payment_p2007_02 (CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date >= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-03-01 00:00:00'::timestamp without time zone)))
@@ -462,7 +462,7 @@ INHERITS (payment);
 ALTER TABLE public.payment_p2007_02 OWNER TO postgres;
 
 --
--- Name: payment_p2007_03; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment_p2007_03; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE payment_p2007_03 (CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date >= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-04-01 00:00:00'::timestamp without time zone)))
@@ -473,7 +473,7 @@ INHERITS (payment);
 ALTER TABLE public.payment_p2007_03 OWNER TO postgres;
 
 --
--- Name: payment_p2007_04; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment_p2007_04; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE payment_p2007_04 (CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date >= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-05-01 00:00:00'::timestamp without time zone)))
@@ -484,7 +484,7 @@ INHERITS (payment);
 ALTER TABLE public.payment_p2007_04 OWNER TO postgres;
 
 --
--- Name: payment_p2007_05; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment_p2007_05; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE payment_p2007_05 (CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date >= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-06-01 00:00:00'::timestamp without time zone)))
@@ -495,7 +495,7 @@ INHERITS (payment);
 ALTER TABLE public.payment_p2007_05 OWNER TO postgres;
 
 --
--- Name: payment_p2007_06; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment_p2007_06; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE payment_p2007_06 (CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date >= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-07-01 00:00:00'::timestamp without time zone)))
@@ -519,7 +519,7 @@ CREATE SEQUENCE rental_rental_id_seq
 ALTER TABLE public.rental_rental_id_seq OWNER TO postgres;
 
 --
--- Name: rental; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: rental; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE rental (
@@ -559,7 +559,7 @@ CREATE SEQUENCE staff_staff_id_seq
 ALTER TABLE public.staff_staff_id_seq OWNER TO postgres;
 
 --
--- Name: staff; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: staff; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE staff (
@@ -593,7 +593,7 @@ CREATE SEQUENCE store_store_id_seq
 ALTER TABLE public.store_store_id_seq OWNER TO postgres;
 
 --
--- Name: store; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: store; Type: TABLE; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE TABLE store (
@@ -862,7 +862,7 @@ $_$
 ALTER FUNCTION public.rewards_report(min_monthly_purchases integer, min_dollar_amount_purchased numeric) OWNER TO postgres;
 
 --
--- Name: actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY actor
@@ -870,7 +870,7 @@ ALTER TABLE ONLY actor
 
 
 --
--- Name: address_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: address_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY address
@@ -878,7 +878,7 @@ ALTER TABLE ONLY address
 
 
 --
--- Name: category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY category
@@ -886,7 +886,7 @@ ALTER TABLE ONLY category
 
 
 --
--- Name: city_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: city_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY city
@@ -894,7 +894,7 @@ ALTER TABLE ONLY city
 
 
 --
--- Name: country_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: country_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY country
@@ -902,7 +902,7 @@ ALTER TABLE ONLY country
 
 
 --
--- Name: customer_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: customer_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY customer
@@ -910,7 +910,7 @@ ALTER TABLE ONLY customer
 
 
 --
--- Name: film_actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: film_actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY film_actor
@@ -918,7 +918,7 @@ ALTER TABLE ONLY film_actor
 
 
 --
--- Name: film_category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: film_category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY film_category
@@ -926,7 +926,7 @@ ALTER TABLE ONLY film_category
 
 
 --
--- Name: film_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: film_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY film
@@ -934,7 +934,7 @@ ALTER TABLE ONLY film
 
 
 --
--- Name: inventory_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: inventory_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY inventory
@@ -942,7 +942,7 @@ ALTER TABLE ONLY inventory
 
 
 --
--- Name: language_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: language_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY language
@@ -950,7 +950,7 @@ ALTER TABLE ONLY language
 
 
 --
--- Name: payment_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: payment_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY payment
@@ -958,7 +958,7 @@ ALTER TABLE ONLY payment
 
 
 --
--- Name: rental_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: rental_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY rental
@@ -966,7 +966,7 @@ ALTER TABLE ONLY rental
 
 
 --
--- Name: staff_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: staff_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY staff
@@ -974,7 +974,7 @@ ALTER TABLE ONLY staff
 
 
 --
--- Name: store_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: store_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace:
 --
 
 ALTER TABLE ONLY store
@@ -982,203 +982,203 @@ ALTER TABLE ONLY store
 
 
 --
--- Name: film_fulltext_idx; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: film_fulltext_idx; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX film_fulltext_idx ON film USING gist (fulltext);
 
 
 --
--- Name: idx_actor_last_name; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_actor_last_name; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_actor_last_name ON actor USING btree (last_name);
 
 
 --
--- Name: idx_fk_address_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_address_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_address_id ON customer USING btree (address_id);
 
 
 --
--- Name: idx_fk_city_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_city_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_city_id ON address USING btree (city_id);
 
 
 --
--- Name: idx_fk_country_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_country_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_country_id ON city USING btree (country_id);
 
 
 --
--- Name: idx_fk_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_customer_id ON payment USING btree (customer_id);
 
 
 --
--- Name: idx_fk_film_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_film_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_film_id ON film_actor USING btree (film_id);
 
 
 --
--- Name: idx_fk_inventory_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_inventory_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_inventory_id ON rental USING btree (inventory_id);
 
 
 --
--- Name: idx_fk_language_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_language_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_language_id ON film USING btree (language_id);
 
 
 --
--- Name: idx_fk_original_language_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_original_language_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_original_language_id ON film USING btree (original_language_id);
 
 
 --
--- Name: idx_fk_payment_p2007_01_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_01_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_01_customer_id ON payment_p2007_01 USING btree (customer_id);
 
 
 --
--- Name: idx_fk_payment_p2007_01_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_01_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_01_staff_id ON payment_p2007_01 USING btree (staff_id);
 
 
 --
--- Name: idx_fk_payment_p2007_02_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_02_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_02_customer_id ON payment_p2007_02 USING btree (customer_id);
 
 
 --
--- Name: idx_fk_payment_p2007_02_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_02_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_02_staff_id ON payment_p2007_02 USING btree (staff_id);
 
 
 --
--- Name: idx_fk_payment_p2007_03_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_03_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_03_customer_id ON payment_p2007_03 USING btree (customer_id);
 
 
 --
--- Name: idx_fk_payment_p2007_03_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_03_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_03_staff_id ON payment_p2007_03 USING btree (staff_id);
 
 
 --
--- Name: idx_fk_payment_p2007_04_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_04_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_04_customer_id ON payment_p2007_04 USING btree (customer_id);
 
 
 --
--- Name: idx_fk_payment_p2007_04_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_04_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_04_staff_id ON payment_p2007_04 USING btree (staff_id);
 
 
 --
--- Name: idx_fk_payment_p2007_05_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_05_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_05_customer_id ON payment_p2007_05 USING btree (customer_id);
 
 
 --
--- Name: idx_fk_payment_p2007_05_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_05_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_05_staff_id ON payment_p2007_05 USING btree (staff_id);
 
 
 --
--- Name: idx_fk_payment_p2007_06_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_06_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_06_customer_id ON payment_p2007_06 USING btree (customer_id);
 
 
 --
--- Name: idx_fk_payment_p2007_06_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_payment_p2007_06_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_payment_p2007_06_staff_id ON payment_p2007_06 USING btree (staff_id);
 
 
 --
--- Name: idx_fk_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_staff_id ON payment USING btree (staff_id);
 
 
 --
--- Name: idx_fk_store_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_fk_store_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_fk_store_id ON customer USING btree (store_id);
 
 
 --
--- Name: idx_last_name; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_last_name; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_last_name ON customer USING btree (last_name);
 
 
 --
--- Name: idx_store_id_film_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_store_id_film_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_store_id_film_id ON inventory USING btree (store_id, film_id);
 
 
 --
--- Name: idx_title; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_title; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE INDEX idx_title ON film USING btree (title);
 
 
 --
--- Name: idx_unq_manager_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_unq_manager_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE UNIQUE INDEX idx_unq_manager_staff_id ON store USING btree (manager_staff_id);
 
 
 --
--- Name: idx_unq_rental_rental_date_inventory_id_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: idx_unq_rental_rental_date_inventory_id_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
 --
 
 CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON rental USING btree (rental_date, inventory_id, customer_id);
@@ -1708,4 +1708,3 @@ GRANT ALL ON SCHEMA public TO PUBLIC;
 --
 -- PostgreSQL database dump complete
 --
-

@@ -7,18 +7,26 @@ providers:
     chinook:
         service: sqlite
         path: ../data/datasets/raw/chinook.db
-    mydatabase:
+    sakila:
         service: mysql
-        hostname: localhost
+        hostname: mysql
         port: 3306
-        database: mydatabase
+        database: sakila
+        username: root
+        password: root
+    pagila:
+        service: postgres
+        hostname: postgres
+        port: 3306
+        database: pagila
         username: root
         password: root
 
 resources:
-    music:
-        table: tracks
-        provider: chinook
+    actor:
+        table: actor
+        provider: sakila
+    
     customers:
         table: customers
         provider: mydatabase
