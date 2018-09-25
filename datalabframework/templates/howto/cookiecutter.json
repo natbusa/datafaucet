@@ -7,9 +7,9 @@
     "licence":"MIT",
     "_copy_without_render": [
         "*metadata.yml",
-        ".volumes",
-        "volumes",
-        "assets",
-        "jupyter/data"
+        "*.volumes",
+        "*volumes",
+        "*assets",
+        "*data"
     ]
 }
