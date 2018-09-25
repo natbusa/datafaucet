@@ -9,7 +9,6 @@ __pycache__
 htmlcov/
 /.idea/
 .volumes
-volumes/
 
 .ipython
 .local
