@@ -38,7 +38,8 @@ services:
     image: mysql
     command: --default-authentication-plugin=mysql_native_password
     volumes:
-      - ./volumes/mysql:/var/lib/mysql
+      - ./volumes/mysql/lib:/var/lib/mysql
+      - ./mysql/data:/docker-entrypoint-initdb.d
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -88,6 +89,8 @@ services:
       KAFKA_CREATE_TOPICS: "datalabframework:1:1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - zookeeper
 
   elasticsearch:
     build: elasticsearch/
@@ -108,6 +111,7 @@ services:
       LS_JAVA_OPTS: "-Xmx256m -Xms256m"
     depends_on:
       - elasticsearch
+      - kafka
 
   kibana:
     build: kibana/
@@ -141,10 +145,10 @@ services:
       - ./spark/conf/master:/conf
       - ./volumes/spark/master/data:/tmp/data
 
-  spark-worker:
+  spark-worker-1:
     image: jupyter/pyspark-notebook
     command: /usr/local/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    hostname: spark-worker
+    hostname: spark-worker-1
     environment:
       SPARK_CONF_DIR: /conf
       SPARK_WORKER_CORES: 2
@@ -161,8 +165,31 @@ services:
       - 8081:8081
     volumes:
       - ./spark/conf/worker:/conf
-      - ./volumes/spark/worker/data:/tmp/data
-      - ./volumes/spark/worker/work:/usr/local/spark/work
+      - ./volumes/spark/worker-1/data:/tmp/data
+      - ./volumes/spark/worker-1/work:/usr/local/spark/work
+
+  spark-worker-2:
+    image: jupyter/pyspark-notebook
+    command: /usr/local/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    hostname: spark-worker-2
+    environment:
+      SPARK_CONF_DIR: /conf
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_WORKER_PORT: 8881
+      SPARK_WORKER_WEBUI_PORT: 8081
+      SPARK_PUBLIC_DNS: localhost
+    ports:
+      - 7012
+      - 7013
+      - 7014
+      - 7015
+      - 7016
+      - 8082:8081
+    volumes:
+      - ./spark/conf/worker:/conf
+      - ./volumes/spark/worker-2/data:/tmp/data
+      - ./volumes/spark/worker-2/work:/usr/local/spark/work
 
   hdfs-nn:
     image: itrust/hdfs:2.7.1
@@ -195,3 +222,51 @@ services:
       - CORE_CONF_hadoop_proxyuser_hue_groups=*
       - HDFS_CONF_dfs_webhdfs_enabled=true
       - HDFS_CONF_dfs_permissions_enabled=false
+
+  minio-1:
+    image: minio/minio:RELEASE.2018-09-12T18-49-56Z
+    volumes:
+      - ./volumes/minio/1/data:/data
+      - ./volumes/minio/1/config:/root/.minio
+    ports:
+      - "9001:9000"
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+    command: server  http://minio-1/data http://minio-2/data http://minio-3/data  http://minio-4/data
+
+  minio-2:
+    image: minio/minio:RELEASE.2018-09-12T18-49-56Z
+    volumes:
+      - ./volumes/minio/2/data:/data
+      - ./volumes/minio/2/config:/root/.minio
+    ports:
+      - "9002:9000"
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+    command: server  http://minio-1/data http://minio-2/data http://minio-3/data  http://minio-4/data
+
+  minio-3:
+    image: minio/minio:RELEASE.2018-09-12T18-49-56Z
+    volumes:
+      - ./volumes/minio/3/data:/data
+      - ./volumes/minio/3/config:/root/.minio
+    ports:
+      - "9003:9000"
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+    command: server  http://minio-1/data http://minio-2/data http://minio-3/data  http://minio-4/data
+
+  minio-4:
+    image: minio/minio:RELEASE.2018-09-12T18-49-56Z
+    volumes:
+      - ./volumes/minio/4/data:/data
+      - ./volumes/minio/4/config:/root/.minio
+    ports:
+      - "9004:9000"
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+    command: server  http://minio-1/data http://minio-2/data http://minio-3/data http://minio-4/data

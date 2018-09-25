@@ -40,11 +40,11 @@ class DlfInitApp(DatalabframeworkApp):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         dir_path = os.path.abspath(os.path.join(dir_path, '../templates'))
 
-        template_dir = os.path.join(dir_path, self.template_name)
-        print(template_dir)
-
+        template = '{}.zip'.format(os.path.join(dir_path, self.template_name))
+        print(template)
+        
         # Create project from the cookiecutter-pypackage/ template
-        cookiecutter(template_dir, extra_context={'user_name':self.user_name, 'project_name': self.project_name})
+        cookiecutter(template, extra_context={'user_name':self.user_name, 'project_name': self.project_name})
 
 def main():
     app = DlfInitApp()

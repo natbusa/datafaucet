@@ -32,26 +32,18 @@ engines:
     spark:
         context: spark
         config:
-            master: local[2]
+            master: spark://spark-master:7077
             jobname: 'default'
-            packages:
-                -  org.xerial:sqlite-jdbc:3.23.1
-                - mysql:mysql-connector-java:8.0.12
+#            packages:
+#                - org.xerial:sqlite-jdbc:3.23.1
+#                - mysql:mysql-connector-java:8.0.12
 loggers:
     stream:
         enable: true
         severity: info
     kafka:
-        enable: false
+        enable: true
         severity: info
-        topic: dlf
+        topic: datalabframework
         hosts:
-            - localhost:29092
----
-run: prod
-engines:
-    spark:
-        context: spark
-        config:
-            master: local[*]
-            jobname: prod
+            - kafka:9092

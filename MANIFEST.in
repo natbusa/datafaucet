@@ -1,1 +1,2 @@
-datalabframework/datalabframework/templates
+include datalabframework/templates/howto.zip
+include datalabframework/templates/titanic.zip
