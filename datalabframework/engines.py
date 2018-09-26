@@ -2,6 +2,7 @@ import os
 
 from . import params
 from . import data
+from . import utils
 
 # purpose of engines
 # abstract engine init, data read and data write
@@ -16,13 +17,11 @@ class SparkEngine():
         from pyspark import SparkContext, SparkConf
         from pyspark.sql import SQLContext
 
-        path = os.path.dirname(os.path.realpath(__file__))
-        sqlite_jar  = os.path.join(path, 'spark/libs/sqlite-jdbc-3.23.1.jar')
-        mysql_jar   = os.path.join(path, 'spark/libs/mysql-connector-java-8.0.11.jar')
+        here = os.path.dirname(os.path.realpath(__file__))
 
         submit_args = ''
 
-        jars = [] #[sqlite_jar, mysql_jar]
+        jars = []
         jars += config.get('jars', [])
         if jars:
             submit_jars = ' '.join(jars)
@@ -56,17 +55,22 @@ class SparkEngine():
         #reference provider from data alias
         pd = params.metadata()['providers'][md['provider']]
 
+        # override metadata with option specified on the read method
+        options = utils.merge(md.get('options',{}), kargs)
+
         if pd['service'] == 'fs':
-            if md['format']=='csv':
-                return self._ctx.read.csv(path, **kargs)
-            elif md['format']=='parquet':
-                return self._ctx.read.parquet(path, **kargs)
+            if pd['format']=='csv':
+                return self._ctx.read.csv(path, **options)
+            if pd['format']=='json':
+                return self._ctx.read.json(path, **options)
+            elif pd['format']=='parquet':
+                return self._ctx.read.parquet(path, **options)
         elif pd['service'] == 'sqlite':
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
             return self._ctx.read.format('jdbc').option('url', url)\
                    .option("dbtable", md['table']).option("driver", driver)\
-                   .load(**kargs).cache()
+                   .load(**options)
         elif pd['service'] == 'mysql':
             url = "jdbc:mysql://{}:{}/{}".format(pd['hostname'],pd.get('port', '3306'),pd['database'])
             print(url)
@@ -74,7 +78,15 @@ class SparkEngine():
             return self._ctx.read.format('jdbc').option('url', url)\
                    .option("dbtable", md['table']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
-                   .load(**kargs).cache()
+                   .load(**options)
+        elif pd['service'] == 'postgres':
+            url = "jdbc:postgres://{}:{}/{}".format(pd['hostname'],pd.get('port', '5432'),pd['database'])
+            print(url)
+            driver = "org.postgresql.Driver"
+            return self._ctx.read.format('jdbc').option('url', url)\
+                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("user",pd['username']).option('password',pd['password'])\
+                   .load(**options)
         else:
             raise('downt know how to handle this')
 

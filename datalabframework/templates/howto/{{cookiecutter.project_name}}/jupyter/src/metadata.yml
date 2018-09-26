@@ -14,7 +14,7 @@ providers:
         database: sakila
         username: root
         password: root
-    pagila:
+    sports:
         service: postgres
         hostname: postgres
         port: 3306
@@ -42,9 +42,10 @@ engines:
         config:
             master: spark://spark-master:7077
             jobname: 'default'
-#            packages:
-#                - org.xerial:sqlite-jdbc:3.23.1
-#                - mysql:mysql-connector-java:8.0.12
+            packages:
+                - org.xerial:sqlite-jdbc:3.23.1
+                - mysql:mysql-connector-java:8.0.12
+                - org.postgresql:postgresql:jar:42.2.5
 loggers:
     stream:
         enable: true
