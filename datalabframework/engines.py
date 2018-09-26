@@ -62,6 +62,8 @@ class SparkEngine():
             if pd['format']=='csv':
                 return self._ctx.read.csv(path, **options)
             if pd['format']=='json':
+                return self._ctx.read.option('multiLine',True).json(path, **options)
+            if pd['format']=='jsonl':
                 return self._ctx.read.json(path, **options)
             elif pd['format']=='parquet':
                 return self._ctx.read.parquet(path, **options)
@@ -80,7 +82,7 @@ class SparkEngine():
                    .option("user",pd['username']).option('password',pd['password'])\
                    .load(**options)
         elif pd['service'] == 'postgres':
-            url = "jdbc:postgres://{}:{}/{}".format(pd['hostname'],pd.get('port', '5432'),pd['database'])
+            url = "jdbc:postgresql://{}:{}/{}".format(pd['hostname'],pd.get('port', '5432'),pd['database'])
             print(url)
             driver = "org.postgresql.Driver"
             return self._ctx.read.format('jdbc').option('url', url)\

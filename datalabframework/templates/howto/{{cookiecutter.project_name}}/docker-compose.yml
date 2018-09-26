@@ -30,6 +30,8 @@ services:
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
       - ./postgres/data:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_PASSWORD: root
       POSTGRES_USER: postgres
@@ -37,6 +39,8 @@ services:
   mysql:
     image: mysql
     command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3306:3306"
     volumes:
       - ./volumes/mysql:/var/lib/mysql
       - ./mysql/data:/docker-entrypoint-initdb.d

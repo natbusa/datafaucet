@@ -1,51 +1,69 @@
 ---
 run: default
 providers:
-    local:
+    iris:
         service: fs
-        rootpath: ../data
+        path: ../data/datasets/raw/iris
+        format: json
+    abalone:
+        service: fs
+        path: ../data/datasets/raw/abalone
+        format: jsonl
+    winequality:
+        service: fs
+        path: ../data/datasets/raw/winequality/
+        format: csv
     chinook:
         service: sqlite
-        path: ../data/datasets/raw/chinook.db
+        path: ../data/datasets/raw/chinook/chinook.db
     sakila:
         service: mysql
-        hostname: mysql
+        hostname: localhost #mysql
         port: 3306
         database: sakila
         username: root
         password: root
     sports:
         service: postgres
-        hostname: postgres
-        port: 3306
-        database: pagila
-        username: root
+        hostname: localhost #postgres
+        port: 5432
+        database: sportsdb_sample
+        username: postgres
         password: root
 
 resources:
+    albums:
+        table: albums
+        provider: chinook
+    iris:
+        path: iris.json
+        provider: iris
+    abalone:
+        path: abalone.jsonl
+        provider: abalone
     actor:
         table: actor
         provider: sakila
-    
-    customers:
-        table: customers
-        provider: mydatabase
-    output:
-        path: datasets/raw/ohohoh.csv
-        format: csv
-        provider: local
-
+    teams:
+        table: teams
+        provider: sports
+    whites:
+        path: winequality-white.csv
+        provider: winequality
+        options:
+            sep: ';'
+            header: True
 
 engines:
     spark:
         context: spark
         config:
-            master: spark://spark-master:7077
+            master: local[*] #spark://spark-master:7077
             jobname: 'default'
             packages:
                 - org.xerial:sqlite-jdbc:3.23.1
                 - mysql:mysql-connector-java:8.0.12
-                - org.postgresql:postgresql:jar:42.2.5
+                - org.postgresql:postgresql:42.2.5
 loggers:
     stream:
         enable: true

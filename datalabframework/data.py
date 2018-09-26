@@ -16,7 +16,7 @@ def path(resource):
 
     if pd['service']=='fs':
 
-        root = pd['rootpath']
+        root = pd['path']
         if not root[0]=='/':
             root = '{}/{}'.format(project.rootpath(), root)
             path = '{}/{}'.format(root, ds['path'])
