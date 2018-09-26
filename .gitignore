@@ -12,3 +12,5 @@ htmlcov/
 
 .ipython
 .local
+.ivy2
+.jupyter
