@@ -18,14 +18,14 @@ providers:
         path: ../data/datasets/raw/chinook/chinook.db
     sakila:
         service: mysql
-        hostname: localhost #mysql
+        hostname: mysql
         port: 3306
         database: sakila
         username: root
         password: root
     sports:
         service: postgres
-        hostname: localhost #postgres
+        hostname: postgres
         port: 5432
         database: sportsdb_sample
         username: postgres

@@ -63,7 +63,7 @@ services:
       - MAX_HEAP_SIZE=256M
       - HEAP_NEWSIZE=64M
 
-  notebook:
+  jupyter:
     build: jupyter
     command: start.sh jupyter lab
     volumes:
