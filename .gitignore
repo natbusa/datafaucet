@@ -8,9 +8,13 @@ __pycache__
 .tox/
 htmlcov/
 /.idea/
-.volumes
 
 .ipython
 .local
 .ivy2
 .jupyter
+
+volumes/cassandra
+volumes/hdfs
+volumes/minio
+volumes/mysql
