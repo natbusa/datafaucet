@@ -34,7 +34,7 @@ class DlfInitApp(DatalabframeworkApp):
         if self.extra_args:
             self.project_name = self.extra_args[0]
         else:
-            self.project_name = self.template_name
+            self.project_name = self.template
 
     def start(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
