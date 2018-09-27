@@ -2,15 +2,15 @@
 run: default
 providers:
     iris:
-        service: fs
+        service: local
         path: ../data/datasets/raw/iris
         format: json
     abalone:
-        service: fs
+        service: local
         path: ../data/datasets/raw/abalone
         format: jsonl
     winequality:
-        service: fs
+        service: local
         path: ../data/datasets/raw/winequality/
         format: csv
     chinook:
@@ -30,6 +30,19 @@ providers:
         database: sportsdb_sample
         username: postgres
         password: root
+    ingest:
+        service: hdfs
+        hostname: hdfs-nn
+        path: /data/ingest/extract
+        format: parquet
+    abalone:
+        service: local
+        path: ../data/datasets/raw/abalone
+        format: jsonl
+    winequality:
+        service: local
+        path: ../data/datasets/raw/winequality/
+        format: csv
 
 resources:
     albums:
@@ -53,6 +66,9 @@ resources:
         options:
             sep: ';'
             header: True
+    test:
+        path: test
+        provider: ingest
 
 engines:
     spark:
@@ -64,6 +80,7 @@ engines:
                 - org.xerial:sqlite-jdbc:3.23.1
                 - mysql:mysql-connector-java:8.0.12
                 - org.postgresql:postgresql:42.2.5
+                - com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8
 loggers:
     stream:
         enable: true

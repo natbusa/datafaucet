@@ -3,6 +3,7 @@ import os
 from . import params
 from . import data
 from . import utils
+from . import project
 
 # purpose of engines
 # abstract engine init, data read and data write
@@ -49,7 +50,6 @@ class SparkEngine():
         return self._ctx
 
     def read(self, resource, **kargs):
-        path = data.path(resource)
         md = data.metadata(resource)
 
         #reference provider from data alias
@@ -58,15 +58,31 @@ class SparkEngine():
         # override metadata with option specified on the read method
         options = utils.merge(md.get('options',{}), kargs)
 
-        if pd['service'] == 'fs':
+        if pd['service'] == 'local':
+            root = pd.get('path',project.rootpath())
+            root = root if root[0]=='/' else '{}/{}'.format(project.rootpath(), root)
+            url = "file://{}/{}".format(root, md['path'])
+            url = url.translate(str.maketrans({"{":  r"\{","}":  r"\}"}))
+            print(url)
             if pd['format']=='csv':
-                return self._ctx.read.csv(path, **options)
+                return self._ctx.read.csv(url, **options)
             if pd['format']=='json':
-                return self._ctx.read.option('multiLine',True).json(path, **options)
+                return self._ctx.read.option('multiLine',True).json(url, **options)
             if pd['format']=='jsonl':
-                return self._ctx.read.json(path, **options)
+                return self._ctx.read.json(url, **options)
             elif pd['format']=='parquet':
-                return self._ctx.read.parquet(path, **options)
+                return self._ctx.read.parquet(url, **options)
+        elif pd['service'] == 'hdfs':
+            url = "hdfs://{}:{}/{}/{}".format(pd['hostname'],pd.get('port', '8020'),pd['path'],md['path'])
+            print(url)
+            if pd['format']=='csv':
+                return self._ctx.read.csv(url, **options)
+            if pd['format']=='json':
+                return self._ctx.read.option('multiLine',True).json(url, **options)
+            if pd['format']=='jsonl':
+                return self._ctx.read.json(url, **options)
+            elif pd['format']=='parquet':
+                return self._ctx.read.parquet(url, **options)
         elif pd['service'] == 'sqlite':
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
@@ -89,21 +105,48 @@ class SparkEngine():
                    .option("dbtable", md['table']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
                    .load(**options)
+        elif pd['service'] == 'mssql':
+            url = "jdbc:sqlserver://{}:{};databaseName={}".format(pd['hostname'],pd.get('port', '1433'),pd['database'])
+            print(url)
+            driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+            return self._ctx.read.format('jdbc').option('url', url)\
+                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("user",pd['username']).option('password',pd['password'])\
+                   .load(**options)
         else:
             raise('downt know how to handle this')
 
     def write(self, obj, resource, **kargs):
-        path = data.path(resource)
         md = data.metadata(resource)
 
         #reference provider from data alias
         pd = params.metadata()['providers'][md['provider']]
 
-        if pd['service'] == 'fs':
-            if md['format']=='csv':
-                return obj.write.csv(path, **kargs)
-            elif md['format']=='parquet':
-                return obj.write.parquet(path, **kargs)
+        # override metadata with option specified on the read method
+        options = utils.merge(md.get('options',{}), kargs)
+
+        if pd['service'] == 'local':
+            root = pd.get('path',project.rootpath())
+            root = root if root[0]=='/' else '{}/{}'.format(project.rootpath(), root)
+            url = "file://{}/{}".format(root, md['path'])
+            if pd['format']=='csv':
+                return obj.write.csv(url, **options)
+            if pd['format']=='json':
+                return obj.write.option('multiLine',True).json(url, **options)
+            if pd['format']=='jsonl':
+                return obj.write.json(url, **options)
+            elif pd['format']=='parquet':
+                return obj.write.parquet(url, **options)
+        elif pd['service'] == 'hdfs':
+            url = "hdfs://{}:{}/{}/{}".format(pd['hostname'],pd.get('port', '8020'),pd['path'],md['path'])
+            if pd['format']=='csv':
+                return obj.write.csv(url, **options)
+            if pd['format']=='json':
+                return obj.write.option('multiLine',True).json(url, **options)
+            if pd['format']=='jsonl':
+                return obj.write.json(url, **options)
+            elif pd['format']=='parquet':
+                return obj.write.parquet(url, **options)
         elif pd['service'] == 'sqlite':
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
