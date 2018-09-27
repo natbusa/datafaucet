@@ -14,7 +14,7 @@ htmlcov/
 .ivy2
 .jupyter
 
-volumes/cassandra
-volumes/hdfs
-volumes/minio
-volumes/mysql
+*/volumes/cassandra
+*/volumes/hdfs
+*/volumes/minio
+*/volumes/mysql
