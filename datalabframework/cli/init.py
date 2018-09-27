@@ -21,7 +21,7 @@ class DlfInitApp(DatalabframeworkApp):
 
     aliases = Dict(
                 dict(
-                    template_name='DlfInitApp.template_name',
+                    template_name='DlfInitApp.template',
                     log_level='DlfInitApp.log_level'))
 
     flags = Dict(dict(debug=({'DlfInitApp':{'log_level':10}}, "Set loglevel to DEBUG")))
