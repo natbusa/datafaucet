@@ -54,10 +54,14 @@ class SparkEngine():
     def context(self):
         return self._ctx
 
-    def read(self, resource, **kargs):
-        md = data.metadata(resource)
+    def read(self, resource, provider=None, **kargs):
+        md = data.metadata(resource, provider)
+        if not md:
+            print('no valid resource found')
+            return
+        
         pd = md['provider']
-
+                
         # override metadata with option specified on the read method
         options = utils.merge(md.get('options',{}), kargs)
 
@@ -90,14 +94,14 @@ class SparkEngine():
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
             return self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("dbtable", md['path']).option("driver", driver)\
                    .load(**options)
         elif pd['service'] == 'mysql':
             url = "jdbc:mysql://{}:{}/{}".format(pd['hostname'],pd.get('port', '3306'),pd['database'])
             print(url)
             driver = "com.mysql.jdbc.Driver"
             return self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("dbtable", md['path']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
                    .load(**options)
         elif pd['service'] == 'postgres':
@@ -105,7 +109,7 @@ class SparkEngine():
             print(url)
             driver = "org.postgresql.Driver"
             return self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("dbtable", md['path']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
                    .load(**options)
         elif pd['service'] == 'mssql':
@@ -113,14 +117,18 @@ class SparkEngine():
             print(url)
             driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
             return self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("dbtable", md['path']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
                    .load(**options)
         else:
             raise('downt know how to handle this')
 
-    def write(self, obj, resource, **kargs):
-        md = data.metadata(resource)
+    def write(self, obj, resource, provider=None, **kargs):
+        md = data.metadata(resource, provider)
+        if not md:
+            print('no valid resource found')
+            return
+        
         pd = md['provider']
 
         # override metadata with option specified on the read method
@@ -152,12 +160,12 @@ class SparkEngine():
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
             return obj.write.format('jdbc').option('url', url)\
-                      .option("dbtable", md['table']).option("driver", driver).save(**kargs)
+                      .option("dbtable", md['path']).option("driver", driver).save(**kargs)
         elif pd['service'] == 'mysql':
             url = "jdbc:mysql://{}:{}/{}".format(pd['hostname'],pd.get('port', '3306'),pd['database'])
             driver = "com.mysql.jdbc.Driver"
             return obj.write.format('jdbc').option('url', url)\
-                   .option("dbtable", md['table']).option("driver", driver)\
+                   .option("dbtable", md['path']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
                    .save(**kargs)
         else:
