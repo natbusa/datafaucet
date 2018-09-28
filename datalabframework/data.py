@@ -7,20 +7,6 @@ def uri(resource):
 def metadata(resource):
     md = params.metadata()
     ds = md['resources'].get(uri(resource))
+    ds['provider'] = md['providers'][ds['provider']]
+    
     return ds
-
-def path(resource):
-    md = params.metadata()
-    ds = metadata(resource)
-    pd = md['providers'][ds['provider']]
-
-    if pd['service']=='fs':
-
-        root = pd['path']
-        if not root[0]=='/':
-            root = '{}/{}'.format(project.rootpath(), root)
-            path = '{}/{}'.format(root, ds['path'])
-
-        return path
-
-    return None
