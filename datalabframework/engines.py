@@ -42,10 +42,15 @@ class SparkEngine():
         if 'jobname' in config:
             conf.setAppName(config.get('jobname'))
 
-        # scan providers, if minio is in the metadata list, then add this below
-        #conf.set("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000")
-        #conf.set("spark.hadoop.fs.s3a.access.key", "AKIAIOSFODNN7EXAMPLE")
-        #conf.set("spark.hadoop.fs.s3a.secret.key", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+        md = params.metadata()['providers']
+        for v in md.values():
+            if v['service'] == 'minio':
+                conf.set("spark.hadoop.fs.s3a.endpoint", 'http://{}:{}'.format(v['hostname'],v.get('port',9000))) \
+                    .set("spark.hadoop.fs.s3a.access.key", v['access']) \
+                    .set("spark.hadoop.fs.s3a.secret.key", v['secret']) \
+                    .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+                    .set("spark.hadoop.fs.s3a.path.style.access", True)
+                break
 
         conf.setMaster(config.get('master', 'local[*]'))
         self._ctx = SQLContext(SparkContext(conf=conf))
@@ -81,6 +86,17 @@ class SparkEngine():
                 return self._ctx.read.parquet(url, **options)
         elif pd['service'] == 'hdfs':
             url = "hdfs://{}:{}/{}/{}".format(pd['hostname'],pd.get('port', '8020'),pd['path'],md['path'])
+            print(url)
+            if pd['format']=='csv':
+                return self._ctx.read.csv(url, **options)
+            if pd['format']=='json':
+                return self._ctx.read.option('multiLine',True).json(url, **options)
+            if pd['format']=='jsonl':
+                return self._ctx.read.json(url, **options)
+            elif pd['format']=='parquet':
+                return self._ctx.read.parquet(url, **options)
+        elif pd['service'] == 'minio':
+            url = "s3a://{}".format(os.path.join(pd['path'],md['path']))
             print(url)
             if pd['format']=='csv':
                 return self._ctx.read.csv(url, **options)
@@ -148,6 +164,17 @@ class SparkEngine():
                 return obj.write.parquet(url, **options)
         elif pd['service'] == 'hdfs':
             url = "hdfs://{}:{}/{}/{}".format(pd['hostname'],pd.get('port', '8020'),pd['path'],md['path'])
+            if pd['format']=='csv':
+                return obj.write.csv(url, **options)
+            if pd['format']=='json':
+                return obj.write.option('multiLine',True).json(url, **options)
+            if pd['format']=='jsonl':
+                return obj.write.json(url, **options)
+            elif pd['format']=='parquet':
+                return obj.write.parquet(url, **options)
+        elif pd['service'] == 'minio':
+            url = "s3a://{}".format(os.path.join(pd['path'],md['path']))
+            print(url)
             if pd['format']=='csv':
                 return obj.write.csv(url, **options)
             if pd['format']=='json':
