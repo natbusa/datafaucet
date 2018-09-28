@@ -42,6 +42,11 @@ class SparkEngine():
         if 'jobname' in config:
             conf.setAppName(config.get('jobname'))
 
+        # scan providers, if minio is in the metadata list, then add this below
+        #conf.set("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000")
+        #conf.set("spark.hadoop.fs.s3a.access.key", "AKIAIOSFODNN7EXAMPLE")
+        #conf.set("spark.hadoop.fs.s3a.secret.key", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+
         conf.setMaster(config.get('master', 'local[*]'))
         self._ctx = SQLContext(SparkContext(conf=conf))
         self.info = {'name': name, 'context':'spark', 'config': config}
