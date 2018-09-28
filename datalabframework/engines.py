@@ -36,7 +36,7 @@ class SparkEngine():
         submit_args = '{} pyspark-shell'.format(submit_args)
 
         os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args
-        print(submit_args)
+        print('PYSPARK_SUBMIT_ARGS: {}'.format(submit_args))
 
         conf = SparkConf()
         if 'jobname' in config:
@@ -51,9 +51,7 @@ class SparkEngine():
 
     def read(self, resource, **kargs):
         md = data.metadata(resource)
-
-        #reference provider from data alias
-        pd = params.metadata()['providers'][md['provider']]
+        pd = md['provider']
 
         # override metadata with option specified on the read method
         options = utils.merge(md.get('options',{}), kargs)
@@ -118,9 +116,7 @@ class SparkEngine():
 
     def write(self, obj, resource, **kargs):
         md = data.metadata(resource)
-
-        #reference provider from data alias
-        pd = params.metadata()['providers'][md['provider']]
+        pd = md['provider']
 
         # override metadata with option specified on the read method
         options = utils.merge(md.get('options',{}), kargs)

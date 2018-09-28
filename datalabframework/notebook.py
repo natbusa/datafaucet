@@ -38,6 +38,3 @@ def statistics(filename):
     stats.update({'executed': count})
 
     return stats
-
-def list_all():
-    return utils.get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])

@@ -2,7 +2,7 @@ from . import params
 from . import project
 
 def uri(resource):
-    return params.resource_unique_name(resource, project.filename(False))
+    return params.resource_unique_name(resource, project.notebook(False))
 
 def metadata(resource):
     md = params.metadata()

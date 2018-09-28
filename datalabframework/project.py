@@ -207,7 +207,7 @@ class Config(metaclass=Singleton):
         # set python paths
         self._init_sys_paths()
 
-    def filename(self, relative_path=True):
+    def notebook(self, relative_path=True):
         rel_filename = utils.relative_filename(self._filename, self._rootpath)
         return rel_filename if relative_path else self._filename
 
@@ -228,15 +228,18 @@ def workdir():
     c = Config()
     return c.workdir()
 
-def filename(relative_path=True):
+def notebook(relative_path=True):
     c = Config()
-    return c.filename(relative_path)
+    return c.notebook(relative_path)
 
 def workrun():
     c = Config()
     return c.workrun()
 
 def info():
-    k = ['workrun','filename','rootpath', 'workdir']
+    k = ['workrun','notebook','rootpath', 'workdir']
     v = [eval(x+'()') for x in k]
     return dict(zip(k,v))
+
+def notebooks():
+    return utils.get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
