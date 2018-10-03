@@ -38,7 +38,7 @@ setup_args['install_requires']=[
     'requests',
     'pyyaml',
     'jinja2',
-    'notebook',
+    'ipykernel',
     'traitlets',
     'cookiecutter'
 ]
