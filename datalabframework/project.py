@@ -186,7 +186,7 @@ class Config(metaclass=Singleton):
         if 'NotebookFinder' not in str(sys.meta_path):
             sys.meta_path.append(NotebookFinder())
 
-    def __init__(self, cwd=None, filename=None, run='default'):
+    def __init__(self, cwd=None, filename=None, run=None):
         #set workdir
         try:
             os.chdir(cwd)
@@ -217,8 +217,12 @@ class Config(metaclass=Singleton):
     def workdir(self):
         return self._workdir
 
-    def workrun(self):
-        return self._workrun
+    def workrun(self, run=None):
+        # change only if not defined yet,
+        if run and self._workrun is None:
+            self._workrun = run
+
+        return self._workrun if self._workrun else 'default'
 
 def rootpath():
     c = Config()
@@ -232,9 +236,9 @@ def filename(relative_path=True):
     c = Config()
     return c.filename(relative_path)
 
-def workrun():
+def workrun(run=None):
     c = Config()
-    return c.workrun()
+    return c.workrun(run)
 
 def info():
     k = ['workrun','filename','rootpath', 'workdir']
