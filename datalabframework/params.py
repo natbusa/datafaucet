@@ -26,7 +26,10 @@ def rename_resources(fullpath_filename, params):
         r[alias] = v
     return r
 
-def metadata(run='default', all_runs=False):
+def metadata(run=None, all_runs=False):
+    #if nothing passed take the current run
+    run = run if run else project.workrun()
+
     filenames = utils.get_project_files(
         ext='metadata.yml',
         rootpath=project.rootpath(),

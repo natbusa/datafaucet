@@ -219,9 +219,13 @@ class Config(metaclass=Singleton):
 
     def workrun(self, run=None):
         # change only if not defined yet,
+        if run and self._workrun and run != self._workrun:
+            print("can only set the workrun once per script. (current run is '{}')".format(self._workrun))
+
+        # change only if not defined yet,
         if run and self._workrun is None:
             self._workrun = run
-
+        
         return self._workrun if self._workrun else 'default'
 
 def rootpath():
