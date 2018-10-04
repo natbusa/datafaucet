@@ -64,9 +64,9 @@ class SparkEngine():
         if not md:
             print('no valid resource found')
             return
-        
+
         pd = md['provider']
-                
+
         # override metadata with option specified on the read method
         options = utils.merge(md.get('options',{}), kargs)
 
@@ -144,7 +144,7 @@ class SparkEngine():
         if not md:
             print('no valid resource found')
             return
-        
+
         pd = md['provider']
 
         # override metadata with option specified on the read method
@@ -232,36 +232,6 @@ class PandasEngine():
         else:
             raise('downt know how to handle this')
 
-class NumpyEngine():
-    def __init__(self, name, config):
-        import numpy as np
-
-        self._ctx = np
-        self.info = {'name': name, 'context':'numpy', 'config': config}
-
-    def context(self):
-        return self._ctx
-
-    def read(self, resource, **kargs):
-        uri = data.uri(resource)
-        path = data.path(resource)
-        md = data.metadata(resource)
-
-        if md['format']=='csv':
-            return self._ctx.genfromtxt(path, **kargs)
-        else:
-            raise('downt know how to handle this')
-
-    def write(self, obj, resource, **kargs):
-        uri = data.uri(resource)
-        path = data.path(resource)
-        md = data.metadata(resource)
-
-        if md['format']=='csv':
-            return self._ctx.savetxt(path, obj, **kargs)
-        else:
-            raise('downt know how to handle this')
-
 def get(name):
     global engines
 
@@ -280,10 +250,6 @@ def get(name):
 
         if cn['context']=='pandas':
             engine = PandasEngine(name, config)
-            engines[name] = engine
-
-        if cn['context']=='numpy':
-            engine = NumpyEngine(name, config)
             engines[name] = engine
 
     return engine
