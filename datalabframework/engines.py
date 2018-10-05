@@ -35,6 +35,7 @@ class SparkEngine():
 
         submit_args = '{} pyspark-shell'.format(submit_args)
 
+        # os.environ['PYSPARK_SUBMIT_ARGS'] = "--packages org.postgresql:postgresql:42.2.5 pyspark-shell"
         os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args
         print('PYSPARK_SUBMIT_ARGS: {}'.format(submit_args))
 
@@ -191,6 +192,14 @@ class SparkEngine():
         elif pd['service'] == 'mysql':
             url = "jdbc:mysql://{}:{}/{}".format(pd['hostname'],pd.get('port', '3306'),pd['database'])
             driver = "com.mysql.jdbc.Driver"
+            return obj.write.format('jdbc').option('url', url)\
+                   .option("dbtable", md['path']).option("driver", driver)\
+                   .option("user",pd['username']).option('password',pd['password'])\
+                   .save(**kargs)
+        elif pd['service'] == 'postgres':
+            url = "jdbc:postgresql://{}:{}/{}".format(pd['hostname'], pd.get('port', '5432'), pd['database'])
+            print(url)
+            driver = "org.postgresql.Driver"
             return obj.write.format('jdbc').option('url', url)\
                    .option("dbtable", md['path']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
