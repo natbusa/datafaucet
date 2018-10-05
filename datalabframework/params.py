@@ -6,12 +6,14 @@ from . import utils
 from . import project
 
 def resource_unique_name(resource, fullpath_filename):
+    if not resource:
+        return ''
+    
     unique_name = resource
-
     if not resource.startswith('.'):
         filename_path = os.path.split(fullpath_filename)[0]
         if not 'metadata.yml' in os.listdir(filename_path):
-            raise ValueError('No metadata file, in the current dir')
+            raise ValueError('A relative resource "{}" is declared, but there is no metadata file dir : {}'.format(resource, filename_path))
 
         path = utils.breadcrumb_path(filename_path, rootpath=project.rootpath())
         unique_name = '.'+resource if path=='.' else '{}.{}'.format(path, resource)
@@ -47,7 +49,7 @@ def metadata(run=None, all_runs=False):
             k = params['run']
             runs[k] = utils.merge(runs.get(k,{}), params)
 
-    elements = ['resources','providers', 'engines', 'loggers']
+    elements = ['resources','variables', 'providers', 'engines', 'loggers']
 
     # empty list for default missing elements:
     for k in elements:
