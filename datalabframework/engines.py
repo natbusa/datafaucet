@@ -224,6 +224,40 @@ class SparkEngine():
 
 
 class ElasticEngine():
+    """
+    Example of engine, provider and reasource config:
+    engines:
+        elastic:
+            context: elastic
+
+    providers:
+        elastic_test:
+            service: elastic
+            hostname: 123.31.32.226
+            port: 9200
+    resources:
+        keywords_elk:
+            provider: elastic_test
+            index: search_keywords_dev
+            settings:
+                index:
+                    number_of_shards: 1
+                    number_of_replicas: 3
+                    mapping:
+                        total_fields:
+                            limit: 1024
+            mappings:
+                doc_type: keyword
+                properties:
+                    keyword: keyword
+                    count: integer
+                    query:
+                        type: text
+                        fields:
+                            keyword:
+                                type: keyword
+                                ignore_above: 256
+    """
     def __init__(self, name, config):
         self.info = {'name': name, 'context':'elastic', 'config': config}
 
