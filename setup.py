@@ -40,7 +40,10 @@ setup_args['install_requires']=[
     'jinja2',
     'ipykernel',
     'traitlets',
-    'cookiecutter'
+    'cookiecutter',
+    'pandas',
+    'numpy',
+    'elasticsearch'
 ]
 
 setup_args['include_package_data'] = True

@@ -222,6 +222,68 @@ class SparkEngine():
         else:
             raise('downt know how to handle this')
 
+
+class ElasticEngine():
+    def __init__(self, name, config):
+        self.info = {'name': name, 'context':'elastic', 'config': config}
+
+    def write(self, obj, resource=None, path=None, provider=None, mode='append',  **kargs):
+        """
+        :param mode: overwrite | append
+        :param obj: spark dataframe, pandas dataframe, or list of Python dictionaries
+        :param resource:
+        :param path:
+        :param provider:
+        :param kargs:
+        :return:
+        """
+        md = data.metadata(resource, path, provider)
+        if not md:
+            print('no valid resource found')
+            return
+
+        pd = md['provider']
+
+        import elasticsearch
+        import elasticsearch.helpers
+        import json
+
+        if pd["service"] == "elastic":
+            uri = 'http://{}:{}'.format(pd["hostname"], pd["port"])
+            es = elasticsearch.Elasticsearch([uri])
+            if mode == "overwrite":
+                if not md["settings"] or not md["mappings"]:
+                    raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
+                es.indices.delete(index=md["index"], ignore=404)
+                es.indices.create(index=md["index"], body={
+                    "settings": json.loads(md["settings"]),
+                    "mappings": {
+                        md["mappings"]["doc_type"]: {
+                            "properties": json.loads(md["mappings"]["properties"])
+                        }
+                    }
+                })
+            else: # append
+                pass
+
+            import pandas.core.frame
+            import pyspark.sql.dataframe
+            import numpy as np
+            if isinstance(obj, pandas.core.frame.DataFrame):
+                obj = obj.replace({np.nan:None}).to_dict(orient='records')
+            elif isinstance(obj, pyspark.sql.dataframe.DataFrame):
+                obj = obj.toPandas().replace({np.nan:None}).to_dict(orient='records')
+            else: # python list of python dictionaries
+                pass
+
+            from collections import deque
+            deque(elasticsearch.helpers.parallel_bulk(es, obj, index=md["index"],
+                                                      doc_type=md["mappings"]["doc_type"]), maxlen=0)
+            es.indices.refresh()
+        else:
+            raise ("Don't know how to handle this!")
+
+
 def get(name):
     global engines
 
@@ -236,6 +298,10 @@ def get(name):
 
         if cn['context']=='spark':
             engine = SparkEngine(name, config)
+            engines[name] = engine
+
+        if cn['context']=='elastic':
+            engine = ElasticEngine(name, config)
             engines[name] = engine
 
         if cn['context']=='pandas':
