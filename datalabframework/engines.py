@@ -252,6 +252,47 @@ class ElasticEngine():
             uri = 'http://{}:{}'.format(pd["hostname"], pd["port"])
             es = elasticsearch.Elasticsearch([uri])
             if mode == "overwrite":
+                if isinstance(md["mappings"]["properties"], str): # original properties JSON in Elastics format
+                    # properties: >
+                    #                 {
+                    #                     "count": {
+                    #                         "type": "integer"
+                    #                     },
+                    #                     "keyword": {
+                    #                         "type": "keyword"
+                    #                     },
+                    #                     "query": {
+                    #                         "type": "text",
+                    #                         "fields": {
+                    #                             "keyword": {
+                    #                                 "type": "keyword",
+                    #                                 "ignore_above": 256
+                    #                             }
+                    #                         }
+                    #                     }
+                    #                 }
+                    md["mappings"]["properties"] = json.loads(md["mappings"]["properties"])
+                else: # dictionary
+                    #             properties:
+                    #                 count: integer
+                    #                 keyword: keyword
+                    #                 query:
+                    #                     type: text
+                    #                     fields:
+                    #                         keyword:
+                    #                             type: keyword
+                    #                             ignore_above: 256
+                    #                 query_wo_tones:
+                    #                     type: text
+                    #                     fields:
+                    #                         keyword:
+                    #                             type: keyword
+                    #                             ignore_above: 256
+                    for k, v in md["mappings"]["properties"].items():
+                        if isinstance(md["mappings"]["properties"][k], str):
+                            md["mappings"]["properties"][k] = {"type":md["mappings"]["properties"][k]}
+
+                    print(md["mappings"]["properties"])
                 if not md["settings"] or not md["mappings"]:
                     raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
                 es.indices.delete(index=md["index"], ignore=404)
@@ -259,7 +300,7 @@ class ElasticEngine():
                     "settings": json.loads(md["settings"]),
                     "mappings": {
                         md["mappings"]["doc_type"]: {
-                            "properties": json.loads(md["mappings"]["properties"])
+                            "properties": md["mappings"]["properties"]
                         }
                     }
                 })
