@@ -292,12 +292,38 @@ class ElasticEngine():
                         if isinstance(md["mappings"]["properties"][k], str):
                             md["mappings"]["properties"][k] = {"type":md["mappings"]["properties"][k]}
 
-                    print(md["mappings"]["properties"])
+                if isinstance(md["settings"], str):  # original settings JSON in Elastics format
+                    #       settings: >
+                    #                 {
+                    #                     "index": {
+                    #                         "number_of_shards": 1,
+                    #                         "number_of_replicas": 3,
+                    #                         "mapping": {
+                    #                             "total_fields": {
+                    #                                 "limit": "1024"
+                    #                             }
+                    #                         }
+                    #                     }
+                    #                 }
+                    md["settings"] = json.loads(md["settings"])
+                else: # yaml object parsed into python dictionary
+                    #         settings:
+                    #             index:
+                    #                 number_of_shards: 1
+                    #                 number_of_replicas: 3
+                    #                 mapping:
+                    #                     total_fields:
+                    #                         limit: 1024
+                    pass
+
+                print(md["settings"])
+                print(md["mappings"]["properties"])
+
                 if not md["settings"] or not md["mappings"]:
                     raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
                 es.indices.delete(index=md["index"], ignore=404)
                 es.indices.create(index=md["index"], body={
-                    "settings": json.loads(md["settings"]),
+                    "settings": md["settings"],
                     "mappings": {
                         md["mappings"]["doc_type"]: {
                             "properties": md["mappings"]["properties"]
