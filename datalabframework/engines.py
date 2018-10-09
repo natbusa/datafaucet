@@ -1,9 +1,14 @@
 import os
 
+from jinja2 import Template
+
 from . import params
 from . import data
 from . import utils
 from . import project
+import elasticsearch.helpers
+import json
+import pandas
 
 # purpose of engines
 # abstract engine init, data read and data write
@@ -261,6 +266,87 @@ class ElasticEngine():
     def __init__(self, name, config):
         self.info = {'name': name, 'context':'elastic', 'config': config}
 
+    def read(self, resource=None, path=None, provider=None, **kargs):
+        """
+        sample resource:
+        - variables are enclosed in [[ ]] instead of {{ }}
+        keywords_search:
+            provider: elastic_test
+            #index: search_keywords_dev
+            path: /search_keywords_dev/keyword/
+            search: _search
+            query: >
+                {
+                  "size" : 2,
+                  "from" : 0,
+                  "query": {
+                    "function_score": {
+                      "query": {
+                          "match" : {
+                            "query_wo_tones": {"query":"[[query]]", "operator" :"or", "fuzziness":"AUTO"}
+                        }
+                      },
+                      "script_score" : {
+                          "script" : {
+                            "source": "Math.sqrt(doc['impressions'].value)"
+                          }
+                      },
+                      "boost_mode":"multiply"
+                    }
+                  }
+                }
+        :param resource:
+        :param path:
+        :param provider:
+        :param kargs: params to replace in `query` template
+        :return: pandas dataframe
+        """
+        md = data.metadata(resource, path, provider)
+        if not md:
+            print('no valid resource found')
+            return
+
+        pd = md['provider']
+
+        if pd["service"] == "elastic":
+            uri = 'http://{}:{}/{}'.format(pd["hostname"], pd["port"], md['path'])
+            es = elasticsearch.Elasticsearch([uri])
+            query = md['query'].replace("[[", "{{").replace("]]", "}}")
+            # print(query)
+            if kargs:
+                template = Template(query)
+                query = template.render(kargs)
+            else:
+                pass
+            query = json.loads(query)
+            # print(query)
+            if md["action"] == "_search":
+                res = es.search(body=query)
+            elif md["action"] == "_msearch":
+                res = es.msearch(body=query)
+            else:
+                raise ("Don't know how to handle this!")
+
+            hits = res.pop("hits", None)
+            # return  hits
+            if not hits:
+                raise("Error")
+
+            res["total_hits"] = hits["total"]
+            res["max_score"] = hits["max_score"]
+
+            hits2 = []
+            for hit in hits['hits']:
+                hitresult = hit.pop("_source", None)
+                hits2.append({**hit, **hitresult})
+
+            # return [res, hits2]
+            print("Summary:", res)
+            # return hits2
+            return pandas.DataFrame(hits2)
+        else:
+            raise ("Don't know how to handle this!")
+
     def write(self, obj, resource=None, path=None, provider=None, mode='append',  **kargs):
         """
         :param mode: overwrite | append
@@ -277,10 +363,6 @@ class ElasticEngine():
             return
 
         pd = md['provider']
-
-        import elasticsearch
-        import elasticsearch.helpers
-        import json
 
         if pd["service"] == "elastic":
             uri = 'http://{}:{}'.format(pd["hostname"], pd["port"])
