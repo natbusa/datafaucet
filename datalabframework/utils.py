@@ -2,6 +2,9 @@ import errno
 import os
 
 import yaml
+import json
+import jsonschema
+
 from jinja2 import Template, filters
 
 from copy import deepcopy
@@ -61,29 +64,20 @@ def get_project_files(ext, rootpath='.', exclude_dirs=[], ignore_dir_with_file='
 
     return lst
 
+#get_project_files(ext='metadata.yml', ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
+#get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
+
 def pretty_print(metadata):
     print(yaml.dump(metadata, indent=2, default_flow_style=False))
 
 
 def render(m, passes=10):
-    # doc = {}
-    # for k in m.keys():
-    #     doc[k] = yaml.dump(m[k])
-
     doc = yaml.dump(m)
 
     filters.FILTERS['env'] = lambda value, key: os.getenv(key, value)
     for i in range(passes):
         template = Template(doc)
         doc = template.render(yaml.load(doc))
-    #
-    # for k in doc.keys():
-    #     for i in range(passes):
-    #         doc[k] = template.render(yaml.load(doc[k]))
-    #
-    # d = {}
-    # for k in doc.keys():
-    #     d[k] = yaml.load(doc[k])
 
     doc = yaml.load(doc)
     return doc
@@ -102,5 +96,11 @@ def ensure_dir_exists(path, mode=0o777):
     if not os.path.isdir(path):
         raise IOError("%r exists but is not a directory" % path)
 
-#get_project_files(ext='metadata.yml', ignore_dir_with_file='metadata.ignore.yml', relative_path=False)
-#get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
+def validate(metadata, schema=None):
+    if not schema:
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        filename = os.path.abspath(os.path.join(dir_path, 'schema/top.yml'))
+        with open(filename) as f:
+            schema = yaml.load(f)
+
+    jsonschema.validate(metadata, schema)

@@ -9,7 +9,6 @@ import re
 import requests
 from urllib.parse import urljoin
 
-import ipykernel
 from IPython.core.interactiveshell import InteractiveShell
 from notebook.notebookapp import list_running_servers
 
@@ -72,8 +71,8 @@ def _get_filename(f=None):
     except:
         pass
 
-    #nothing found. Stop
-    raise  ValueError('could not infer the filename: {}'.format(f))
+    #nothing found. Use a fake name
+    return 'ipython'
 
 def _find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
@@ -225,7 +224,7 @@ class Config(metaclass=Singleton):
         # change only if not defined yet,
         if run and self._workrun is None:
             self._workrun = run
-        
+
         return self._workrun if self._workrun else 'default'
 
 def rootpath():

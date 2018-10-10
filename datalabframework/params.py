@@ -8,7 +8,7 @@ from . import project
 def resource_unique_name(resource, fullpath_filename):
     if not resource:
         return ''
-    
+
     unique_name = resource
     if not resource.startswith('.'):
         filename_path = os.path.split(fullpath_filename)[0]
@@ -64,6 +64,10 @@ def metadata(run=None, all_runs=False):
 
     # rendering of jinja constructs
     runs = utils.render(runs)
+
+    #validate all all_runs
+    for k in runs.keys():
+        utils.validate(runs[k])
 
     return runs if all_runs else runs[run]
 

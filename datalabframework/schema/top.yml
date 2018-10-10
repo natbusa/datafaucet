@@ -1,0 +1,19 @@
+---
+type : object
+properties:
+  run:
+    type: string
+  loggers:
+    type: object
+    properties:
+      stream:
+        type: object
+      kafka:
+        type: object
+required:
+  - run
+  - engines
+  - providers
+  - resources
+  - variables
+  - loggers
