@@ -14,6 +14,8 @@ properties:
   loggers:
     type: object
     properties:
+      severity:
+        type: string
       stream:
         type: object
         properties:
