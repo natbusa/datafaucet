@@ -52,11 +52,18 @@ class SparkEngine():
                     .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
                     .set("spark.hadoop.fs.s3a.path.style.access", True)
                 break
-        #logging option spark jobs
-        conf.set("spark.driver.extraJavaOptions","-Dlog4jspark.root.logger=ERROR,console")
 
+        #set master
         conf.setMaster(config.get('master', 'local[*]'))
-        self._ctx = SQLContext(SparkContext(conf=conf))
+
+        #set log level fro spark
+        sc = SparkContext(conf=conf)
+
+        # pyspark set log level method
+        # (this will not suppress WARN before starting the context)
+        sc.setLogLevel("ERROR")
+
+        self._ctx = SQLContext(sc)
         self.info = {'name': name, 'context':'spark', 'config': config}
 
     def context(self):
