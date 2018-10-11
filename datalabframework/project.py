@@ -3,7 +3,7 @@ import io
 import sys
 import types
 import subprocess
-
+import getpass
 from urllib.parse import urljoin
 
 import json
@@ -218,6 +218,12 @@ class Config(metaclass=Singleton):
         # set python paths
         self._init_sys_paths()
 
+        # get git data
+        self._repository = utils.repo_data()
+
+        # get user
+        self._username = getpass.getuser()
+
     def filename(self, relative_path=True):
         rel_filename = utils.relative_filename(self._filename, self._rootpath)
         return rel_filename if relative_path else self._filename
@@ -227,6 +233,12 @@ class Config(metaclass=Singleton):
 
     def workdir(self):
         return self._workdir
+
+    def repository(self):
+        return self._repository
+
+    def username(self):
+        return self._username
 
     def profile(self, p=None):
         # change only if not defined yet,
@@ -262,3 +274,11 @@ def info():
 
 def notebooks():
     return utils.get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
+
+def repository():
+    c = Config()
+    return c.repository()
+
+def username():
+    c = Config()
+    return c.username()

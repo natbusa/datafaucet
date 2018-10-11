@@ -9,6 +9,8 @@ from jinja2 import Template, filters
 
 from copy import deepcopy
 
+import git
+
 def merge(a, b):
     if not a:
         a = dict()
@@ -105,3 +107,34 @@ def validate(metadata, schema_filename):
         schema = yaml.load(f)
 
     jsonschema.validate(metadata, schema)
+
+def repo_data():
+    try:
+        repo = git.Repo(search_parent_directories=True)
+        (commit, branch) = repo.head.object.name_rev.split(' ')
+        msg = {
+            'type': 'git',
+            'committer': repo.head.object.committer.name,
+            'hash': commit[:7],
+            'commit': commit,
+            'branch': branch,
+            # How to get url
+            'url': repo.remotes.origin.url,
+            # How to get humanable time
+            'date': repo.head.object.committed_datetime.isoformat(),
+            'clean': len(repo.index.diff(None))== 0
+        }
+    except:
+        msg = {
+            'type': None,
+            'committer': '',
+            'hash': 0,
+            'commit': 0,
+            'branch': '',
+            # How to get url
+            'url': '',
+            # How to get humanable time
+            'date': '',
+            'clean': False
+        }
+    return msg
