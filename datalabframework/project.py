@@ -185,7 +185,7 @@ class Config(metaclass=Singleton):
     _rootpath = None
     _filename = None
     _workdir  = None
-    _workrun  = None
+    _profile  = None
 
     def _init_sys_paths(self):
         # add roothpath to the list of python sys paths
@@ -196,7 +196,7 @@ class Config(metaclass=Singleton):
         if 'NotebookFinder' not in str(sys.meta_path):
             sys.meta_path.append(NotebookFinder())
 
-    def __init__(self, cwd=None, filename=None, run=None):
+    def __init__(self, cwd=None, filename=None, profile=None):
         #set workdir
         try:
             os.chdir(cwd)
@@ -208,8 +208,8 @@ class Config(metaclass=Singleton):
         # set filename
         self._filename = _get_filename(filename)
 
-        # set metadata run
-        self._workrun = run
+        # set metadata profile
+        self._profile = profile
 
         # set rootpath
         self._rootpath = _rootpath()
@@ -227,16 +227,16 @@ class Config(metaclass=Singleton):
     def workdir(self):
         return self._workdir
 
-    def workrun(self, run=None):
+    def profile(self, p=None):
         # change only if not defined yet,
-        if run and self._workrun and run != self._workrun:
-            print("can only set the workrun once per script. (current run is '{}')".format(self._workrun))
+        if p and self._profile and p != self._profile:
+            print("can only set the profile once per script. (current profile is '{}')".format(self._profile))
 
         # change only if not defined yet,
-        if run and self._workrun is None:
-            self._workrun = run
+        if p and self._profile is None:
+            self._profile = p
 
-        return self._workrun if self._workrun else 'default'
+        return self._profile if self._profile else 'default'
 
 def rootpath():
     c = Config()
@@ -250,12 +250,12 @@ def filename(relative_path=True):
     c = Config()
     return c.filename(relative_path)
 
-def workrun(run=None):
+def profile(p=None):
     c = Config()
-    return c.workrun(run)
+    return c.profile(p)
 
 def info():
-    k = ['workrun','filename','rootpath', 'workdir']
+    k = ['profile','filename','rootpath', 'workdir']
     v = [eval(x+'()') for x in k]
     return dict(zip(k,v))
 

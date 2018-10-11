@@ -26,7 +26,7 @@ class DlfRunApp(DatalabframeworkApp):
     config_file = Unicode(u'',
                    help="Load this config file").tag(config=True)
 
-    run = Unicode(u'default', help="Execute a specific metadata run").tag(config=True)
+    profile = Unicode(u'default', help="Execute a specific metadata profile").tag(config=True)
 
     notebooks = List([], help="""List of notebooks to convert.
                      Wildcards are supported.
@@ -34,7 +34,7 @@ class DlfRunApp(DatalabframeworkApp):
                      """
     ).tag(config=True)
 
-    aliases = Dict(dict(run='DlfRunApp.run',
+    aliases = Dict(dict(profile='DlfRunApp.profile',
                         timeout='ExecutePreprocessor.timeout',
                         log_level='DlfRunApp.log_level'))
 
@@ -110,7 +110,7 @@ class DlfRunApp(DatalabframeworkApp):
             # added by dlf-run
             import datalabframework as dlf
             dlf.project.Config('{}', '{}', '{}')
-            """.format(cwd,fullpath_filename, self.run))
+            """.format(cwd,fullpath_filename, self.profile))
 
         nc = nbformat.v4.new_code_cell(init_str)
         nb['cells'].insert(0, nc)
