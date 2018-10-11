@@ -1,2 +1,5 @@
-version_info = (0, 5, 3)
+import builtins
+builtins.__DATALABFRAMEWORK__=True
+
+version_info = (0, 5, 4)
 __version__ = '.'.join(map(str, version_info))

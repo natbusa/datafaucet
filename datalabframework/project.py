@@ -4,11 +4,12 @@ import sys
 import types
 import subprocess
 
-import json
-import re
-import requests
 from urllib.parse import urljoin
 
+import json
+import re
+import ipykernel
+import requests
 from IPython.core.interactiveshell import InteractiveShell
 from notebook.notebookapp import list_running_servers
 

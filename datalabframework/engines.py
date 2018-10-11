@@ -52,6 +52,8 @@ class SparkEngine():
                     .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
                     .set("spark.hadoop.fs.s3a.path.style.access", True)
                 break
+        #logging option spark jobs
+        conf.set("spark.driver.extraJavaOptions","-Dlog4jspark.root.logger=ERROR,console")
 
         conf.setMaster(config.get('master', 'local[*]'))
         self._ctx = SQLContext(SparkContext(conf=conf))
@@ -70,17 +72,17 @@ class SparkEngine():
 
         cache = pd.get('read',{}).get('cache', False)
         cache = md.get('read',{}).get('cache', cache)
-        
+
         repartition = pd.get('read',{}).get('repartition', None)
         repartition = pd.get('read',{}).get('repartition', repartition)
-        
+
         coalesce = pd.get('read',{}).get('coalesce', None)
         coalesce = md.get('read',{}).get('coalesce', coalesce)
 
         print('repartition ', repartition)
         print('coalesce ', coalesce)
         print('cache', cache)
-        
+
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pd.get('read',{}).get('options',{}), md.get('read',{}).get('options',{}))
         options = utils.merge(options, kargs)
@@ -99,7 +101,7 @@ class SparkEngine():
             else:
                 print('format unknown')
                 return None
-            
+
             print(url)
             if pd['format']=='csv':
                 obj= self._ctx.read.csv(url, **options)
@@ -109,7 +111,7 @@ class SparkEngine():
                 obj= self._ctx.read.json(url, **options)
             elif pd['format']=='parquet':
                 obj= self._ctx.read.parquet(url, **options)
-        
+
         elif pd['service'] == 'sqlite':
             url = "jdbc:sqlite:" + pd['path']
             driver = "org.sqlite.JDBC"
@@ -142,7 +144,7 @@ class SparkEngine():
                    .load(**options)
         else:
             raise('downt know how to handle this')
-        
+
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
@@ -156,17 +158,17 @@ class SparkEngine():
             return
 
         pd = md['provider']
-        
+
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pd.get('write',{}).get('options',{}), md.get('write',{}).get('options',{}))
         options = utils.merge(options, kargs)
 
         cache = pd.get('write',{}).get('cache', False)
         cache = md.get('write',{}).get('cache', cache)
-        
+
         repartition = pd.get('write',{}).get('repartition', None)
         repartition = pd.get('write',{}).get('repartition', repartition)
-        
+
         coalesce = pd.get('write',{}).get('coalesce', None)
         coalesce = md.get('write',{}).get('coalesce', coalesce)
 
@@ -188,7 +190,7 @@ class SparkEngine():
             elif pd['service'] == 'minio':
                 url = "s3a://{}".format(os.path.join(pd['path'],md['path']))
             print(url)
-                        
+
             if pd['format']=='csv':
                 return obj.write.csv(url, **options)
             if pd['format']=='json':
