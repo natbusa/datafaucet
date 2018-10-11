@@ -38,9 +38,7 @@ def _get_filename(f=None):
     # when running not in and interactive shell,
     # just get the filename of the main script
 
-    #raise  ValueError('filename: {}'.format(f))
-
-    # default filename (injected)
+    # check provided filename (if exists)
     try:
         os.stat(f)
         return os.path.abspath(f)
@@ -54,7 +52,7 @@ def _get_filename(f=None):
     except:
         pass
 
-    #fallback 2: interactive shell
+    #fallback 2: interactive shell (ipynb notebook)
     try:
         kernel_filename = ipykernel.connect.get_connection_file()
         kernel_id = re.search('kernel-(.*).json',kernel_filename).group(1)
@@ -71,8 +69,21 @@ def _get_filename(f=None):
     except:
         pass
 
+    #check if running an interactive ipython sessions
+    try:
+        __IPYTHON__
+        return os.path.join(os.getcwd(),'<ipython-session>')
+    except NameError:
+        pass
+
+    try:
+        __DATALABFRAMEWORK__
+        return os.path.join(os.getcwd(),'<datalabframework>')
+    except NameError:
+        pass
+
     #nothing found. Use a fake name
-    return 'ipython'
+    return os.path.join(os.getcwd(),'<unknown>')
 
 def _find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
