@@ -130,6 +130,8 @@ def init():
     info = dict()
 
     logger = logging.getLogger()
+    level = loggingLevels.get(md['loggers'].get('severity', 'info'))
+    logger.setLevel(level)
     logger.handlers = []
 
     p = md['loggers'].get('kafka')
