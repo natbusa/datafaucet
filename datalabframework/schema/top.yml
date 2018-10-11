@@ -3,13 +3,34 @@ type : object
 properties:
   run:
     type: string
+  engines:
+    type: object
+  providers:
+    type: object
+  resources:
+    type: object
+  variables:
+    type: object
   loggers:
     type: object
     properties:
       stream:
         type: object
+        properties:
+          severity:
+            type: string
+          enable:
+            type: boolean
+        additionalProperties: false
       kafka:
         type: object
+        properties:
+          severity:
+            type: string
+          enable:
+            type: boolean
+        additionalProperties: false
+    additionalProperties: false
 required:
   - run
   - engines
@@ -17,3 +38,4 @@ required:
   - resources
   - variables
   - loggers
+additionalProperties: false

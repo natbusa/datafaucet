@@ -96,11 +96,12 @@ def ensure_dir_exists(path, mode=0o777):
     if not os.path.isdir(path):
         raise IOError("%r exists but is not a directory" % path)
 
-def validate(metadata, schema=None):
-    if not schema:
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        filename = os.path.abspath(os.path.join(dir_path, 'schema/top.yml'))
-        with open(filename) as f:
-            schema = yaml.load(f)
+def validate(metadata, schema_filename):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    filename = os.path.abspath(os.path.join(dir_path, 'schema/{}'.format(schema_filename)))
+
+    schema={}
+    with open(filename) as f:
+        schema = yaml.load(f)
 
     jsonschema.validate(metadata, schema)

@@ -67,7 +67,7 @@ def metadata(run=None, all_runs=False):
 
     #validate all all_runs
     for k in runs.keys():
-        utils.validate(runs[k])
+        utils.validate(runs[k], 'top.yml')
 
     return runs if all_runs else runs[run]
 
