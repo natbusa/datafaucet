@@ -145,6 +145,9 @@ class SparkEngine():
                    .option("dbtable", md['path']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
                    .load(**options)
+        elif pd['service'] == 'elastic':
+            uri = 'http://{}:{}/{}'.format(pd["hostname"], pd["port"], md['path'])
+            obj = elastic_read(uri=uri, action=md["action"], query=md['query'], format="spark", sparkContext=self._ctx, **kargs)
         else:
             raise('downt know how to handle this')
         
@@ -224,247 +227,210 @@ class SparkEngine():
                    .option("dbtable", md['path']).option("driver", driver)\
                    .option("user",pd['username']).option('password',pd['password'])\
                    .save(**kargs)
+        elif pd['service'] == 'elastic':
+            uri = 'http://{}:{}'.format(pd["hostname"], pd["port"])
+
+            if "mode" in kargs and kargs.get("mode") == "overwrite":
+                mode = "overwrite"
+            else:
+                mode = "append"
+
+            elatic_write(obj, uri, mode, md["index"], md["settings"], md["mappings"])
         else:
             raise('downt know how to handle this')
 
 
-class ElasticEngine():
+def elastic_read(uri, action, query, format="pandas", sparkContext=None, **kargs):
     """
-    Example of engine, provider and reasource config:
-    engines:
-        elastic:
-            context: elastic
+    :param format: pandas|spark|python
+    :param uri:
+    :param action:
+    :param query:
+    :param kargs:
+    :return:
 
-    providers:
-        elastic_test:
-            service: elastic
-            hostname: 123.31.32.226
-            port: 9200
-    resources:
-        keywords_elk:
-            provider: elastic_test
-            index: search_keywords_dev
-            settings:
-                index:
-                    number_of_shards: 1
-                    number_of_replicas: 3
-                    mapping:
-                        total_fields:
-                            limit: 1024
-            mappings:
-                doc_type: keyword
-                properties:
-                    keyword: keyword
-                    count: integer
-                    query:
-                        type: text
-                        fields:
-                            keyword:
-                                type: keyword
-                                ignore_above: 256
-    """
-    def __init__(self, name, config):
-        self.info = {'name': name, 'context':'elastic', 'config': config}
-
-    def read(self, resource=None, path=None, provider=None, **kargs):
-        """
-        sample resource:
-        - variables are enclosed in [[ ]] instead of {{ }}
-        keywords_search:
-            provider: elastic_test
-            #index: search_keywords_dev
-            path: /search_keywords_dev/keyword/
-            search: _search
-            query: >
-                {
-                  "size" : 2,
-                  "from" : 0,
+    sample resource:
+    - variables are enclosed in [[ ]] instead of {{ }}
+    keywords_search:
+        provider: elastic_test
+        #index: search_keywords_dev
+        path: /search_keywords_dev/keyword/
+        search: _search
+        query: >
+            {
+              "size" : 2,
+              "from" : 0,
+              "query": {
+                "function_score": {
                   "query": {
-                    "function_score": {
-                      "query": {
-                          "match" : {
-                            "query_wo_tones": {"query":"[[query]]", "operator" :"or", "fuzziness":"AUTO"}
-                        }
-                      },
-                      "script_score" : {
-                          "script" : {
-                            "source": "Math.sqrt(doc['impressions'].value)"
-                          }
-                      },
-                      "boost_mode":"multiply"
+                      "match" : {
+                        "query_wo_tones": {"query":"[[query]]", "operator" :"or", "fuzziness":"AUTO"}
                     }
-                  }
+                  },
+                  "script_score" : {
+                      "script" : {
+                        "source": "Math.sqrt(doc['impressions'].value)"
+                      }
+                  },
+                  "boost_mode":"multiply"
                 }
-        :param resource:
-        :param path:
-        :param provider:
-        :param kargs: params to replace in `query` template
-        :return: pandas dataframe
-        """
-        md = data.metadata(resource, path, provider)
-        if not md:
-            print('no valid resource found')
-            return
+              }
+            }
+    :param resource:
+    :param path:
+    :param provider:
+    :param kargs: params to replace in `query` template
+    :return: pandas dataframe
+    """
 
-        pd = md['provider']
+    es = elasticsearch.Elasticsearch([uri])
+    query = query.replace("[[", "{{").replace("]]", "}}")
+    # print(query)
+    if kargs:
+        template = Template(query)
+        query = template.render(kargs)
+    else:
+        pass
+    query = json.loads(query)
+    print(query)
+    if action == "_search":
+        res = es.search(body=query)
+    elif action == "_msearch":
+        res = es.msearch(body=query)
+    else:
+        raise ("Don't know how to handle this!")
 
-        if pd["service"] == "elastic":
-            uri = 'http://{}:{}/{}'.format(pd["hostname"], pd["port"], md['path'])
-            es = elasticsearch.Elasticsearch([uri])
-            query = md['query'].replace("[[", "{{").replace("]]", "}}")
-            # print(query)
-            if kargs:
-                template = Template(query)
-                query = template.render(kargs)
-            else:
-                pass
-            query = json.loads(query)
-            # print(query)
-            if md["action"] == "_search":
-                res = es.search(body=query)
-            elif md["action"] == "_msearch":
-                res = es.msearch(body=query)
-            else:
-                raise ("Don't know how to handle this!")
+    hits = res.pop("hits", None)
+    # return  hits
+    if not hits:
+        raise("Error")
 
-            hits = res.pop("hits", None)
-            # return  hits
-            if not hits:
-                raise("Error")
+    res["total_hits"] = hits["total"]
+    res["max_score"] = hits["max_score"]
 
-            res["total_hits"] = hits["total"]
-            res["max_score"] = hits["max_score"]
+    hits2 = []
+    for hit in hits['hits']:
+        hitresult = hit.pop("_source", None)
+        hits2.append({**hit, **hitresult})
 
-            hits2 = []
-            for hit in hits['hits']:
-                hitresult = hit.pop("_source", None)
-                hits2.append({**hit, **hitresult})
+    # return [res, hits2]
+    print("Summary:", res)
+    # return hits2
+    if format == "python":
+        return hits2
+    elif format == "pandas":
+        return pandas.DataFrame(hits2)
+    elif format=="spark":
+        return sparkContext.createDataFrame(pandas.DataFrame(hits2))
+        # return sparkContext.createDataFrame(pandas.DataFrame(hits2))
+    else:
+        raise ("Unknown format: " + format)
 
-            # return [res, hits2]
-            print("Summary:", res)
-            # return hits2
-            return pandas.DataFrame(hits2)
-        else:
-            raise ("Don't know how to handle this!")
 
-    def write(self, obj, resource=None, path=None, provider=None, mode='append',  **kargs):
-        """
-        :param mode: overwrite | append
-        :param obj: spark dataframe, pandas dataframe, or list of Python dictionaries
-        :param resource:
-        :param path:
-        :param provider:
-        :param kargs:
-        :return:
-        """
-        md = data.metadata(resource, path, provider)
-        if not md:
-            print('no valid resource found')
-            return
+def elatic_write(obj, uri, mode='append', indexName=None, settings=None, mappings=None):
+    """
+    :param mode: overwrite | append
+    :param obj: spark dataframe, pandas dataframe, or list of Python dictionaries
+    :param kargs:
+    :return:
+    """
+    es = elasticsearch.Elasticsearch([uri])
+    if mode == "overwrite":
+        if isinstance(mappings["properties"], str): # original properties JSON in Elastics format
+            # properties: >
+            #                 {
+            #                     "count": {
+            #                         "type": "integer"
+            #                     },
+            #                     "keyword": {
+            #                         "type": "keyword"
+            #                     },
+            #                     "query": {
+            #                         "type": "text",
+            #                         "fields": {
+            #                             "keyword": {
+            #                                 "type": "keyword",
+            #                                 "ignore_above": 256
+            #                             }
+            #                         }
+            #                     }
+            #                 }
+            mappings["properties"] = json.loads(mappings["properties"])
+        else: # dictionary
+            #             properties:
+            #                 count: integer
+            #                 keyword: keyword
+            #                 query:
+            #                     type: text
+            #                     fields:
+            #                         keyword:
+            #                             type: keyword
+            #                             ignore_above: 256
+            #                 query_wo_tones:
+            #                     type: text
+            #                     fields:
+            #                         keyword:
+            #                             type: keyword
+            #                             ignore_above: 256
+            for k, v in mappings["properties"].items():
+                if isinstance(mappings["properties"][k], str):
+                    mappings["properties"][k] = {"type":mappings["properties"][k]}
 
-        pd = md['provider']
+        if isinstance(settings, str):  # original settings JSON in Elastics format
+            #       settings: >
+            #                 {
+            #                     "index": {
+            #                         "number_of_shards": 1,
+            #                         "number_of_replicas": 3,
+            #                         "mapping": {
+            #                             "total_fields": {
+            #                                 "limit": "1024"
+            #                             }
+            #                         }
+            #                     }
+            #                 }
+            settings = json.loads(settings)
+        else: # yaml object parsed into python dictionary
+            #         settings:
+            #             index:
+            #                 number_of_shards: 1
+            #                 number_of_replicas: 3
+            #                 mapping:
+            #                     total_fields:
+            #                         limit: 1024
+            pass
 
-        if pd["service"] == "elastic":
-            uri = 'http://{}:{}'.format(pd["hostname"], pd["port"])
-            es = elasticsearch.Elasticsearch([uri])
-            if mode == "overwrite":
-                if isinstance(md["mappings"]["properties"], str): # original properties JSON in Elastics format
-                    # properties: >
-                    #                 {
-                    #                     "count": {
-                    #                         "type": "integer"
-                    #                     },
-                    #                     "keyword": {
-                    #                         "type": "keyword"
-                    #                     },
-                    #                     "query": {
-                    #                         "type": "text",
-                    #                         "fields": {
-                    #                             "keyword": {
-                    #                                 "type": "keyword",
-                    #                                 "ignore_above": 256
-                    #                             }
-                    #                         }
-                    #                     }
-                    #                 }
-                    md["mappings"]["properties"] = json.loads(md["mappings"]["properties"])
-                else: # dictionary
-                    #             properties:
-                    #                 count: integer
-                    #                 keyword: keyword
-                    #                 query:
-                    #                     type: text
-                    #                     fields:
-                    #                         keyword:
-                    #                             type: keyword
-                    #                             ignore_above: 256
-                    #                 query_wo_tones:
-                    #                     type: text
-                    #                     fields:
-                    #                         keyword:
-                    #                             type: keyword
-                    #                             ignore_above: 256
-                    for k, v in md["mappings"]["properties"].items():
-                        if isinstance(md["mappings"]["properties"][k], str):
-                            md["mappings"]["properties"][k] = {"type":md["mappings"]["properties"][k]}
+        print(settings)
+        print(mappings["properties"])
 
-                if isinstance(md["settings"], str):  # original settings JSON in Elastics format
-                    #       settings: >
-                    #                 {
-                    #                     "index": {
-                    #                         "number_of_shards": 1,
-                    #                         "number_of_replicas": 3,
-                    #                         "mapping": {
-                    #                             "total_fields": {
-                    #                                 "limit": "1024"
-                    #                             }
-                    #                         }
-                    #                     }
-                    #                 }
-                    md["settings"] = json.loads(md["settings"])
-                else: # yaml object parsed into python dictionary
-                    #         settings:
-                    #             index:
-                    #                 number_of_shards: 1
-                    #                 number_of_replicas: 3
-                    #                 mapping:
-                    #                     total_fields:
-                    #                         limit: 1024
-                    pass
+        if not settings or not settings:
+            raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
+        es.indices.delete(index=indexName, ignore=404)
+        es.indices.create(index=indexName, body={
+            "settings": settings,
+            "mappings": {
+                mappings["doc_type"]: {
+                    "properties": mappings["properties"]
+                }
+            }
+        })
+    else: # append
+        pass
 
-                print(md["settings"])
-                print(md["mappings"]["properties"])
+    import pandas.core.frame
+    import pyspark.sql.dataframe
+    import numpy as np
+    if isinstance(obj, pandas.core.frame.DataFrame):
+        obj = obj.replace({np.nan:None}).to_dict(orient='records')
+    elif isinstance(obj, pyspark.sql.dataframe.DataFrame):
+        obj = obj.toPandas().replace({np.nan:None}).to_dict(orient='records')
+    else: # python list of python dictionaries
+        pass
 
-                if not md["settings"] or not md["mappings"]:
-                    raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
-                es.indices.delete(index=md["index"], ignore=404)
-                es.indices.create(index=md["index"], body={
-                    "settings": md["settings"],
-                    "mappings": {
-                        md["mappings"]["doc_type"]: {
-                            "properties": md["mappings"]["properties"]
-                        }
-                    }
-                })
-            else: # append
-                pass
-
-            import pandas.core.frame
-            import pyspark.sql.dataframe
-            import numpy as np
-            if isinstance(obj, pandas.core.frame.DataFrame):
-                obj = obj.replace({np.nan:None}).to_dict(orient='records')
-            elif isinstance(obj, pyspark.sql.dataframe.DataFrame):
-                obj = obj.toPandas().replace({np.nan:None}).to_dict(orient='records')
-            else: # python list of python dictionaries
-                pass
-
-            from collections import deque
-            deque(elasticsearch.helpers.parallel_bulk(es, obj, index=md["index"],
-                                                      doc_type=md["mappings"]["doc_type"]), maxlen=0)
-            es.indices.refresh()
-        else:
-            raise ("Don't know how to handle this!")
+    from collections import deque
+    deque(elasticsearch.helpers.parallel_bulk(es, obj, index=indexName,
+                                              doc_type=mappings["doc_type"]), maxlen=0)
+    es.indices.refresh()
 
 
 def get(name):
@@ -481,10 +447,6 @@ def get(name):
 
         if cn['context']=='spark':
             engine = SparkEngine(name, config)
-            engines[name] = engine
-
-        if cn['context']=='elastic':
-            engine = ElasticEngine(name, config)
             engines[name] = engine
 
         if cn['context']=='pandas':
