@@ -9,13 +9,11 @@ def metadata(resource=None, path=None, provider=None):
     ds = md['resources'].get(uri(resource), None)
     if ds and ds['provider'] in md['providers']:
         pd = md['providers'][ds['provider']]
-        pd['alias'] = ds['provider']
         return {'resource':ds, 'provider':pd}
     else:
         pd = params.metadata()['providers'].get(provider, None)
         if pd and path:
-            pd['alias'] = provider
-            ds = {'provider': pd, 'resource':{'path':path}}
+            ds = {'provider': pd, 'resource':{'path':path, 'provider':provider}}
             return ds
         else:
             print('Resource not found: must specify either path and provider alias, or the resource alias')
