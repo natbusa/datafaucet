@@ -1,5 +1,6 @@
 from . import params
 from . import project
+from . import utils
 
 import os
 
@@ -20,7 +21,7 @@ def _url(md):
         pmd['path'] = pmd.get('path','')
 
     pmd['hostname'] = pmd.get('hostname', '127.0.0.1')
-    pmd['path'] = lrchop(pmd['path'], '/')
+    pmd['path'] = utils.lrchop(pmd['path'], '/')
     rmd['path'] = rmd.get('path','')
 
     fullpath = os.path.join(pmd['path'],rmd['path'])
