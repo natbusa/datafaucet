@@ -109,7 +109,7 @@ class SparkEngine():
             obj =  self._ctx.read \
                 .format('jdbc') \
                 .option('url', url)\
-                .option("dbtable", rmd['path'])
+                .option("dbtable", rmd['path'])\
                 .option("driver", driver)\
                 .load(**options)
 
