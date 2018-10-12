@@ -5,6 +5,9 @@ from . import data
 from . import utils
 from . import project
 
+from . import logging
+logger = logging.getLogger()
+
 # purpose of engines
 # abstract engine init, data read and data write
 # and move this information to metadata
@@ -79,7 +82,6 @@ class SparkEngine():
         rmd = md['resource']
 
         url = md['url']
-        print("resource url: {}".format(url))
 
         cache = pmd.get('read',{}).get('cache', False)
         cache = rmd.get('read',{}).get('cache', cache)
@@ -150,6 +152,9 @@ class SparkEngine():
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
 
+        #logging
+        logger.info({'format':pmd['format'],'service':pmd['service'],'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.read'})
+
         return obj
 
     def write(self, obj, resource=None, path=None, provider=None, **kargs):
@@ -162,7 +167,6 @@ class SparkEngine():
         rmd = md['resource']
 
         url = md['url']
-        print("resource url: {}".format(url))
 
         cache = pmd.get('read',{}).get('cache', False)
         cache = rmd.get('read',{}).get('cache', cache)
@@ -186,19 +190,19 @@ class SparkEngine():
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
             if pmd['format']=='csv':
-                return obj.write.csv(url, **options)
+                obj.write.csv(url, **options)
             if pmd['format']=='json':
-                return obj.write.option('multiLine',True).json(url, **options)
+                obj.write.option('multiLine',True).json(url, **options)
             if pmd['format']=='jsonl':
-                return obj.write.json(url, **options)
+                obj.write.json(url, **options)
             elif pmd['format']=='parquet':
-                return obj.write.parquet(url, **options)
+                obj.write.parquet(url, **options)
             else:
                 print('format unknown')
 
         elif pmd['service'] == 'sqlite':
             driver = "org.sqlite.JDBC"
-            return obj.write\
+            obj.write\
                 .format('jdbc')\
                 .option('url', url)\
                 .option("dbtable", rmd['path'])\
@@ -207,7 +211,7 @@ class SparkEngine():
 
         elif pmd['service'] == 'mysql':
             driver = "com.mysql.cj.jdbc.Driver"
-            return obj.write\
+            obj.write\
                 .format('jdbc')\
                 .option('url', url)\
                 .option("dbtable", rmd['path'])\
@@ -218,7 +222,7 @@ class SparkEngine():
 
         elif pmd['service'] == 'postgres':
             driver = "org.postgresql.Driver"
-            return obj.write\
+            obj.write\
                 .format('jdbc')\
                 .option('url', url)\
                 .option("dbtable", rmd['path'])\
@@ -228,6 +232,8 @@ class SparkEngine():
                 .save(**kargs)
         else:
             raise('downt know how to handle this')
+
+        logger.info({'format':pmd['format'],'service':pmd['service'], 'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.write'})
 
 def get(name):
     global engines

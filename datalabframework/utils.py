@@ -120,6 +120,7 @@ def repo_data():
             'branch': branch,
             # How to get url
             'url': repo.remotes.origin.url,
+            'name': repo.remotes.origin.url.split('/')[-1],
             # How to get humanable time
             'date': repo.head.object.committed_datetime.isoformat(),
             'clean': len(repo.index.diff(None))== 0
@@ -133,6 +134,7 @@ def repo_data():
             'branch': '',
             # How to get url
             'url': '',
+            'name':'',
             # How to get humanable time
             'date': '',
             'clean': False

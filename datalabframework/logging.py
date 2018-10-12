@@ -19,8 +19,41 @@ from numbers import Number
 from . import project
 from . import notebook
 from . import params
+from . import utils
 
+#logging object is a singleton
 _logger = None
+
+def getLogger():
+    global _logger
+    if not _logger:
+        init()
+    return _logger
+
+def extra_attributes():
+    d =  {
+        'dlf_session' : project.repository()['hash'],
+        'dlf_username' : getpass.getuser(),
+        'dlf_filename' : project.filename(),
+        'dlf_repo_name': project.repository()['name']
+        }
+    return d
+
+class LoggerAdapter(logging.LoggerAdapter):
+    def __init__(self, logger, extra):
+        super().__init__(logger, extra)
+
+    def process(self, msg, kwargs):
+        kw = {'dlf_type':'message'}
+        kw.update(self.extra)
+        kw.update(kwargs.get('extra', {}))
+        kwargs['extra'] = kw
+        return msg, kwargs
+
+    # high level logging
+    def dataframe_read(self, myown):
+        d = {'whatever':'we', 'need':'here', 'myown':myown}
+        super().info(d, extra={'dlf_type':'dataframe.read'})
 
 def _json_default(obj):
     """
@@ -35,29 +68,6 @@ def _json_default(obj):
         return obj
     else:
         return str(obj)
-
-def custom_attributes(record):
-    if type(record.msg) is dict and 'type' in record.msg:
-        record.type = record.msg['type']
-        del record.msg['type']
-    else:
-        record.type = 'message'
-
-    # add all the magic
-    record.session = project.repository()['hash']
-    # add all the magic
-    record.username = getpass.getuser()
-    record.filename = project.filename()
-    return record
-
-class StreamFormatter(logging.Formatter):
-    def __init__(self,
-                 fmt=None,
-                 datefmt=None):
-        super().__init__(fmt, datefmt)
-
-    def format(self, record):
-        return super(StreamFormatter, self).format(custom_attributes(record))
 
 class LogstashFormatter(logging.Formatter):
     """
@@ -77,7 +87,7 @@ class LogstashFormatter(logging.Formatter):
         fields.
         """
 
-        logr =  custom_attributes(record)
+        logr =  record
         timestamp = datetime.datetime.fromtimestamp(loginfo['created']).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
         # loginfo = {k:d.get(k,None) for k in ['created', 'levelname', 'exc_info']}
@@ -157,16 +167,17 @@ def init():
         level = loggingLevels.get(p.get('severity'))
 
         # create console handler and set level to debug
-        formatter = StreamFormatter('%(asctime)s - %(levelname)s - %(session)s - %(username)s - %(filename)s - %(type)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s') #%(session)s - %(username)s - %(filename)s - %(type)s
         handler = logging.StreamHandler(sys.stdout,)
         handler.setLevel(level)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-    _logger = logger
+    _logger = LoggerAdapter(logger, extra_attributes())
 
-def getLogger():
-    global _logger
-    if not _logger:
-        init()
-    return _logger
+# logger = dlf.logging.getLogger()
+
+#logger.project()
+#dlf.logger.info(dlf.project.info(), extra={type:'project'})
+
+#logger.dataframe.read(df)
