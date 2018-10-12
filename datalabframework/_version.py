@@ -1,6 +1,5 @@
-# Copyright (c) Jupyter Development Team.
-# Distributed under the terms of the Modified BSD License.
+import builtins
+builtins.__DATALABFRAMEWORK__=True
 
-version_info = (0, 5, 2)
-
+version_info = (0, 5, 8)
 __version__ = '.'.join(map(str, version_info))

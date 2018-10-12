@@ -3,13 +3,13 @@ import io
 import sys
 import types
 import subprocess
+import getpass
+from urllib.parse import urljoin
 
 import json
 import re
-import requests
-from urllib.parse import urljoin
-
 import ipykernel
+import requests
 from IPython.core.interactiveshell import InteractiveShell
 from notebook.notebookapp import list_running_servers
 
@@ -39,9 +39,7 @@ def _get_filename(f=None):
     # when running not in and interactive shell,
     # just get the filename of the main script
 
-    #raise  ValueError('filename: {}'.format(f))
-
-    # default filename (injected)
+    # check provided filename (if exists)
     try:
         os.stat(f)
         return os.path.abspath(f)
@@ -55,7 +53,7 @@ def _get_filename(f=None):
     except:
         pass
 
-    #fallback 2: interactive shell
+    #fallback 2: interactive shell (ipynb notebook)
     try:
         kernel_filename = ipykernel.connect.get_connection_file()
         kernel_id = re.search('kernel-(.*).json',kernel_filename).group(1)
@@ -72,8 +70,21 @@ def _get_filename(f=None):
     except:
         pass
 
-    #nothing found. Stop
-    raise  ValueError('could not infer the filename: {}'.format(f))
+    #check if running an interactive ipython sessions
+    try:
+        __IPYTHON__
+        return os.path.join(os.getcwd(),'<ipython-session>')
+    except NameError:
+        pass
+
+    try:
+        __DATALABFRAMEWORK__
+        return os.path.join(os.getcwd(),'<datalabframework>')
+    except NameError:
+        pass
+
+    #nothing found. Use a fake name
+    return os.path.join(os.getcwd(),'<unknown>')
 
 def _find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
@@ -175,7 +186,7 @@ class Config(metaclass=Singleton):
     _rootpath = None
     _filename = None
     _workdir  = None
-    _workrun  = None
+    _profile  = None
 
     def _init_sys_paths(self):
         # add roothpath to the list of python sys paths
@@ -186,7 +197,7 @@ class Config(metaclass=Singleton):
         if 'NotebookFinder' not in str(sys.meta_path):
             sys.meta_path.append(NotebookFinder())
 
-    def __init__(self, cwd=None, filename=None, run=None):
+    def __init__(self, cwd=None, filename=None, profile=None):
         #set workdir
         try:
             os.chdir(cwd)
@@ -198,14 +209,20 @@ class Config(metaclass=Singleton):
         # set filename
         self._filename = _get_filename(filename)
 
-        # set metadata run
-        self._workrun = run
+        # set metadata profile
+        self._profile = profile
 
         # set rootpath
         self._rootpath = _rootpath()
 
         # set python paths
         self._init_sys_paths()
+
+        # get git data
+        self._repository = utils.repo_data()
+
+        # get user
+        self._username = getpass.getuser()
 
     def filename(self, relative_path=True):
         rel_filename = utils.relative_filename(self._filename, self._rootpath)
@@ -217,16 +234,22 @@ class Config(metaclass=Singleton):
     def workdir(self):
         return self._workdir
 
-    def workrun(self, run=None):
+    def repository(self):
+        return self._repository
+
+    def username(self):
+        return self._username
+
+    def profile(self, p=None):
         # change only if not defined yet,
-        if run and self._workrun and run != self._workrun:
-            print("can only set the workrun once per script. (current run is '{}')".format(self._workrun))
+        if p and self._profile and p != self._profile:
+            print("can only set the profile once per script. (current profile is '{}')".format(self._profile))
 
         # change only if not defined yet,
-        if run and self._workrun is None:
-            self._workrun = run
-        
-        return self._workrun if self._workrun else 'default'
+        if p and self._profile is None:
+            self._profile = p
+
+        return self._profile if self._profile else 'default'
 
 def rootpath():
     c = Config()
@@ -240,14 +263,22 @@ def filename(relative_path=True):
     c = Config()
     return c.filename(relative_path)
 
-def workrun(run=None):
+def profile(p=None):
     c = Config()
-    return c.workrun(run)
+    return c.profile(p)
 
 def info():
-    k = ['workrun','filename','rootpath', 'workdir']
+    k = ['profile','filename','rootpath', 'workdir']
     v = [eval(x+'()') for x in k]
     return dict(zip(k,v))
 
 def notebooks():
     return utils.get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
+
+def repository():
+    c = Config()
+    return c.repository()
+
+def username():
+    c = Config()
+    return c.username()

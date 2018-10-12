@@ -13,15 +13,49 @@ import json
 
 import sys
 import os
+from numbers import Number
 
 #import a few help methods
 from . import project
 from . import notebook
 from . import params
+from . import utils
 
+#logging object is a singleton
 _logger = None
 
-def _default_json_default(obj):
+def getLogger():
+    global _logger
+    if not _logger:
+        init()
+    return _logger
+
+def extra_attributes():
+    d =  {
+        'dlf_session' : project.repository()['hash'],
+        'dlf_username' : getpass.getuser(),
+        'dlf_filename' : project.filename(),
+        'dlf_repo_name': project.repository()['name']
+        }
+    return d
+
+class LoggerAdapter(logging.LoggerAdapter):
+    def __init__(self, logger, extra):
+        super().__init__(logger, extra)
+
+    def process(self, msg, kwargs):
+        kw = {'dlf_type':'message'}
+        kw.update(self.extra)
+        kw.update(kwargs.get('extra', {}))
+        kwargs['extra'] = kw
+        return msg, kwargs
+
+    # high level logging
+    def dataframe_read(self, myown):
+        d = {'whatever':'we', 'need':'here', 'myown':myown}
+        super().info(d, extra={'dlf_type':'dataframe.read'})
+
+def _json_default(obj):
     """
     Coerce everything to strings.
     All objects representing time get output as ISO8601.
@@ -30,6 +64,8 @@ def _default_json_default(obj):
         isinstance(obj,datetime.date) or      \
         isinstance(obj,datetime.time):
         return obj.isoformat()
+    elif isinstance(obj, Number):
+        return obj
     else:
         return str(obj)
 
@@ -41,30 +77,8 @@ class LogstashFormatter(logging.Formatter):
 
     def __init__(self,
                  fmt=None,
-                 datefmt=None,
-                 json_cls=None,
-                 json_default=_default_json_default):
-        """
-        :param fmt: Config as a JSON string, allowed fields;
-               extra: provide extra fields always present in logs
-
-        :param datefmt: Date format to use (required by logging.Formatter interface but not used)
-        :param json_cls: JSON encoder to forward to json.dumps
-        :param json_default: Default JSON representation for unknown types, by default coerce everything to a string
-        """
-
-        if fmt is not None:
-            self._fmt = json.loads(fmt)
-        else:
-            self._fmt = {}
-
-        self.json_default = json_default
-        self.json_cls = json_cls
-
-        if 'extra' not in self._fmt:
-            self.defaults = {}
-        else:
-            self.defaults = self._fmt['extra']
+                 datefmt=None):
+        pass
 
     def format(self, record):
         """
@@ -73,34 +87,24 @@ class LogstashFormatter(logging.Formatter):
         fields.
         """
 
-        d = record.__dict__.copy()
-        loginfo = {k:d.get(k,None) for k in ['created', 'levelname', 'exc_info']}
-
-        loginfo['exception'] = None
-        if loginfo['exc_info']:
-            formatted = tb.format_exception(*loginfo['exc_info'])
-            loginfo['exception'] = formatted
-            loginfo.pop('exc_info')
-
-        info = self.defaults.copy()
-        info.update({'log_level': loginfo['levelname'],'log_exception': loginfo['exception']})
-
-        fields = dict()
-        message = None
-        if isinstance(record.msg, dict):
-            fields = record.msg
-        else:
-            message = record.getMessage()
-
-
+        logr =  record
         timestamp = datetime.datetime.fromtimestamp(loginfo['created']).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
-        logr = {'message': message,
-                'info': info,
-                '@timestamp': timestamp,
-                'fields': fields}
+        # loginfo = {k:d.get(k,None) for k in ['created', 'levelname', 'exc_info']}
+        # loginfo['exception'] = None
+        # if loginfo['exc_info']:
+        #     formatted = tb.format_exception(*loginfo['exc_info'])
+        #     loginfo['exception'] = formatted
+        #     loginfo.pop('exc_info')
 
-        return json.dumps(logr, default=self.json_default, cls=self.json_cls)
+        log_record = {
+            'severity': logr.levelname,
+            'session': session,
+            '@timestamp': timestamp,
+            'type': type,
+            'fields': fields}
+
+        return json.dumps(log_record, default=_json_default)
 
 class KafkaLoggingHandler(logging.Handler):
 
@@ -134,10 +138,10 @@ def init():
     md = params.metadata()
 
     info = dict()
-    info.update({'username': getpass.getuser()})
-    info.update({'filename': project.filename()})
 
     logger = logging.getLogger()
+    level = loggingLevels.get(md['loggers'].get('severity', 'info'))
+    logger.setLevel(level)
     logger.handlers = []
 
     p = md['loggers'].get('kafka')
@@ -163,16 +167,17 @@ def init():
         level = loggingLevels.get(p.get('severity'))
 
         # create console handler and set level to debug
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - {} - {} - %(message)s'.format(*info.values()))
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s') #%(session)s - %(username)s - %(filename)s - %(type)s
         handler = logging.StreamHandler(sys.stdout,)
         handler.setLevel(level)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-    _logger = logger
+    _logger = LoggerAdapter(logger, extra_attributes())
 
-def logger():
-    global _logger
-    if not _logger:
-        init()
-    return _logger
+# logger = dlf.logging.getLogger()
+
+#logger.project()
+#dlf.logger.info(dlf.project.info(), extra={type:'project'})
+
+#logger.dataframe.read(df)

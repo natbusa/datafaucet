@@ -43,7 +43,9 @@ setup_args['install_requires']=[
     'cookiecutter',
     'pandas',
     'numpy',
-    'elasticsearch'
+    'elasticsearch',
+    'gitpython',
+    'jsonschema'
 ]
 
 setup_args['include_package_data'] = True
