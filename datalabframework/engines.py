@@ -114,7 +114,7 @@ class SparkEngine():
                 .load(**options)
 
         elif pmd['service'] == 'mysql':
-            driver = "com.mysql.jdbc.Driver"
+            driver = "com.mysql.cj.jdbc.Driver"
             obj =  self._ctx.read\
                 .format('jdbc')\
                 .option('url', url)\
@@ -206,7 +206,7 @@ class SparkEngine():
                 .save(**kargs)
 
         elif pmd['service'] == 'mysql':
-            driver = "com.mysql.jdbc.Driver"
+            driver = "com.mysql.cj.jdbc.Driver"
             return obj.write\
                 .format('jdbc')\
                 .option('url', url)\
