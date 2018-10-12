@@ -22,8 +22,6 @@ def _url(md):
     pmd['hostname'] = pmd.get('hostname', '127.0.0.1')
     rmd['path'] = rmd.get('path','')
 
-    print(pmd)
-
     if  pmd['service'] == 'local':
         url = "file://{}/{}".format(pmd['path'], rmd['path'])
     elif pmd['service'] == 'hdfs':
