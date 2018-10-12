@@ -42,7 +42,6 @@ setup_args['install_requires']=[
     'traitlets',
     'cookiecutter',
     'gitpython',
-    'json',
     'jsonschema'
 ]
 
