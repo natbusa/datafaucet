@@ -1,6 +1,8 @@
 from . import params
 from . import project
 
+import os
+
 def uri(resource):
     return params.resource_unique_name(resource, project.filename(False))
 
@@ -13,11 +15,14 @@ def _url(md):
         pmd['path'] = pmd.get('path',project.rootpath())
         if pmd['path'][0]!='/':
             pmd['path'] = '{}/{}'.format(project.rootpath(), pmd['path'])
+            pmd['path'] = os.path.abspath(pmd['path'])
     else:
         pmd['path'] = pmd.get('path','')
 
     pmd['hostname'] = pmd.get('hostname', '127.0.0.1')
     rmd['path'] = rmd.get('path','')
+
+    print(pmd)
 
     if  pmd['service'] == 'local':
         url = "file://{}/{}".format(pmd['path'], rmd['path'])
@@ -35,6 +40,8 @@ def _url(md):
         url = "jdbc:sqlserver://{}:{};databaseName={}".format(pmd['hostname'],pmd.get('port', '1433'),pmd['database'])
     else:
         url = None
+
+    return url
 
 def metadata(resource=None, path=None, provider=None):
     md = params.metadata()
