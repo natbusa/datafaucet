@@ -151,8 +151,9 @@ class SparkEngine():
                 .option('password', pmd['password']) \
                 .load(**options)
         elif pmd['service'] == 'elastic':
-            uri = 'http://{}:{}/{}'.format(pmd["hostname"], pmd["port"], md['path'])
-            obj = elastic_read(uri=uri, action=md["action"], query=md['query'], format="spark", sparkContext=self._ctx, **kargs)
+            # uri = 'http://{}:{}/{}'.format(pmd["hostname"], pmd["port"], md['path'])
+            # print(options)
+            obj = elastic_read(uri=url, action=options["action"], query=options['query'], format="spark", sparkContext=self._ctx, **kargs)
         else:
             raise('downt know how to handle this')
 
@@ -161,7 +162,7 @@ class SparkEngine():
         obj = obj.cache() if cache else obj
 
         #logging
-        logger.info({'format':pmd['format'],'service':pmd['service'],'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.read'})
+        logger.info({'format':pmd.get('format'),'service':pmd['service'],'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.read'})
 
         return obj
 
@@ -241,16 +242,16 @@ class SparkEngine():
         elif pmd['service'] == 'elastic':
             uri = 'http://{}:{}'.format(pmd["hostname"], pmd["port"])
 
+            # print(options)
             if "mode" in kargs and kargs.get("mode") == "overwrite":
                 mode = "overwrite"
             else:
                 mode = "append"
-
-            elatic_write(obj, uri, mode, md["index"], md["settings"], md["mappings"])
+            elatic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
         else:
             raise('downt know how to handle this')
 
-        logger.info({'format': pmd['format'], 'service': pmd['service'], 'path': rmd['path'], 'url': md['url']},
+        logger.info({'format': pmd.get('format'), 'service': pmd['service'], 'path': rmd['path'], 'url': md['url']},
                     extra={'dlf_type': 'engine.write'})
 
 

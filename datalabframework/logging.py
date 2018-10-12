@@ -147,7 +147,7 @@ def init():
     p = md['loggers'].get('kafka')
     if p and p['enable'] and KafkaProducer:
 
-        level = loggingLevels.get(p.get('severity'))
+        level = loggingLevels.get(p.get('severity', 'info'))
         topic = p.get('topic')
         hosts = p.get('hosts')
 
@@ -164,7 +164,7 @@ def init():
 
     p = md['loggers'].get('stream')
     if p and p['enable']:
-        level = loggingLevels.get(p.get('severity'))
+        level = loggingLevels.get(p.get('severity', 'info'))
 
         # create console handler and set level to debug
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s') #%(session)s - %(username)s - %(filename)s - %(type)s
