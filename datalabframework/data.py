@@ -20,14 +20,17 @@ def _url(md):
         pmd['path'] = pmd.get('path','')
 
     pmd['hostname'] = pmd.get('hostname', '127.0.0.1')
+    pmd['path'] = lrchop(pmd['path'], '/')
     rmd['path'] = rmd.get('path','')
 
+    fullpath = os.path.join(pmd['path'],rmd['path'])
+
     if  pmd['service'] == 'local':
-        url = "file://{}/{}".format(pmd['path'], rmd['path'])
+        url = "file:///{}".format(fullpath)
     elif pmd['service'] == 'hdfs':
-        url = "hdfs://{}:{}/{}/{}".format(pmd['hostname'],pmd.get('port', '8020'),pmd['path'],rmd['path'])
+        url = "hdfs://{}:{}/{}".format(pmd['hostname'],pmd.get('port', '8020'),fullpath)
     elif pmd['service'] == 'minio':
-        url = "s3a://{}".format(os.path.join(pmd['path'],rmd['path']))
+        url = "s3a:///{}".format(fullpath)
     elif pmd['service'] == 'sqlite':
         url = "jdbc:sqlite:" + pmd['path']
     elif pmd['service'] == 'mysql':
