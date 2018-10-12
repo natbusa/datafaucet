@@ -36,9 +36,6 @@ def _url(md):
     else:
         url = None
 
-dev _driver(md):
-
-
 def metadata(resource=None, path=None, provider=None):
     md = params.metadata()
 
