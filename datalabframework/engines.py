@@ -78,6 +78,9 @@ class SparkEngine():
         pmd = md['provider']
         rmd = md['resource']
 
+        url = md['url']
+        print("resource url: {}".format(url))
+
         cache = pmd.get('read',{}).get('cache', False)
         cache = rmd.get('read',{}).get('cache', cache)
 
@@ -87,30 +90,11 @@ class SparkEngine():
         coalesce = pmd.get('read',{}).get('coalesce', None)
         coalesce = rmd.get('read',{}).get('coalesce', coalesce)
 
-        print('repartition ', repartition)
-        print('coalesce ', coalesce)
-        print('cache', cache)
-
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('read',{}).get('options',{}), rmd.get('read',{}).get('options',{}))
         options = utils.merge(options, kargs)
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-
-            if pmd['service'] == 'local':
-                root = pmd.get('path',project.rootpath())
-                root = root if root[0]=='/' else '{}/{}'.format(project.rootpath(), root)
-                url = "file://{}/{}".format(root, rmd['path'])
-                url = url.translate(str.maketrans({"{":  r"\{","}":  r"\}"}))
-            elif pmd['service'] == 'hdfs':
-                url = "hdfs://{}:{}/{}/{}".format(pmd['hostname'],pmd.get('port', '8020'),pmd['path'],rmd['path'])
-            elif pmd['service'] == 'minio':
-                url = "s3a://{}".format(os.path.join(pmd['path'],rmd['path']))
-            else:
-                print('format unknown')
-                return None
-
-            print(url)
             if pmd['format']=='csv':
                 obj= self._ctx.read.csv(url, **options)
             if pmd['format']=='json':
@@ -121,35 +105,44 @@ class SparkEngine():
                 obj= self._ctx.read.parquet(url, **options)
 
         elif pmd['service'] == 'sqlite':
-            url = "jdbc:sqlite:" + pmd['path']
             driver = "org.sqlite.JDBC"
-            obj =  self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", rmd['path']).option("driver", driver)\
-                   .load(**options)
+            obj =  self._ctx.read \
+                .format('jdbc') \
+                .option('url', url)\
+                .option("dbtable", rmd['path'])
+                .option("driver", driver)\
+                .load(**options)
+
         elif pmd['service'] == 'mysql':
-            url = "jdbc:mysql://{}:{}/{}".format(pmd['hostname'],pmd.get('port', '3306'),pmd['database'])
-            print(url)
             driver = "com.mysql.jdbc.Driver"
-            obj =  self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", rmd['path']).option("driver", driver)\
-                   .option("user",pmd['username']).option('password',pmd['password'])\
-                   .load(**options)
+            obj =  self._ctx.read\
+                .format('jdbc')\
+                .option('url', url)\
+                .option("dbtable", rmd['path'])\
+                .option("driver", driver)\
+                .option("user",pmd['username'])\
+                .option('password',pmd['password'])\
+                .load(**options)
         elif pmd['service'] == 'postgres':
-            url = "jdbc:postgresql://{}:{}/{}".format(pmd['hostname'],pmd.get('port', '5432'),pmd['database'])
-            print(url)
             driver = "org.postgresql.Driver"
-            obj =  self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", rmd['path']).option("driver", driver)\
-                   .option("user",pmd['username']).option('password',pmd['password'])\
-                   .load(**options)
+            obj =  self._ctx.read\
+                .format('jdbc')\
+                .option('url', url)\
+                .option("dbtable", rmd['path'])\
+                .option("driver", driver)\
+                .option("user",pmd['username'])\
+                .option('password',pmd['password'])\
+                .load(**options)
         elif pmd['service'] == 'mssql':
-            url = "jdbc:sqlserver://{}:{};databaseName={}".format(pmd['hostname'],pmd.get('port', '1433'),pmd['database'])
-            print(url)
             driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-            obj = self._ctx.read.format('jdbc').option('url', url)\
-                   .option("dbtable", rmd['path']).option("driver", driver)\
-                   .option("user",pmd['username']).option('password',pmd['password'])\
-                   .load(**options)
+            obj = self._ctx.read\
+                .format('jdbc')\
+                .option('url', url)\
+                .option("dbtable", rmd['path'])\
+                .option("driver", driver)\
+                .option("user",pmd['username'])\
+                .option('password',pmd['password'])\
+                .load(**options)
         else:
             raise('downt know how to handle this')
 
@@ -168,38 +161,30 @@ class SparkEngine():
         pmd = md['provider']
         rmd = md['resource']
 
-        # override options on provider with options on resource, with option on the read method
-        options = utils.merge(pmd.get('write',{}).get('options',{}), rmd.get('write',{}).get('options',{}))
-        options = utils.merge(options, kargs)
+        url = md['url']
+        print("resource url: {}".format(url))
+
+        cache = pmd.get('read',{}).get('cache', False)
+        cache = rmd.get('read',{}).get('cache', cache)
 
         cache = pmd.get('write',{}).get('cache', False)
         cache = rmd.get('write',{}).get('cache', cache)
 
         repartition = pmd.get('write',{}).get('repartition', None)
-        repartition = pmd.get('write',{}).get('repartition', repartition)
+        repartition = rmd.get('write',{}).get('repartition', repartition)
 
         coalesce = pmd.get('write',{}).get('coalesce', None)
         coalesce = rmd.get('write',{}).get('coalesce', coalesce)
 
-        print('repartition ', repartition)
-        print('coalesce ', coalesce)
-        print('cache', cache)
+        # override options on provider with options on resource, with option on the read method
+        options = utils.merge(pmd.get('write',{}).get('options',{}), rmd.get('write',{}).get('options',{}))
+        options = utils.merge(options, kargs)
 
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if pmd['service'] == 'local':
-                root = pmd.get('path',project.rootpath())
-                root = root if root[0]=='/' else '{}/{}'.format(project.rootpath(), root)
-                url = "file://{}/{}".format(root, rmd['path'])
-            elif pmd['service'] == 'hdfs':
-                url = "hdfs://{}:{}/{}/{}".format(pmd['hostname'],pmd.get('port', '8020'),pmd['path'],rmd['path'])
-            elif pmd['service'] == 'minio':
-                url = "s3a://{}".format(os.path.join(pmd['path'],rmd['path']))
-            print(url)
-
             if pmd['format']=='csv':
                 return obj.write.csv(url, **options)
             if pmd['format']=='json':
@@ -210,26 +195,37 @@ class SparkEngine():
                 return obj.write.parquet(url, **options)
             else:
                 print('format unknown')
+
         elif pmd['service'] == 'sqlite':
-            url = "jdbc:sqlite:" + pmd['path']
             driver = "org.sqlite.JDBC"
-            return obj.write.format('jdbc').option('url', url)\
-                      .option("dbtable", rmd['path']).option("driver", driver).save(**kargs)
+            return obj.write\
+                .format('jdbc')\
+                .option('url', url)\
+                .option("dbtable", rmd['path'])\
+                .option("driver", driver)\
+                .save(**kargs)
+
         elif pmd['service'] == 'mysql':
-            url = "jdbc:mysql://{}:{}/{}".format(pmd['hostname'],pmd.get('port', '3306'),pmd['database'])
             driver = "com.mysql.jdbc.Driver"
-            return obj.write.format('jdbc').option('url', url)\
-                   .option("dbtable", rmd['path']).option("driver", driver)\
-                   .option("user",pmd['username']).option('password',pmd['password'])\
-                   .save(**kargs)
+            return obj.write\
+                .format('jdbc')\
+                .option('url', url)\
+                .option("dbtable", rmd['path'])\
+                .option("driver", driver)\
+                .option("user",pmd['username'])\
+                .option('password',pmd['password'])\
+                .save(**kargs)
+
         elif pmd['service'] == 'postgres':
-            url = "jdbc:postgresql://{}:{}/{}".format(pmd['hostname'], pmd.get('port', '5432'), pmd['database'])
-            print(url)
             driver = "org.postgresql.Driver"
-            return obj.write.format('jdbc').option('url', url)\
-                   .option("dbtable", rmd['path']).option("driver", driver)\
-                   .option("user",pmd['username']).option('password',pmd['password'])\
-                   .save(**kargs)
+            return obj.write\
+                .format('jdbc')\
+                .option('url', url)\
+                .option("dbtable", rmd['path'])\
+                .option("driver", driver)\
+                .option("user",pmd['username'])\
+                .option('password',pmd['password'])\
+                .save(**kargs)
         else:
             raise('downt know how to handle this')
 
@@ -247,10 +243,6 @@ def get(name):
 
         if cn['context']=='spark':
             engine = SparkEngine(name, config)
-            engines[name] = engine
-
-        if cn['context']=='pandas':
-            engine = PandasEngine(name, config)
             engines[name] = engine
 
     return engine
