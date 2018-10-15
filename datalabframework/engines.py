@@ -96,14 +96,19 @@ class SparkEngine():
         options = utils.merge(pmd.get('read',{}).get('options',{}), rmd.get('read',{}).get('options',{}))
         options = utils.merge(options, kargs)
 
+        if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
+            format = pmd.get('format', 'rdbms')
+        else:
+            format = pmd.get('format', 'parquet')
+
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if pmd['format']=='csv':
+            if format=='csv':
                 obj= self._ctx.read.csv(url, **options)
-            if pmd['format']=='json':
+            if format=='json':
                 obj= self._ctx.read.option('multiLine',True).json(url, **options)
-            if pmd['format']=='jsonl':
+            if format=='jsonl':
                 obj= self._ctx.read.json(url, **options)
-            elif pmd['format']=='parquet':
+            elif format=='parquet':
                 obj= self._ctx.read.parquet(url, **options)
 
         elif pmd['service'] == 'sqlite':
@@ -153,7 +158,7 @@ class SparkEngine():
         obj = obj.cache() if cache else obj
 
         #logging
-        logger.info({'format':pmd['format'],'service':pmd['service'],'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.read'})
+        logger.info({'format':format,'service':pmd['service'],'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.read'})
 
         return obj
 
@@ -171,9 +176,6 @@ class SparkEngine():
         cache = pmd.get('read',{}).get('cache', False)
         cache = rmd.get('read',{}).get('cache', cache)
 
-        cache = pmd.get('write',{}).get('cache', False)
-        cache = rmd.get('write',{}).get('cache', cache)
-
         repartition = pmd.get('write',{}).get('repartition', None)
         repartition = rmd.get('write',{}).get('repartition', repartition)
 
@@ -188,14 +190,19 @@ class SparkEngine():
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
 
+        if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
+            format = pmd.get('format', 'rdbms')
+        else:
+            format = pmd.get('format', 'parquet')
+
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if pmd['format']=='csv':
+            if format=='csv':
                 obj.write.csv(url, **options)
-            if pmd['format']=='json':
+            if format=='json':
                 obj.write.option('multiLine',True).json(url, **options)
-            if pmd['format']=='jsonl':
+            if format=='jsonl':
                 obj.write.json(url, **options)
-            elif pmd['format']=='parquet':
+            elif format=='parquet':
                 obj.write.parquet(url, **options)
             else:
                 print('format unknown')
@@ -233,7 +240,7 @@ class SparkEngine():
         else:
             raise('downt know how to handle this')
 
-        logger.info({'format':pmd['format'],'service':pmd['service'], 'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.write'})
+        logger.info({'format':format,'service':pmd['service'], 'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.write'})
 
 def get(name):
     global engines
