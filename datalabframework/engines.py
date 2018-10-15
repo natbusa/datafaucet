@@ -1,9 +1,14 @@
 import os
 
+from jinja2 import Template
+
 from . import params
 from . import data
 from . import utils
 from . import project
+import elasticsearch.helpers
+import json
+import pandas
 
 from . import logging
 logger = logging.getLogger()
@@ -142,14 +147,18 @@ class SparkEngine():
                 .load(**options)
         elif pmd['service'] == 'mssql':
             driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-            obj = self._ctx.read\
-                .format('jdbc')\
-                .option('url', url)\
-                .option("dbtable", rmd['path'])\
-                .option("driver", driver)\
-                .option("user",pmd['username'])\
-                .option('password',pmd['password'])\
+            obj = self._ctx.read \
+                .format('jdbc') \
+                .option('url', url) \
+                .option("dbtable", rmd['path']) \
+                .option("driver", driver) \
+                .option("user", pmd['username']) \
+                .option('password', pmd['password']) \
                 .load(**options)
+        elif pmd['service'] == 'elastic':
+            # uri = 'http://{}:{}/{}'.format(pmd["hostname"], pmd["port"], md['path'])
+            # print(options)
+            obj = elastic_read(uri=url, action=options["action"], query=options['query'], format="spark", sparkContext=self._ctx, **kargs)
         else:
             raise('downt know how to handle this')
 
@@ -229,18 +238,221 @@ class SparkEngine():
 
         elif pmd['service'] == 'postgres':
             driver = "org.postgresql.Driver"
-            obj.write\
-                .format('jdbc')\
-                .option('url', url)\
-                .option("dbtable", rmd['path'])\
-                .option("driver", driver)\
-                .option("user",pmd['username'])\
-                .option('password',pmd['password'])\
+            obj.write \
+                .format('jdbc') \
+                .option('url', url) \
+                .option("dbtable", rmd['path']) \
+                .option("driver", driver) \
+                .option("user", pmd['username']) \
+                .option('password', pmd['password']) \
                 .save(**kargs)
+        elif pmd['service'] == 'elastic':
+            uri = 'http://{}:{}'.format(pmd["hostname"], pmd["port"])
+
+            # print(options)
+            if "mode" in kargs and kargs.get("mode") == "overwrite":
+                mode = "overwrite"
+            else:
+                mode = "append"
+            elatic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
         else:
             raise('downt know how to handle this')
 
         logger.info({'format':format,'service':pmd['service'], 'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.write'})
+
+
+def elastic_read(uri, action, query, format="pandas", sparkContext=None, **kargs):
+    """
+    :param format: pandas|spark|python
+    :param uri:
+    :param action:
+    :param query:
+    :param kargs:
+    :return:
+
+    sample resource:
+    - variables are enclosed in [[ ]] instead of {{ }}
+    keywords_search:
+        provider: elastic_test
+        #index: search_keywords_dev
+        path: /search_keywords_dev/keyword/
+        search: _search
+        query: >
+            {
+              "size" : 2,
+              "from" : 0,
+              "query": {
+                "function_score": {
+                  "query": {
+                      "match" : {
+                        "query_wo_tones": {"query":"[[query]]", "operator" :"or", "fuzziness":"AUTO"}
+                    }
+                  },
+                  "script_score" : {
+                      "script" : {
+                        "source": "Math.sqrt(doc['impressions'].value)"
+                      }
+                  },
+                  "boost_mode":"multiply"
+                }
+              }
+            }
+    :param resource:
+    :param path:
+    :param provider:
+    :param kargs: params to replace in `query` template
+    :return: pandas dataframe
+    """
+
+    es = elasticsearch.Elasticsearch([uri])
+    query = query.replace("[[", "{{").replace("]]", "}}")
+    # print(query)
+    if kargs:
+        template = Template(query)
+        query = template.render(kargs)
+    else:
+        pass
+    query = json.loads(query)
+    print(query)
+    if action == "_search":
+        res = es.search(body=query)
+    elif action == "_msearch":
+        res = es.msearch(body=query)
+    else:
+        raise ("Don't know how to handle this!")
+
+    hits = res.pop("hits", None)
+    # return  hits
+    if not hits:
+        raise("Error")
+
+    res["total_hits"] = hits["total"]
+    res["max_score"] = hits["max_score"]
+
+    hits2 = []
+    for hit in hits['hits']:
+        hitresult = hit.pop("_source", None)
+        hits2.append({**hit, **hitresult})
+
+    # return [res, hits2]
+    print("Summary:", res)
+    # return hits2
+    if format == "python":
+        return hits2
+    elif format == "pandas":
+        return pandas.DataFrame(hits2)
+    elif format=="spark":
+        return sparkContext.createDataFrame(pandas.DataFrame(hits2))
+        # return sparkContext.createDataFrame(pandas.DataFrame(hits2))
+    else:
+        raise ("Unknown format: " + format)
+
+
+def elatic_write(obj, uri, mode='append', indexName=None, settings=None, mappings=None):
+    """
+    :param mode: overwrite | append
+    :param obj: spark dataframe, pandas dataframe, or list of Python dictionaries
+    :param kargs:
+    :return:
+    """
+    es = elasticsearch.Elasticsearch([uri])
+    if mode == "overwrite":
+        if isinstance(mappings["properties"], str): # original properties JSON in Elastics format
+            # properties: >
+            #                 {
+            #                     "count": {
+            #                         "type": "integer"
+            #                     },
+            #                     "keyword": {
+            #                         "type": "keyword"
+            #                     },
+            #                     "query": {
+            #                         "type": "text",
+            #                         "fields": {
+            #                             "keyword": {
+            #                                 "type": "keyword",
+            #                                 "ignore_above": 256
+            #                             }
+            #                         }
+            #                     }
+            #                 }
+            mappings["properties"] = json.loads(mappings["properties"])
+        else: # dictionary
+            #             properties:
+            #                 count: integer
+            #                 keyword: keyword
+            #                 query:
+            #                     type: text
+            #                     fields:
+            #                         keyword:
+            #                             type: keyword
+            #                             ignore_above: 256
+            #                 query_wo_tones:
+            #                     type: text
+            #                     fields:
+            #                         keyword:
+            #                             type: keyword
+            #                             ignore_above: 256
+            for k, v in mappings["properties"].items():
+                if isinstance(mappings["properties"][k], str):
+                    mappings["properties"][k] = {"type":mappings["properties"][k]}
+
+        if isinstance(settings, str):  # original settings JSON in Elastics format
+            #       settings: >
+            #                 {
+            #                     "index": {
+            #                         "number_of_shards": 1,
+            #                         "number_of_replicas": 3,
+            #                         "mapping": {
+            #                             "total_fields": {
+            #                                 "limit": "1024"
+            #                             }
+            #                         }
+            #                     }
+            #                 }
+            settings = json.loads(settings)
+        else: # yaml object parsed into python dictionary
+            #         settings:
+            #             index:
+            #                 number_of_shards: 1
+            #                 number_of_replicas: 3
+            #                 mapping:
+            #                     total_fields:
+            #                         limit: 1024
+            pass
+
+        print(settings)
+        print(mappings["properties"])
+
+        if not settings or not settings:
+            raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
+        es.indices.delete(index=indexName, ignore=404)
+        es.indices.create(index=indexName, body={
+            "settings": settings,
+            "mappings": {
+                mappings["doc_type"]: {
+                    "properties": mappings["properties"]
+                }
+            }
+        })
+    else: # append
+        pass
+
+    import pandas.core.frame
+    import pyspark.sql.dataframe
+    import numpy as np
+    if isinstance(obj, pandas.core.frame.DataFrame):
+        obj = obj.replace({np.nan:None}).to_dict(orient='records')
+    elif isinstance(obj, pyspark.sql.dataframe.DataFrame):
+        obj = obj.toPandas().replace({np.nan:None}).to_dict(orient='records')
+    else: # python list of python dictionaries
+        pass
+
+    from collections import deque
+    deque(elasticsearch.helpers.parallel_bulk(es, obj, index=indexName,
+                                              doc_type=mappings["doc_type"]), maxlen=0)
+    es.indices.refresh()
+
 
 def get(name):
     global engines
