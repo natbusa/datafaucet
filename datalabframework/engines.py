@@ -250,11 +250,12 @@ class SparkEngine():
             uri = 'http://{}:{}'.format(pmd["hostname"], pmd["port"])
 
             # print(options)
-            if "mode" in kargs and kargs.get("mode") == "overwrite":
-                mode = "overwrite"
-            else:
-                mode = "append"
-            elatic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
+            # if "mode" in kargs and kargs.get("mode") == "overwrite":
+            #     mode = "overwrite"
+            # else:
+            #     mode = "append"
+            mode = kargs.get("mode", None)
+            elastic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
         else:
             raise('downt know how to handle this')
 
@@ -267,29 +268,27 @@ class SparkEngine():
 
 def elastic_read(url, query):
     """
-    :param format: spark|python (removed pandas)
-    :param uri:
-    :param action:
+    :param url:
     :param query:
-    :param kargs:
-    :return:
+    :return: python list of dict
 
     sample resource:
-    - variables are enclosed in [[ ]] instead of {{ }}
+    variables:
+        size: 10
+        from: 0
+        query: "laptop"
     keywords_search:
         provider: elastic_test
-        #index: search_keywords_dev
         path: /search_keywords_dev/keyword/
-        search: _search
         query: >
             {
-              "size" : 2,
-              "from" : 0,
+              "size" : "{{ default.variables.size }}",
+              "from" : "{{ default.variables.size }}",
               "query": {
                 "function_score": {
                   "query": {
                       "match" : {
-                        "query_wo_tones": {"query":"[[query]]", "operator" :"or", "fuzziness":"AUTO"}
+                        "query_wo_tones": {"query":"{{ default.variables.query }}", "operator" :"or", "fuzziness":"AUTO"}
                     }
                   },
                   "script_score" : {
@@ -301,11 +300,6 @@ def elastic_read(url, query):
                 }
               }
             }
-    :param resource:
-    :param path:
-    :param provider:
-    :param kargs: params to replace in `query` template
-    :return: pandas dataframe
     """
 
     try:
@@ -331,17 +325,15 @@ def elastic_read(url, query):
     return hits2
 
 
-def elatic_write(obj, uri, mode='append', indexName=None, settings=None, mappings=None):
+def elastic_write(obj, uri, mode='append', indexName=None, settings=None, mappings=None):
     """
     :param mode: overwrite | append
-    :param obj: spark dataframe, pandas dataframe, or list of Python dictionaries
-    :param kargs:
+    :param obj: spark dataframe, or list of Python dictionaries
     :return:
     """
     es = elasticsearch.Elasticsearch([uri])
     if mode == "overwrite":
-        if isinstance(mappings["properties"], str): # original properties JSON in Elastics format
-            # properties: >
+            # properties:
             #                 {
             #                     "count": {
             #                         "type": "integer"
@@ -359,50 +351,45 @@ def elatic_write(obj, uri, mode='append', indexName=None, settings=None, mapping
             #                         }
             #                     }
             #                 }
-            mappings["properties"] = json.loads(mappings["properties"])
-        else: # dictionary
-            #             properties:
-            #                 count: integer
-            #                 keyword: keyword
-            #                 query:
-            #                     type: text
-            #                     fields:
-            #                         keyword:
-            #                             type: keyword
-            #                             ignore_above: 256
-            #                 query_wo_tones:
-            #                     type: text
-            #                     fields:
-            #                         keyword:
-            #                             type: keyword
-            #                             ignore_above: 256
-            for k, v in mappings["properties"].items():
-                if isinstance(mappings["properties"][k], str):
-                    mappings["properties"][k] = {"type":mappings["properties"][k]}
-
-        if isinstance(settings, str):  # original settings JSON in Elastics format
-            #       settings: >
-            #                 {
-            #                     "index": {
-            #                         "number_of_shards": 1,
-            #                         "number_of_replicas": 3,
-            #                         "mapping": {
-            #                             "total_fields": {
-            #                                 "limit": "1024"
-            #                             }
-            #                         }
+            # OR:
+            # properties:
+            #     count: integer
+            #     keyword: keyword
+            #     query:
+            #         type: text
+            #         fields:
+            #             keyword:
+            #                 type: keyword
+            #                 ignore_above: 256
+            #     query_wo_tones:
+            #         type: text
+            #         fields:
+            #             keyword:
+            #                 type: keyword
+            #                 ignore_above: 256
+        for k, v in mappings["properties"].items():
+            if isinstance(mappings["properties"][k], str):
+                mappings["properties"][k] = {"type":mappings["properties"][k]}
+            # settings:
+            #         {
+            #             "index": {
+            #                 "number_of_shards": 1,
+            #                 "number_of_replicas": 3,
+            #                 "mapping": {
+            #                     "total_fields": {
+            #                         "limit": "1024"
             #                     }
             #                 }
-            settings = json.loads(settings)
-        else: # yaml object parsed into python dictionary
-            #         settings:
-            #             index:
-            #                 number_of_shards: 1
-            #                 number_of_replicas: 3
-            #                 mapping:
-            #                     total_fields:
-            #                         limit: 1024
-            pass
+            #             }
+            #         }
+            # OR:
+            # settings:
+            #     index:
+            #         number_of_shards: 1
+            #         number_of_replicas: 3
+            #         mapping:
+            #             total_fields:
+            #                 limit: 1024
 
         print(settings)
         print(mappings["properties"])
@@ -418,8 +405,10 @@ def elatic_write(obj, uri, mode='append', indexName=None, settings=None, mapping
                 }
             }
         })
-    else: # append
+    elif mode == "append": # append
         pass
+    else:
+        raise ValueError("Unsupported mode: " + mode)
 
     # import pandas.core.frame
     # import pyspark.sql.dataframe
