@@ -139,7 +139,7 @@ def init():
 
     info = dict()
 
-    logger = logging.getLogger()
+    logger = logging.getLogger("dlf")
     level = loggingLevels.get(md['loggers'].get('severity', 'info'))
     logger.setLevel(level)
     logger.handlers = []

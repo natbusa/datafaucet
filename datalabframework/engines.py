@@ -8,7 +8,7 @@ from . import utils
 from . import project
 import elasticsearch.helpers
 import json
-import pandas
+import pyspark
 
 from . import logging
 logger = logging.getLogger()
@@ -261,9 +261,9 @@ class SparkEngine():
         logger.info({'format':format,'service':pmd['service'], 'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.write'})
 
 
-def elastic_read(uri, action, query, format="pandas", sparkContext=None, **kargs):
+def elastic_read(uri, action, query, format="spark", sparkContext=None, **kargs):
     """
-    :param format: pandas|spark|python
+    :param format: spark|python (removed pandas)
     :param uri:
     :param action:
     :param query:
@@ -339,10 +339,9 @@ def elastic_read(uri, action, query, format="pandas", sparkContext=None, **kargs
     # return hits2
     if format == "python":
         return hits2
-    elif format == "pandas":
-        return pandas.DataFrame(hits2)
     elif format=="spark":
-        return sparkContext.createDataFrame(pandas.DataFrame(hits2))
+        rows = [pyspark.sql.Row(**r) for r in hits2]
+        return sparkContext.createDataFrame(rows)
         # return sparkContext.createDataFrame(pandas.DataFrame(hits2))
     else:
         raise ("Unknown format: " + format)
@@ -438,13 +437,18 @@ def elatic_write(obj, uri, mode='append', indexName=None, settings=None, mapping
     else: # append
         pass
 
-    import pandas.core.frame
-    import pyspark.sql.dataframe
-    import numpy as np
-    if isinstance(obj, pandas.core.frame.DataFrame):
-        obj = obj.replace({np.nan:None}).to_dict(orient='records')
-    elif isinstance(obj, pyspark.sql.dataframe.DataFrame):
-        obj = obj.toPandas().replace({np.nan:None}).to_dict(orient='records')
+    # import pandas.core.frame
+    # import pyspark.sql.dataframe
+    # import numpy as np
+    # if isinstance(obj, pandas.core.frame.DataFrame):
+    #     obj = obj.replace({np.nan:None}).to_dict(orient='records')
+    # elif isinstance(obj, pyspark.sql.dataframe.DataFrame):
+    #     obj = obj.toPandas().replace({np.nan:None}).to_dict(orient='records')
+    # else: # python list of python dictionaries
+    #     pass
+
+    if isinstance(obj, pyspark.sql.dataframe.DataFrame):
+        obj = [row.asDict() for row in obj.collect()]
     else: # python list of python dictionaries
         pass
 
