@@ -41,8 +41,7 @@ setup_args['install_requires']=[
     'ipykernel',
     'traitlets',
     'cookiecutter',
-    'pandas',
-    'numpy',
+    'pyspark',
     'elasticsearch',
     'gitpython',
     'jsonschema'
