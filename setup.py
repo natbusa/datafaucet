@@ -1,7 +1,7 @@
 import os
 from glob import glob
 from setuptools import setup
-
+#llll
 # the name of the package
 name = 'datalabframework'
 submodules = ['cli']
@@ -41,7 +41,6 @@ setup_args['install_requires']=[
     'ipykernel',
     'traitlets',
     'cookiecutter',
-    'pyspark',
     'elasticsearch',
     'gitpython',
     'jsonschema'
