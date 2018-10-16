@@ -158,7 +158,7 @@ class SparkEngine():
         elif pmd['service'] == 'elastic':
             # uri = 'http://{}:{}/{}'.format(pmd["hostname"], pmd["port"], md['path'])
             # print(options)
-            obj = elastic_read(uri=url, action=options["action"], query=options['query'], format="spark", sparkContext=self._ctx, **kargs)
+            obj = self.elastic_read(url, options.get('query', {}))
         else:
             raise('downt know how to handle this')
 
@@ -260,8 +260,12 @@ class SparkEngine():
 
         logger.info({'format':format,'service':pmd['service'], 'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.write'})
 
+    def elastic_read(self, url, query):
+        results = elastic_read(url, query)
+        rows = [pyspark.sql.Row(**r) for r in results]
+        return self.context().createDataFrame(rows)
 
-def elastic_read(uri, action, query, format="spark", sparkContext=None, **kargs):
+def elastic_read(url, query):
     """
     :param format: spark|python (removed pandas)
     :param uri:
@@ -304,47 +308,27 @@ def elastic_read(uri, action, query, format="spark", sparkContext=None, **kargs)
     :return: pandas dataframe
     """
 
-    es = elasticsearch.Elasticsearch([uri])
-    query = query.replace("[[", "{{").replace("]]", "}}")
-    # print(query)
-    if kargs:
-        template = Template(query)
-        query = template.render(kargs)
-    else:
-        pass
-    query = json.loads(query)
-    print(query)
-    if action == "_search":
+    try:
+        es = elasticsearch.Elasticsearch([url])
         res = es.search(body=query)
-    elif action == "_msearch":
-        res = es.msearch(body=query)
-    else:
-        raise ("Don't know how to handle this!")
+    except:
+        raise ValueError("Cannot query elastic search")
 
     hits = res.pop("hits", None)
-    # return  hits
-    if not hits:
-        raise("Error")
+    if hits is None:
+        #handle ERROR
+        raise ValueError("Query failed")
 
-    res["total_hits"] = hits["total"]
-    res["max_score"] = hits["max_score"]
+        # res["total_hits"] = hits["total"]
+        # res["max_score"] = hits["max_score"]
+        # print("Summary:", res)
 
     hits2 = []
     for hit in hits['hits']:
         hitresult = hit.pop("_source", None)
         hits2.append({**hit, **hitresult})
 
-    # return [res, hits2]
-    print("Summary:", res)
-    # return hits2
-    if format == "python":
-        return hits2
-    elif format=="spark":
-        rows = [pyspark.sql.Row(**r) for r in hits2]
-        return sparkContext.createDataFrame(rows)
-        # return sparkContext.createDataFrame(pandas.DataFrame(hits2))
-    else:
-        raise ("Unknown format: " + format)
+    return hits2
 
 
 def elatic_write(obj, uri, mode='append', indexName=None, settings=None, mappings=None):
