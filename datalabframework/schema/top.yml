@@ -31,7 +31,11 @@ properties:
             type: string
           enable:
             type: boolean
-        additionalProperties: true
+          hosts:
+            type: string
+          topic:
+            type: string
+        additionalProperties: false
     additionalProperties: false
 required:
   - profile
