@@ -1,14 +1,11 @@
 import os
 
-from jinja2 import Template
-from pyspark.sql import types
+from datalabframework.spark.mapping import transform
 
 from . import params
 from . import data
 from . import utils
-from . import project
 import elasticsearch.helpers
-import json
 import pyspark
 
 from . import logging
@@ -166,7 +163,7 @@ class SparkEngine():
         else:
             raise('downt know how to handle this')
 
-        obj = self.transform(obj, mapping) if mapping else obj
+        obj = transform(obj, mapping) if mapping else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
@@ -203,7 +200,7 @@ class SparkEngine():
         options = utils.merge(pmd.get('write',{}).get('options',{}), rmd.get('write',{}).get('options',{}))
         options = utils.merge(options, kargs)
 
-        obj = self.transform(obj, mapping) if mapping else obj
+        obj = transform(obj, mapping) if mapping else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
@@ -274,111 +271,6 @@ class SparkEngine():
         results = elastic_read(url, query)
         rows = [pyspark.sql.Row(**r) for r in results]
         return self.context().createDataFrame(rows)
-
-    def transform(self, df, mapping):
-        # print("mapping", mapping)
-
-        # drop columns
-        drops = []
-        for key, value in mapping.items():
-            if value.get("drop", False):
-                drops.append(key)
-
-        # remove dropped fields from mapping list
-        for key in drops:
-            mapping.pop(key)
-
-        df = df.drop(*drops)
-
-
-        newMappings = {}
-        # do the renaming first
-        for key, value in mapping.items():
-            currentname = key
-            rename = value.get("name", None)
-            if not (currentname in df.columns) or rename is None: # new column or no rename
-                newMappings[currentname] = value
-                continue
-
-            df = df.withColumnRenamed(currentname, rename)
-            newMappings[rename] = value
-
-        # do all remaining stuffs
-        for key, value in newMappings.items():
-            columnname = key
-            isNew = not (columnname in df.columns)
-
-            type = value.get("type", None)
-            supportedTypes = [
-                types.ByteType.typeName(),
-                types.ShortType.typeName(),
-                types.IntegerType.typeName(),
-                types.LongType.typeName(),
-                types.FloatType.typeName(),
-                types.DoubleType.typeName(),
-                types.DecimalType.typeName(),
-                types.StringType.typeName(),
-                types.BooleanType.typeName(),
-                types.TimestampType.typeName(),
-                types.DateType.typeName(),
-                types.ArrayType.typeName(),
-            ]
-            # supported data types:
-            # ['byte',
-            #  'short',
-            #  'integer',
-            #  'long',
-            #  'float',
-            #  'double',
-            #  'decimal',
-            #  'string',
-            #  'boolean',
-            #  'timestamp',x
-            #  'date',
-            #  'array']
-            from pyspark.sql import functions as F
-            if (type is not None) and (not type in supportedTypes):
-                raise ValueError("Type '%s' not supported!" % type)
-
-            if isNew : # new column
-                columnValue = value.get("value", None)
-                if columnValue is None:
-                    raise ValueError("`value` is required for new column `%s`" % columnname)
-                df = df.withColumn(columnname, F.expr(columnValue))
-
-            if type is not None: # casting
-                df = df.withColumn(columnname, F.col(columnname).cast(type))
-
-            if value.get("remove_tones", False):
-                if df.schema[columnname].dataType != types.StringType():
-                    raise ValueError("`remove_tones` option works for 'string' column only!")
-                # print("Removed tones:", currentname)
-                df = df.withColumn(columnname, remove_tones_udf(F.col(columnname)))
-
-            fillna = value.get("fillna", None)  # fill should be passed to expr() function
-            if fillna is not None:
-                # print("fillna: ", columnname, fillna)
-                # df = df.fillna(fillna, subset=[columnname])
-                df = df.fillna({columnname:fillna})
-
-        return df
-
-
-
-def remove_tones(s):
-    intab  = "àáảãạăắằẵặẳâầấậẫẩđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵÀÁẢÃẠĂẮẰẴẶẲÂẦẤẬẪẨĐÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴ"
-    outtab = "aaaaaaaaaaaaaaaaadeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyAAAAAAAAAAAAAAAAADEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYY"
-    # return s if not s else s.translate(str.maketrans(intab, outtab))
-    return s if not s else s.translate(str.maketrans(intab, outtab)).lower()
-
-
-from pyspark.sql.functions import pandas_udf, PandasUDFType
-
-
-@pandas_udf(types.StringType(), PandasUDFType.SCALAR)
-def remove_tones_udf(series):
-    return series.apply(remove_tones)
-
 
 
 def elastic_read(url, query):
