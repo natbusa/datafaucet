@@ -3,7 +3,44 @@ from pyspark.sql import types
 
 
 def transform(df, mapping):
-    # print("mapping", mapping)
+    """
+    :param df:
+    :param mapping:
+    :return:
+
+    read:
+        mapping:
+            extra:
+                drop: true
+            ma_vt:
+                name: sku
+                type: string
+            ten_vt:
+                name: name
+                remove_tones: true
+                fillna: "unknown"
+            sl_ban_ra:
+                name: quantity
+                type: integer
+                fillna: 0
+            tien_ban_ra:
+                name: revenue
+                type: integer
+                fillna: -1
+            last_date:
+                name: date
+#                     type: timestamp
+                type: date
+            year:
+#                     value: "quantity/2"
+                value: "year(date)"
+            month:
+                value: "month(date)"
+            day:
+                value: "day(date)"
+            weekday:
+                value: "date_format(date, 'EEEE')"
+    """
 
     # drop columns
     drops = []
