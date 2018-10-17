@@ -43,8 +43,7 @@ setup_args['install_requires']=[
     'cookiecutter',
     'elasticsearch',
     'gitpython',
-    'jsonschema',
-    'kafka-python'
+    'jsonschema'
 ]
 
 setup_args['include_package_data'] = True

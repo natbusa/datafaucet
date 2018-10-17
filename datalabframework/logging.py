@@ -90,13 +90,18 @@ class LogstashFormatter(logging.Formatter):
         logr = record
         timestamp = datetime.datetime.fromtimestamp(logr.created).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
+        if type(logr.msg) is dict:
+            msg = logr.msg
+        else:
+            msg = {'message': logr.msg}
+
         log_record = {
             'severity': logr.levelname,
             'session': logr.dlf_session,
             '@timestamp': timestamp,
             'username': logr.dlf_username,
             'filename': logr.dlf_filename,
-            'msg': logr.msg,
+            'msg': msg,
             'type': logr.dlf_type
             }
 
