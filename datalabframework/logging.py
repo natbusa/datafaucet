@@ -51,9 +51,9 @@ class LoggerAdapter(logging.LoggerAdapter):
         return msg, kwargs
 
     # high level logging
-    def dataframe_read(self, myown):
-        d = {'whatever':'we', 'need':'here', 'myown':myown}
-        super().info(d, extra={'dlf_type':'dataframe.read'})
+    # def dataframe_read(self, myown):
+    #     d = {'whatever':'we', 'need':'here', 'myown':myown}
+    #     super().info(d, extra={'dlf_type':'dataframe.read'})
 
 def _json_default(obj):
     """
@@ -87,22 +87,18 @@ class LogstashFormatter(logging.Formatter):
         fields.
         """
 
-        logr =  record
-        timestamp = datetime.datetime.fromtimestamp(loginfo['created']).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-
-        # loginfo = {k:d.get(k,None) for k in ['created', 'levelname', 'exc_info']}
-        # loginfo['exception'] = None
-        # if loginfo['exc_info']:
-        #     formatted = tb.format_exception(*loginfo['exc_info'])
-        #     loginfo['exception'] = formatted
-        #     loginfo.pop('exc_info')
+        logr = record
+        timestamp = datetime.datetime.fromtimestamp(logr.created).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
         log_record = {
             'severity': logr.levelname,
-            'session': session,
+            'session': logr.dlf_session,
             '@timestamp': timestamp,
-            'type': type,
-            'fields': fields}
+            'username': logr.dlf_username,
+            'filename': logr.dlf_filename,
+            'msg': logr.msg,
+            'type': logr.dlf_type
+            }
 
         return json.dumps(log_record, default=_json_default)
 
@@ -137,7 +133,7 @@ def init():
 
     md = params.metadata()
 
-    info = dict()
+    # info = dict()
 
     logger = logging.getLogger("dlf")
     level = loggingLevels.get(md['loggers'].get('severity', 'info'))
@@ -155,7 +151,7 @@ def init():
         # to avoid infinite logging recursion on kafka
         logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())
 
-        formatterLogstash = LogstashFormatter(json.dumps({'extra':info}))
+        formatterLogstash = LogstashFormatter()
         handlerKafka = KafkaLoggingHandler(topic, hosts)
         handlerKafka.setLevel(level)
         handlerKafka.setFormatter(formatterLogstash)
