@@ -50,11 +50,6 @@ class LoggerAdapter(logging.LoggerAdapter):
         kwargs['extra'] = kw
         return msg, kwargs
 
-    # high level logging
-    # def dataframe_read(self, myown):
-    #     d = {'whatever':'we', 'need':'here', 'myown':myown}
-    #     super().info(d, extra={'dlf_type':'dataframe.read'})
-
 def _json_default(obj):
     """
     Coerce everything to strings.
@@ -138,8 +133,6 @@ def init():
 
     md = params.metadata()
 
-    # info = dict()
-
     logger = logging.getLogger("dlf")
     level = loggingLevels.get(md['loggers'].get('severity', 'info'))
     logger.setLevel(level)
@@ -168,17 +161,9 @@ def init():
         level = loggingLevels.get(p.get('severity', 'info'))
 
         # create console handler and set level to debug
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s') #%(session)s - %(username)s - %(filename)s - %(type)s
-        handler = logging.StreamHandler(sys.stdout,)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s') 
         handler.setLevel(level)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
     _logger = LoggerAdapter(logger, extra_attributes())
-
-# logger = dlf.logging.getLogger()
-
-#logger.project()
-#dlf.logger.info(dlf.project.info(), extra={type:'project'})
-
-#logger.dataframe.read(df)
