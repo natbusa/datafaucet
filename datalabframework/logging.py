@@ -149,7 +149,7 @@ def init():
     if p and p['enable'] and KafkaProducer:
 
         level = loggingLevels.get(p.get('severity', 'info'))
-        topic = p.get('topic')
+        topic = p.get('topic', 'dlf')
         hosts = p.get('hosts')
 
         # disable logging for 'kafka.KafkaProducer'
