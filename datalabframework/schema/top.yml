@@ -31,7 +31,7 @@ properties:
             type: string
           enable:
             type: boolean
-        additionalProperties: false
+        additionalProperties: true
     additionalProperties: false
 required:
   - profile

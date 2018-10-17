@@ -1,5 +1,8 @@
 from . import params
 from . import project
+from . import utils
+
+import os
 
 def uri(resource):
     return params.resource_unique_name(resource, project.filename(False))
@@ -13,18 +16,22 @@ def _url(md):
         pmd['path'] = pmd.get('path',project.rootpath())
         if pmd['path'][0]!='/':
             pmd['path'] = '{}/{}'.format(project.rootpath(), pmd['path'])
+            pmd['path'] = os.path.abspath(pmd['path'])
     else:
         pmd['path'] = pmd.get('path','')
 
     pmd['hostname'] = pmd.get('hostname', '127.0.0.1')
+    pmd['path'] = utils.lrchop(pmd['path'], '/')
     rmd['path'] = rmd.get('path','')
 
+    fullpath = os.path.join(pmd['path'],rmd['path'])
+
     if  pmd['service'] == 'local':
-        url = "file://{}/{}".format(pmd['path'], rmd['path'])
+        url = "file:///{}".format(fullpath)
     elif pmd['service'] == 'hdfs':
-        url = "hdfs://{}:{}/{}/{}".format(pmd['hostname'],pmd.get('port', '8020'),pmd['path'],rmd['path'])
+        url = "hdfs://{}:{}/{}".format(pmd['hostname'],pmd.get('port', '8020'),fullpath)
     elif pmd['service'] == 'minio':
-        url = "s3a://{}".format(os.path.join(pmd['path'],rmd['path']))
+        url = "s3a:///{}".format(fullpath)
     elif pmd['service'] == 'sqlite':
         url = "jdbc:sqlite:" + pmd['path']
     elif pmd['service'] == 'mysql':
@@ -33,8 +40,12 @@ def _url(md):
         url = "jdbc:postgresql://{}:{}/{}".format(pmd['hostname'],pmd.get('port', '5432'),pmd['database'])
     elif pmd['service'] == 'mssql':
         url = "jdbc:sqlserver://{}:{};databaseName={}".format(pmd['hostname'],pmd.get('port', '1433'),pmd['database'])
+    elif pmd['service'] == 'elastic':
+        url = 'http://{}:{}/{}'.format(pmd["hostname"], pmd.get("port", 9200), rmd['path'])
     else:
         url = None
+
+    return url
 
 def metadata(resource=None, path=None, provider=None):
     md = params.metadata()

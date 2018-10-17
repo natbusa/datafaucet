@@ -28,9 +28,7 @@ def rename_resources(fullpath_filename, params):
         r[alias] = v
     return r
 
-def metadata(profile=None, all=False):
-    #if nothing passed take the current profile
-    profile = profile if profile else project.profile()
+def _metadata():
 
     filenames = utils.get_project_files(
         ext='metadata.yml',
@@ -65,11 +63,20 @@ def metadata(profile=None, all=False):
     # rendering of jinja constructs
     profiles = utils.render(profiles)
 
-    #validate all all_profiles
-    for k in profiles.keys():
-        utils.validate(profiles[k], 'top.yml')
+    return profiles
 
-    return profiles if all else profiles[profile]
+
+def metadata(profile=None):
+    #if nothing passed take the current profile
+    profile = profile if profile else project.profile()
+
+    md = _metadata()[profile]
+
+    #validate top
+    utils.validate(md, 'top.yml')
+
+    #return profile metadata
+    return md
 
 def metadata_files():
     return utils.get_project_files(

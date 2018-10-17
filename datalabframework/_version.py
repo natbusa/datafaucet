@@ -1,5 +1,5 @@
 import builtins
 builtins.__DATALABFRAMEWORK__=True
 
-version_info = (0, 5, 5)
+version_info = (0, 5, 9)
 __version__ = '.'.join(map(str, version_info))

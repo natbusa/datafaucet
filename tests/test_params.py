@@ -30,7 +30,7 @@ class Test_rootpath(object):
                  s: 1
                '''
         dir.write('metadata.yml', dedent(yml).encode())
-        assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'run': 'default'})
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
 
     def test_minimal_with_resources(self, dir):
         yml = '''\
@@ -44,7 +44,7 @@ class Test_rootpath(object):
                         best:resource
                '''
         dir.write('metadata.yml', dedent(yml).encode())
-        assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': { '.hello': 'best:resource'},'engines':{}, 'loggers':{}, 'providers': {}, 'run': 'default'})
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': { '.hello': 'best:resource'},'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
 
     def test_minimal_with_rendering(self, dir):
         yml = '''\
@@ -58,7 +58,7 @@ class Test_rootpath(object):
                         best: pong
                '''
         dir.write('metadata.yml', dedent(yml).encode())
-        assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'foo': { 'bar': {'best':'pong'}}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'run': 'default'})
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'foo': { 'bar': {'best':'pong'}}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
 
     def test_minimal_with_rendering_multiple_docs(self, dir):
         yml = '''\
@@ -68,14 +68,14 @@ class Test_rootpath(object):
                     c: 42
                     s: ping-{{ ping.foo.bar.best }}
                 ---
-                run: ping
+                profile: ping
                 foo:
                     bar:
                         best: pong
 
                '''
         dir.write('metadata.yml', dedent(yml).encode())
-        assert(params.metadata()=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'run': 'default'})
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
 
     def test_multiple_docs(self,dir):
         yml = '''\
@@ -86,7 +86,7 @@ class Test_rootpath(object):
                     hello:
                         a:1
                 ---
-                run: second
+                profile: second
                 c:
                     d: 'lalala'
                 resources:
@@ -94,10 +94,10 @@ class Test_rootpath(object):
                         b: 2
                '''
         dir.write('metadata.yml', dedent(yml).encode())
-        assert(params.metadata()=={'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'},'engines':{}, 'loggers':{}, 'providers': {},'run':'default'})
-        assert(params.metadata(all_runs=True)=={
-            'default': {'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {}, 'run': 'default'},
-            'second': {'c': {'d': 'lalala'},'resources': {'.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'run': 'second'}
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'},'engines':{}, 'loggers':{}, 'providers': {},'profile':'default', 'variables': {}})
+        assert(params._metadata()=={
+            'default': {'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}},
+            'second': {'c': {'d': 'lalala'},'resources': {'.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'profile': 'second', 'variables': {}}
             })
 
     def test_multiple_files(self,dir):
@@ -106,7 +106,7 @@ class Test_rootpath(object):
                 a:
                     b: 'ohoh'
                 ---
-                run: second
+                profile: second
                 c:
                     d: 'lalala'
                '''
@@ -116,7 +116,7 @@ class Test_rootpath(object):
                     hello:
                         a:1
                 ---
-                run: second
+                profile: second
                 resources:
                     world:
                         b: 2
@@ -125,10 +125,10 @@ class Test_rootpath(object):
         subdir = dir.makedir('abc')
         dir.write('metadata.yml', dedent(yml_1).encode())
         dir.write('abc/metadata.yml', dedent(yml_2).encode())
-        assert(params.metadata()=={'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {},'run':'default'})
-        assert(params.metadata(all_runs=True)=={
-            'default': {'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'},'engines':{}, 'loggers':{}, 'providers': {},'run':'default'},
-            'second': {'c': {'d': 'lalala'},'resources': {'.abc.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'run': 'second'}
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {},'profile':'default', 'variables': {}})
+        assert(params._metadata()=={
+            'default': {'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'},'engines':{}, 'loggers':{}, 'providers': {},'profile':'default', 'variables': {}},
+            'second': {'c': {'d': 'lalala'},'resources': {'.abc.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'profile': 'second', 'variables': {}}
             })
 
 class Test_metadata_info(object):
@@ -138,7 +138,7 @@ class Test_metadata_info(object):
                 a:
                     b: 'ohoh'
                 ---
-                run: second
+                profile: second
                 c:
                     d: 'lalala'
                '''
@@ -148,7 +148,7 @@ class Test_metadata_info(object):
                     hello:
                         a:1
                 ---
-                run: second
+                profile: second
                 resources:
                     world:
                         b: 2
