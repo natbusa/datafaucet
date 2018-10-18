@@ -15,6 +15,9 @@ from pyspark.sql.functions import desc, lit
 from . import logging
 logger = logging.getLogger()
 
+import pandas as pd
+import dateutil.parser as dp
+
 # purpose of engines
 # abstract engine init, data read and data write
 # and move this information to metadata
@@ -267,8 +270,9 @@ class SparkEngine():
         rows = [pyspark.sql.Row(**r) for r in results]
         return self.context().createDataFrame(rows)
 
-    def ingest(self, src_resource=None, src_path=None, src_provider=None, 
-                     dest_resource=None, dest_path=None, dest_provider=None, ingest_options=None):
+    def ingest(self, src_resource=None, src_path=None, src_provider=None,
+                     dest_resource=None, dest_path=None, dest_provider=None, **kargs):
+
         #0. Process parameteers
         md_src = data.metadata(src_resource, src_path, src_provider)
         if not md_src:
@@ -277,9 +281,8 @@ class SparkEngine():
 
         pd_src = md_src['provider']
         rs_src =  md_src['resource']
-        options = utils.merge(pd_src.get('ingest',{}), rs_src.get('ingest',{}))
-        options = utils.merge(options, ingest_options)
 
+        # default path for destination is src path
         if (not dest_resource) and (not dest_path) and dest_provider:
             dest_path = rs_src['path']
 
@@ -288,78 +291,94 @@ class SparkEngine():
             print('no valid destination resource found')
             return
 
+        options = utils.merge(pd_src.get('filter',{}), rs_src.get('filter',{}))
+        options = utils.merge(options, kargs)
+
         #1. Get ingress policy
-        ingest_policy = options.get('policy', 'hash')
+        ingest_policy = options.get('policy', 'date')
 
-        #Get ingest date 
-        yesterday = date.today() - timedelta(1)
-        end_date = options.get('date', yesterday.strftime('%Y-%m-%d'))
-        ingest_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        #Get ingest date
+        today = datetime.combine(date.today(), datetime.min.time())
+        end_date_str = options.get('end_date')
+        start_date_str = options.get('start_date')
+        window_str = options.get('window')
 
-        #Get ingest key column 
-        column = options.get('column', None)
+        # defaults
+        end_date = dp.parse(end_date_str) if end_date_str else today
+        start_date = dp.parse(start_date_str) if start_date_str else None
+        window = pd.to_timedelta(window_str) if window_str else None
+
+        # default calculated from window and end_date if both present
+        if not start_date and window:
+            start_date = end_date - window
+
+        #Get ingest key column
+        column = options.get('column')
 
         #Get ingest window
-        window =  options.get('window', None)
+        window =  options.get('window')
 
         #build condition
         condition_sql = ''
 
         if ingest_policy == 'date':
-            condition_sql = '{} <= "{}" '.format(column, end_date)
-            if window:
-                condition_sql += 'and {} <= "{}" '.format(column, (ingest_date + timedelta(window)).strftime('%Y-%m-%d'))
+            condition_sql = '{} < "{}" '.format(column, end_date.isoformat())
+            if start_date:
+                condition_sql += 'and {} >= "{}" '.format(column, start_date.isoformat())
 
         print('condition: {}'.format(condition_sql))
 
-        ## 2. Get last schema 
+        ## 2. Get last schema
         schema_path = '{}/schema'.format(md_dest['resource']['path'])
+        print(schema_path, dest_provider)
 
-        schema_date = ingest_date
-        schema_existed = True
         try:
             df_schema = self.read(path=schema_path,provider=dest_provider)
             schema_date = df_schema.sort(desc("date")).limit(1).collect()[0]['date']
-        except Exception as ex: 
-            logger.error("Not find existed schema file")
-            schema_existed = False
+            schema_exists = True
+        except Exception as ex:
+            logger.warning("No schema file for {}, {}".format(md_dest['resource']['path'],dest_provider))
+            schema_date = today
+            schema_exists = False
+
+        print('schema date', schema_date)
 
         ## 3. Read all resources and check difference
-        df_src = self.read(path = md_src['resource']['path'], provider = md_src['resource']['provider'])   
+        try:
+            df_src = self.read(path = md_src['resource']['path'], provider = md_src['resource']['provider'])
+        except:
+            logger.error("No src file for {}, {}".format(md_src['resource']['path'],md_src['resource']['provider']))
+            return
 
-        df_path = '{}/{}'.format(md_dest['resource']['path'], schema_date.strftime('%Y-%m-%d'))  ## Pretend first time ingest
+        dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date.strftime('%Y-%m-%d'))  ## Pretend first time ingest
 
         if condition_sql: #date policy
-            diff_df = df_src.where(condition_sql)
+            df_src = df_src.where(condition_sql)
 
         schema_changed = False
         try:
-            df_dest = self.read(path=df_path, provider=md_dest['resource']['provider'])
-            df_dest = df_dest.drop('ingest_date') if 'ingest_date' in df_dest.columns else df_dest
+            print(md_dest)
+            print(dest_path)
+            df_dest = self.read(path=dest_path, provider=md_dest['resource']['provider'])
+        except Exception as ex:
+            logger.warning("Nothing to read from destination: {}, {}".format(dest_path, md_dest['resource']['provider']))
+            df_dest = None
 
-            if condition_sql: #date policy 
-                #Apply condition to both source and destination
-                df_dest = df_dest.where(condition_sql) 
-
+        if df_dest and schema_exists:
             #Check difference in schemas
-            if df_src.schema.json == df_dest.schema.json:
-                diff_df = diff_df.subtract(df_dest)
-            else:
-                schema_changed = True
-        except Exception as ex: 
-            logger.error("Error read destination.")
+            schema_changed = df_src.schema.json() == df_dest.schema.json()
 
-        if schema_changed or not schema_existed:
+        if schema_changed and schema_exists or (not schema_exists):
             #Different schema, update new
-            new_df_schema = self._ctx.createDataFrame([(ingest_date,)], ['date'])
-            self.write(new_df_schema, path=schema_path, provider=md_dest['resource']['provider'], mode='append')
+            df = pd.DataFrame(columns=['date', 'schema'], data=[[datetime.today(), df_src.schema.json()]])
+            df_schema = self.context().createDataFrame(df)
+            self.write(df_schema, path=schema_path, provider=md_dest['resource']['provider'], mode='append')
             #Update new data object name
-            df_path = '{}/{}'.format(dest_path, end_date)
+            dest_path = '{}/{}'.format(md_dest['resource']['path'], datetime.now().strftime('%Y-%m-%d'))  ## Pretend first time ingest
 
-        ### 4. Store dataframe 
-        if diff_df.count():
-            diff_df = diff_df.withColumn('ingest_date', lit(end_date))
-            self.write(diff_df, path=df_path, provider=md_dest['resource']['provider'], mode='append', partitionBy='ingest_date')
+        # copy from src data
+        df_dest = df_src.withColumn('ingest_date', lit(datetime.now().isoformat()))
+        self.write(df_dest, path=dest_path, provider=md_dest['resource']['provider'], mode='append')
 
 def elastic_read(url, query):
     """

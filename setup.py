@@ -43,7 +43,8 @@ setup_args['install_requires']=[
     'cookiecutter',
     'elasticsearch',
     'gitpython',
-    'jsonschema'
+    'jsonschema',
+    'dateutil'
 ]
 
 setup_args['include_package_data'] = True
