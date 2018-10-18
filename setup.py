@@ -44,7 +44,7 @@ setup_args['install_requires']=[
     'elasticsearch',
     'gitpython',
     'jsonschema',
-    'dateutil'
+    'python-dateutil'
 ]
 
 setup_args['include_package_data'] = True
