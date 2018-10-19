@@ -1,15 +1,14 @@
 from datalabframework.spark.utils import remove_tones_udf
 from pyspark.sql import types
 
-
-def transform(df, mapping):
+def transform(df, settings):
     """
     :param df:
-    :param mapping:
+    :param settings:
     :return:
 
     read:
-        mapping:
+        settings:
             extra:
                 drop: true
             ma_vt:
@@ -44,35 +43,35 @@ def transform(df, mapping):
 
     # drop columns
     drops = []
-    for key, value in mapping.items():
+    for key, value in settings.items():
         if value.get("drop", False):
             drops.append(key)
 
-    # remove dropped fields from mapping list
+    # remove dropped fields from settings list
     for key in drops:
-        mapping.pop(key)
+        settings.pop(key)
 
     df = df.drop(*drops)
 
-    newMappings = {}
+    mapping = {}
     # do the renaming first
-    for key, value in mapping.items():
+    for key, value in settings.items():
         currentname = key
         rename = value.get("name", None)
         if not (currentname in df.columns) or rename is None:  # new column or no rename
-            newMappings[currentname] = value
+            mapping[currentname] = value
             continue
 
         df = df.withColumnRenamed(currentname, rename)
-        newMappings[rename] = value
+        mapping[rename] = value
 
     # do all remaining stuffs
-    for key, value in newMappings.items():
-        columnname = key
-        isNew = not (columnname in df.columns)
+    for key, value in mapping.items():
+        column_name = key
+        isNew = not (column_name in df.columns)
 
         type = value.get("type", None)
-        supportedTypes = [
+        supported_types = [
             types.ByteType.typeName(),
             types.ShortType.typeName(),
             types.IntegerType.typeName(),
@@ -86,42 +85,30 @@ def transform(df, mapping):
             types.DateType.typeName(),
             types.ArrayType.typeName(),
         ]
-        # supported data types:
-        # ['byte',
-        #  'short',
-        #  'integer',
-        #  'long',
-        #  'float',
-        #  'double',
-        #  'decimal',
-        #  'string',
-        #  'boolean',
-        #  'timestamp',x
-        #  'date',
-        #  'array']
+
         from pyspark.sql import functions as F
-        if (type is not None) and (not type in supportedTypes):
-            raise ValueError("Type '%s' not supported!" % type)
+        if (type is not None) and (not type in supported_types):
+            raise ValueError("Type '{}' not supported!".format(type))
 
         if isNew:  # new column
-            columnValue = value.get("value", None)
-            if columnValue is None:
-                raise ValueError("`value` is required for new column `%s`" % columnname)
-            df = df.withColumn(columnname, F.expr(columnValue))
+            column_value = value.get("value", None)
+            if column_value is None:
+                raise ValueError("'value' is required for new column '{}'".format(column_name))
+            df = df.withColumn(column_name, F.expr(column_value))
 
         if type is not None:  # casting
-            df = df.withColumn(columnname, F.col(columnname).cast(type))
+            df = df.withColumn(column_name, F.col(column_name).cast(type))
 
         if value.get("remove_tones", False):
-            if df.schema[columnname].dataType != types.StringType():
-                raise ValueError("`remove_tones` option works for 'string' column only!")
+            if df.schema[column_name].dataType != types.StringType():
+                raise ValueError("'remove_tones' option works for 'string' column only!")
             # print("Removed tones:", currentname)
-            df = df.withColumn(columnname, remove_tones_udf(F.col(columnname)))
+            df = df.withColumn(column_name, remove_tones_udf(F.col(column_name)))
 
         fillna = value.get("fillna", None)  # fill should be passed to expr() function
         if fillna is not None:
-            # print("fillna: ", columnname, fillna)
-            # df = df.fillna(fillna, subset=[columnname])
-            df = df.fillna({columnname: fillna})
+            # print("fillna: ", column_name, fillna)
+            # df = df.fillna(fillna, subset=[column_name])
+            df = df.fillna({column_name: fillna})
 
     return df

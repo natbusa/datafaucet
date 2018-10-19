@@ -1,12 +1,16 @@
 import os
 
-from datalabframework.spark.mapping import transform
+from datalabframework.spark.mapping import transform as mapping_transform
+from datalabframework.spark.filter import transform as filter_transform
 
 from . import params
 from . import data
 from . import utils
+
 import elasticsearch.helpers
+
 from datetime import date, timedelta, datetime
+
 import pyspark
 from pyspark.sql.functions import desc, lit
 
@@ -14,7 +18,6 @@ from . import logging
 logger = logging.getLogger()
 
 import pandas as pd
-import dateutil.parser as dp
 
 # purpose of engines
 # abstract engine init, data read and data write
@@ -83,7 +86,6 @@ class SparkEngine():
     def read(self, resource=None, path=None, provider=None, **kargs):
         md = data.metadata(resource, path, provider)
         if not md:
-            print('no valid resource found')
             return
 
         pmd = md['provider']
@@ -102,6 +104,9 @@ class SparkEngine():
 
         mapping = pmd.get('read', {}).get('mapping', None)
         mapping = rmd.get('read', {}).get('mapping', mapping)
+
+        filter = pmd.get('read', {}).get('filter', None)
+        filter = rmd.get('read', {}).get('filter', filter)
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('read',{}).get('options',{}), rmd.get('read',{}).get('options',{}))
@@ -168,7 +173,8 @@ class SparkEngine():
         else:
             raise('downt know how to handle this')
 
-        obj = transform(obj, mapping) if mapping else obj
+        obj = filter_transform(obj,filter) if filter else obj
+        obj = mapping_transform(obj, mapping) if mapping else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
@@ -181,7 +187,6 @@ class SparkEngine():
     def write(self, obj, resource=None, path=None, provider=None, **kargs):
         md = data.metadata(resource, path, provider)
         if not md:
-            print('no valid resource found')
             return
 
         pmd = md['provider']
@@ -189,8 +194,8 @@ class SparkEngine():
 
         url = md['url']
 
-        cache = pmd.get('read',{}).get('cache', False)
-        cache = rmd.get('read',{}).get('cache', cache)
+        cache = pmd.get('write',{}).get('cache', False)
+        cache = rmd.get('write',{}).get('cache', cache)
 
         repartition = pmd.get('write',{}).get('repartition', None)
         repartition = rmd.get('write',{}).get('repartition', repartition)
@@ -198,17 +203,21 @@ class SparkEngine():
         coalesce = pmd.get('write',{}).get('coalesce', None)
         coalesce = rmd.get('write',{}).get('coalesce', coalesce)
 
-        mapping = pmd.get('read', {}).get('mapping', None)
-        mapping = rmd.get('read', {}).get('mapping', mapping)
+        mapping = pmd.get('write', {}).get('mapping', None)
+        mapping = rmd.get('write', {}).get('mapping', mapping)
+
+        filter = pmd.get('write', {}).get('filter', None)
+        filter = rmd.get('write', {}).get('filter', filter)
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('write',{}).get('options',{}), rmd.get('write',{}).get('options',{}))
         options = utils.merge(options, kargs)
 
-        obj = transform(obj, mapping) if mapping else obj
-        obj = obj.repartition(repartition) if repartition else obj
-        obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
+        obj = obj.coalesce(coalesce) if coalesce else obj
+        obj = obj.repartition(repartition) if repartition else obj
+        obj = filter_transform(obj, mapping) if mapping else obj
+        obj = mapping_transform(obj, mapping) if mapping else obj
 
         if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
             format = pmd.get('format', 'rdbms')
@@ -259,12 +268,6 @@ class SparkEngine():
                 .save(**kargs)
         elif pmd['service'] == 'elastic':
             uri = 'http://{}:{}'.format(pmd["hostname"], pmd["port"])
-
-            # print(options)
-            # if "mode" in kargs and kargs.get("mode") == "overwrite":
-            #     mode = "overwrite"
-            # else:
-            #     mode = "append"
             mode = kargs.get("mode", None)
             elastic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
         else:
@@ -280,108 +283,51 @@ class SparkEngine():
     def ingest(self, src_resource=None, src_path=None, src_provider=None,
                      dest_resource=None, dest_path=None, dest_provider=None, **kargs):
 
-        #0. Process parameteers
+        # contants:
+        now = datetime.now()
+
+        # unput parameters:
         md_src = data.metadata(src_resource, src_path, src_provider)
         if not md_src:
-            print('no valid source resource found')
             return
-
-        pd_src = md_src['provider']
-        rs_src =  md_src['resource']
 
         # default path for destination is src path
         if (not dest_resource) and (not dest_path) and dest_provider:
-            dest_path = rs_src['path']
+            dest_path = md_src['resource']['path']
 
         md_dest = data.metadata(dest_resource, dest_path, dest_provider)
         if not md_dest:
-            print('no valid destination resource found')
             return
 
-        options = utils.merge(pd_src.get('filter',{}), rs_src.get('filter',{}))
-        options = utils.merge(options, kargs)
-
-        #1. Get ingress policy
-        ingest_policy = options.get('policy', 'date')
-
-        #Get ingest date
-        today = datetime.combine(date.today(), datetime.min.time())
-        end_date_str = options.get('end_date')
-        start_date_str = options.get('start_date')
-        window_str = options.get('window')
-
-        # defaults
-        end_date = dp.parse(end_date_str) if end_date_str else today
-        start_date = dp.parse(start_date_str) if start_date_str else None
-        window = pd.to_timedelta(window_str) if window_str else None
-
-        # default calculated from window and end_date if both present
-        if not start_date and window:
-            start_date = end_date - window
-
-        #Get ingest key column
-        column = options.get('column')
-
-        #Get ingest window
-        window =  options.get('window')
-
-        #build condition
-        condition_sql = ''
-
-        if ingest_policy == 'date':
-            condition_sql = '{} < "{}" '.format(column, end_date.isoformat())
-            if start_date:
-                condition_sql += 'and {} >= "{}" '.format(column, start_date.isoformat())
-
-        print('condition: {}'.format(condition_sql))
-
-        ## 2. Get last schema
-        schema_path = '{}/schema'.format(md_dest['resource']['path'])
-        print(schema_path, dest_provider)
-
-        try:
-            df_schema = self.read(path=schema_path,provider=dest_provider)
-            schema_date = df_schema.sort(desc("date")).limit(1).collect()[0]['date']
-            schema_exists = True
-        except Exception as ex:
-            logger.warning("No schema file for {}, {}".format(md_dest['resource']['path'],dest_provider))
-            schema_date = today
-            schema_exists = False
-
-        print('schema date', schema_date)
-
-        ## 3. Read all resources and check difference
         try:
             df_src = self.read(path = md_src['resource']['path'], provider = md_src['resource']['provider'])
         except:
-            logger.error("No src file for {}, {}".format(md_src['resource']['path'],md_src['resource']['provider']))
             return
 
-        dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date.strftime('%Y-%m-%d'))  ## Pretend first time ingest
-
-        if condition_sql: #date policy
-            df_src = df_src.where(condition_sql)
-
-        schema_changed = False
         try:
-            print(md_dest)
-            print(dest_path)
+            schema_path = '{}/schema'.format(md_dest['resource']['path'])
+            df_schema = self.read(path=schema_path,provider=dest_provider)
+            schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
+
+            dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
             df_dest = self.read(path=dest_path, provider=md_dest['resource']['provider'])
-        except Exception as ex:
-            logger.warning("Nothing to read from destination: {}, {}".format(dest_path, md_dest['resource']['provider']))
-            df_dest = None
 
-        if df_dest and schema_exists:
-            #Check difference in schemas
-            schema_changed = df_src.schema.json() == df_dest.schema.json()
+            df_src_cols = [x for x in df_src.columns if x != 'ingest_date']
+            df_dest_cols = [x for x in df_dest.columns if x != 'ingest_date']
+            schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
+        except:
+            schema_changed = True
 
-        if schema_changed and schema_exists or (not schema_exists):
-            #Different schema, update new
-            df = pd.DataFrame(columns=['date', 'schema'], data=[[datetime.today(), df_src.schema.json()]])
+        if schema_changed:
+            #Different schema, update schema table with new entry
+            schema_date_str = now.strftime('%Y-%m-%dT%H%M%S')
+            df = pd.DataFrame(columns=['id', 'date', 'schema'], data=[[schema_date_str, now, df_src.schema.json()]])
             df_schema = self.context().createDataFrame(df)
             self.write(df_schema, path=schema_path, provider=md_dest['resource']['provider'], mode='append')
-            #Update new data object name
-            dest_path = '{}/{}'.format(md_dest['resource']['path'], datetime.now().strftime('%Y-%m-%d'))  ## Pretend first time ingest
+            dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
+
+        #diff function goes here
+
 
         # copy from src data
         df_dest = df_src.withColumn('ingest_date', lit(datetime.now().isoformat()))
