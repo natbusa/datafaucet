@@ -4,7 +4,7 @@ from setuptools import setup
 #llll
 # the name of the package
 name = 'datalabframework'
-submodules = ['cli']
+submodules = ['cli', 'spark']
 packages = [name] + ['{}.{}'.format(name, sm) for sm in submodules]
 
 pjoin = os.path.join
