@@ -36,7 +36,7 @@ setup_args = dict(
 
 setup_args['install_requires']=[
     'requests',
-    'pyyaml',
+    'ruamel.yaml',
     'jinja2',
     'ipykernel',
     'traitlets',

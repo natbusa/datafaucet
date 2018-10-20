@@ -1,6 +1,11 @@
 import os
-import yaml
 import copy
+
+from ruamel.yaml import YAML
+
+yaml=YAML()
+yaml.preserve_quotes = True
+yaml.indent(mapping=4, sequence=4, offset=2)
 
 from . import utils
 from . import project
@@ -41,13 +46,14 @@ def _metadata():
         f = open(filename,'r')
         docs = list(yaml.load_all(f))
         for params in docs:
-            if 'profile' not in params:
-                params['profile'] = 'default'
+            profile = params['profile'] if 'profile' in params else 'default'
             params['resources'] = rename_resources(filename, params)
-            k = params['profile']
-            profiles[k] = utils.merge(profiles.get(k,{}), params)
+            profiles[profile] = params
 
     elements = ['resources','variables', 'providers', 'engines', 'loggers']
+
+    if 'default' not in profiles.keys():
+        profiles['default'] = {'profile':'default'}
 
     # empty list for default missing elements:
     for k in elements:
