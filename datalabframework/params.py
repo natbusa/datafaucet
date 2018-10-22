@@ -45,10 +45,10 @@ def _metadata():
     for filename in filenames:
         f = open(filename,'r')
         docs = list(yaml.load_all(f))
-        for params in docs:
-            profile = params['profile'] if 'profile' in params else 'default'
-            params['resources'] = rename_resources(filename, params)
-            profiles[profile] = params
+        for doc in docs:
+            profile = doc['profile'] if 'profile' in doc else 'default'
+            doc['resources'] = rename_resources(filename, doc)
+            profiles[profile] = utils.merge(profiles.get(profile, {}), doc)
 
     elements = ['resources','variables', 'providers', 'engines', 'loggers']
 
