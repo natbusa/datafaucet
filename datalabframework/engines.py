@@ -289,16 +289,14 @@ class SparkEngine():
         # unput parameters:
         md_src = data.metadata(src_resource, src_path, src_provider)
         if not md_src:
-            #print("Not src resource")
             return
 
         # default path for destination is src path
         if (not dest_resource) and (not dest_path) and dest_provider:
             dest_path = md_src['resource']['path']
-        
+
         md_dest = data.metadata(dest_resource, dest_path, dest_provider)
         if not md_dest:
-            #print("Not dsc resource")
             return
 
         try:
@@ -319,7 +317,6 @@ class SparkEngine():
             schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
         except:
             schema_changed = True
-            print("schema_changed.")
 
         if schema_changed:
             #Different schema, update schema table with new entry
@@ -334,7 +331,6 @@ class SparkEngine():
 
         # copy from src data
         df_dest = df_src.withColumn('ingest_date', lit(datetime.now().isoformat()))
-        print("dest_path= {} ".format(dest_path))
         self.write(df_dest, path=dest_path, provider=md_dest['resource']['provider'], mode='append')
 
 def elastic_read(url, query):
