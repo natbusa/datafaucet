@@ -72,7 +72,8 @@ def metadata(resource=None, path=None, provider=None):
 
     # get the resource, either from resource name or path+provider
     rmd = md['resources'].get(uri(resource)) if resource else _get_resource_metadata(path, provider)
-
+    
+    
     # check consistency in metadata
     if rmd['provider'] not in md['providers']:
         print("resource provider '{}' not in the list of known providers".format(rmd['provider']))
@@ -80,7 +81,8 @@ def metadata(resource=None, path=None, provider=None):
 
     # check consistency in metadata
     if provider and rmd['provider'] and rmd['provider'] != provider:
-        print("Using the resource provider '{}' and instead of provider '{}'".format(rmd['provider'], provider))
+        print("Using the provider '{}' and instead of resource provider '{}'".format(provider, rmd['provider']))
+        rmd['provider'] = provider
 
     # no sufficient info to construct a valid resource
     if not rmd:
