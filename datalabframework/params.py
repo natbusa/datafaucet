@@ -63,8 +63,7 @@ def _metadata():
     # inherit from default if not vailable in the profile
     for r in set(profiles.keys()).difference({'default'}):
         for k in elements:
-            if k not in profiles[r] or not profiles[r][k]:
-                profiles[r][k] = copy.deepcopy(profiles['default'][k])
+            profiles[r][k] = utils.merge(profiles['default'][k], profiles[r].get(k, {}))
 
     # rendering of jinja constructs
     profiles = utils.render(profiles)
