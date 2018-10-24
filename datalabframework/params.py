@@ -17,8 +17,8 @@ def resource_unique_name(resource, fullpath_filename):
     unique_name = resource
     if not resource.startswith('.'):
         filename_path = os.path.split(fullpath_filename)[0]
-        if not 'metadata.yml' in os.listdir(filename_path):
-            raise ValueError('A relative resource "{}" is declared, but there is no metadata file dir : {}'.format(resource, filename_path))
+#         if not 'metadata.yml' in os.listdir(filename_path):
+#             raise ValueError('A relative resource "{}" is declared, but there is no metadata file dir : {}'.format(resource, filename_path))
 
         path = utils.breadcrumb_path(filename_path, rootpath=project.rootpath())
         unique_name = '.'+resource if path=='.' else '{}.{}'.format(path, resource)
@@ -64,7 +64,14 @@ def _metadata():
     for r in set(profiles.keys()).difference({'default'}):
         for k in elements:
             profiles[r][k] = utils.merge(profiles['default'][k], profiles[r].get(k, {}))
-
+    
+    # inherit from parent if not vailable in the profile
+    for r in set(profiles.keys()).difference({'default'}):
+        parent = profiles[r].get('inherit')
+        if parent:
+            for k in elements:
+                profiles[r][k] = utils.merge(profiles[parent][k], profiles[r].get(k, {}))
+    
     # rendering of jinja constructs
     profiles = utils.render(profiles)
 
