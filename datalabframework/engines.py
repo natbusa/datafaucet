@@ -13,7 +13,7 @@ import elasticsearch.helpers
 from datetime import date, timedelta, datetime
 
 import pyspark
-from pyspark.sql.functions import desc, lit
+from pyspark.sql.functions import desc, lit, date_format
 
 from . import logging
 logger = logging.getLogger()
@@ -88,6 +88,9 @@ class SparkEngine():
         md = data.metadata(resource, path, provider)
         if not md:
             return
+        return self._read(md, **kargs)
+
+    def _read(self, md, **kargs):
 
         pmd = md['provider']
         rmd = md['resource']
@@ -282,11 +285,12 @@ class SparkEngine():
         return self.context().createDataFrame(rows)
 
     def ingest(self, src_resource=None, src_path=None, src_provider=None,
-                     dest_resource=None, dest_path=None, dest_provider=None, **kargs):
+                     dest_resource=None, dest_path=None, dest_provider=None,
+                     delete=False):
 
         #### contants:
         now = datetime.now()
-        reserved_cols = ['_ingestdate','_state']
+        reserved_cols = ['_ingestdate','_date','_state']
 
         #### Source metadata:
         md_src = data.metadata(src_resource, src_path, src_provider)
@@ -314,12 +318,11 @@ class SparkEngine():
         # match filter with the one from source resource
         md_dest['resource']['read']['filter'] = filter
 
-
         #### Read source resource
         try:
-            df_src = self.read(path = md_src['resource']['path'], provider = md_src['resource']['provider'])
+            df_src = self._read(md_src)
         except Exception as e:
-            print('Source resource could not be read')
+            print(e)
             return
 
         #### Read schema info
@@ -328,25 +331,28 @@ class SparkEngine():
             df_schema = self.read(path=schema_path,provider=dest_provider)
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
         except Exception as e:
+            print(e)
             print('schema does not exist yet.')
             schema_date_str = now.strftime('%Y-%m-%dT%H%M%S')
 
         # destination path - append schema date
         dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
+        md_dest['resource']['path'] = dest_path
+        md_dest['url'] = data._url(md_dest)
 
         # if schema not present or schema change detected
         schema_changed = True
         df_dest = None
 
         try:
-            df_dest = self.read(path=dest_path, provider=md_dest['resource']['provider'])
+            df_dest = self._read(md_dest)
 
             # compare schemas
             df_src_cols = [x for x in df_src.columns if x not in reserved_cols]
             df_dest_cols = [x for x in df_dest.columns if x not in reserved_cols]
             schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
         except Exception as e:
-            pass
+            print(e)
 
         if schema_changed:
             #Different schema, update schema table with new entry
@@ -358,23 +364,30 @@ class SparkEngine():
 
         #diff function match dest read filter with source read filter
         if df_dest:
-            df_upsert, df_delete = dataframe_diff(df_src, df_dest)
+            df_upsert, df_delete = dataframe_diff(df_src, df_dest, exclude_cols=reserved_cols)
 
             df_upsert = df_upsert.withColumn('_state', lit(0))
-            df_delete = df_delete.withColumn('_state', lit(1))
+            print('Added: {}'.format(df_upsert.count()))
 
-            print('Added: {}, Deleted: {}'.format(df_upsert.count(), df_delete.count()))
-            df_diff = df_upsert.union(df_delete)
+            if delete:
+                df_delete = df_delete.withColumn('_state', lit(1))
+                df_diff = df_upsert.union(df_delete)
+                print('Deleted: {}'.format(df_delete.count()))
+            else:
+                df_diff = df_upsert
+
         else:
             print('No destination data to diff, copy from source')
             df_diff = df_src.withColumn('_state', lit(0))
 
         # augment with ingest date info
         if df_diff.count():
+            partition_cols = ['_ingestdate']
             df_diff = df_diff.withColumn('_ingestdate', lit(now.strftime('%Y-%m-%dT%H%M%S')))
 
-            partition_cols = ['_ingestdate']
-            partition_cols += [filter.get('column')] if filter.get('policy')=='date' and filter.get('column') else []
+            if filter.get('policy')=='date' and filter.get('column'):
+                df_diff = df_diff.withColumn('_date', date_format(filter['column'], 'yyyy-MM-dd'))
+                partition_cols += ['_date']
 
             options = {'mode':'append', 'partitionBy':partition_cols}
             self.write(df_diff, path=dest_path, provider=md_dest['resource']['provider'], **options)
