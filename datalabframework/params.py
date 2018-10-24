@@ -64,7 +64,14 @@ def _metadata():
     for r in set(profiles.keys()).difference({'default'}):
         for k in elements:
             profiles[r][k] = utils.merge(profiles['default'][k], profiles[r].get(k, {}))
-
+    
+    # inherit from parent if not vailable in the profile
+    for r in set(profiles.keys()).difference({'default'}):
+        parent = profiles[r].get('inherit')
+        if parent:
+            for k in elements:
+                profiles[r][k] = utils.merge(profiles[parent][k], profiles[r].get(k, {}))
+    
     # rendering of jinja constructs
     profiles = utils.render(profiles)
 

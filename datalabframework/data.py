@@ -81,7 +81,7 @@ def metadata(resource=None, path=None, provider=None):
 
     # check consistency in metadata
     if rmd.get('provider') not in md['providers']:
-        print("resource provider '{}' not in the list of known providers".format(rmd['provider']))
+        #print("resource provider '{}' not in the list of known providers".format(rmd['provider']))
         rmd['provider'] = provider
 
     # check consistency in metadata
