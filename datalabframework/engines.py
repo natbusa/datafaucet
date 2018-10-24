@@ -2,6 +2,7 @@ import os
 
 from datalabframework.spark.mapping import transform as mapping_transform
 from datalabframework.spark.filter import transform as filter_transform
+from datalabframework.spark.diff import dataframe_diff
 
 from . import params
 from . import data
@@ -173,8 +174,8 @@ class SparkEngine():
         else:
             raise('downt know how to handle this')
 
-        obj = filter_transform(obj,filter) if filter else obj
         obj = mapping_transform(obj, mapping) if mapping else obj
+        obj = filter_transform(obj,filter) if filter else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
@@ -216,8 +217,8 @@ class SparkEngine():
         obj = obj.cache() if cache else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.repartition(repartition) if repartition else obj
-        obj = filter_transform(obj, mapping) if mapping else obj
         obj = mapping_transform(obj, mapping) if mapping else obj
+        obj = filter_transform(obj, mapping) if mapping else obj
 
         if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
             format = pmd.get('format', 'rdbms')
@@ -283,13 +284,21 @@ class SparkEngine():
     def ingest(self, src_resource=None, src_path=None, src_provider=None,
                      dest_resource=None, dest_path=None, dest_provider=None, **kargs):
 
-        # contants:
+        #### contants:
         now = datetime.now()
+        reserved_cols = ['_ingestdate','_state']
 
-        # unput parameters:
+        #### Source metadata:
         md_src = data.metadata(src_resource, src_path, src_provider)
         if not md_src:
             return
+
+        # filter settings from src (provider and resource)
+        filter = utils.merge(
+                    md_src['provider'].get('read', {}).get('filter', {}),
+                    md_src['resource'].get('read', {}).get('filter', {}))
+
+        #### Target metadata:
 
         # default path for destination is src path
         if (not dest_resource) and (not dest_path) and dest_provider:
@@ -299,39 +308,76 @@ class SparkEngine():
         if not md_dest:
             return
 
+        if 'read' not in md_dest['resource']:
+            md_dest['resource']['read'] = {}
+
+        # match filter with the one from source resource
+        md_dest['resource']['read']['filter'] = filter
+
+
+        #### Read source resource
         try:
             df_src = self.read(path = md_src['resource']['path'], provider = md_src['resource']['provider'])
-        except:
+        except Exception as e:
+            print('Source resource could not be read')
             return
 
+        #### Read schema info
         try:
             schema_path = '{}/schema'.format(md_dest['resource']['path'])
             df_schema = self.read(path=schema_path,provider=dest_provider)
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
+        except Exception as e:
+            print('schema does not exist yet.')
+            schema_date_str = now.strftime('%Y-%m-%dT%H%M%S')
 
-            dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
+        # destination path - append schema date
+        dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
+
+        # if schema not present or schema change detected
+        schema_changed = True
+        df_dest = None
+
+        try:
             df_dest = self.read(path=dest_path, provider=md_dest['resource']['provider'])
 
-            df_src_cols = [x for x in df_src.columns if x != 'ingest_date']
-            df_dest_cols = [x for x in df_dest.columns if x != 'ingest_date']
+            # compare schemas
+            df_src_cols = [x for x in df_src.columns if x not in reserved_cols]
+            df_dest_cols = [x for x in df_dest.columns if x not in reserved_cols]
             schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
-        except:
-            schema_changed = True
+        except Exception as e:
+            pass
 
         if schema_changed:
             #Different schema, update schema table with new entry
-            schema_date_str = now.strftime('%Y-%m-%dT%H%M%S')
-            df = pd.DataFrame(columns=['id', 'date', 'schema'], data=[[schema_date_str, now, df_src.schema.json()]])
-            df_schema = self.context().createDataFrame(df)
+            schema_entry = (schema_date_str, now, df_src.schema.json())
+            df_schema = self.context().createDataFrame([schema_entry],['id', 'date', 'schema'])
+
+            # write the schema to destination provider
             self.write(df_schema, path=schema_path, provider=md_dest['resource']['provider'], mode='append')
-            dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
 
-        #diff function goes here
+        #diff function match dest read filter with source read filter
+        if df_dest:
+            df_upsert, df_delete = dataframe_diff(df_src, df_dest)
 
+            df_upsert = df_upsert.withColumn('_state', lit(0))
+            df_delete = df_delete.withColumn('_state', lit(1))
 
-        # copy from src data
-        df_dest = df_src.withColumn('ingest_date', lit(datetime.now().isoformat()))
-        self.write(df_dest, path=dest_path, provider=md_dest['resource']['provider'], mode='append')
+            print('Added: {}, Deleted: {}'.format(df_upsert.count(), df_delete.count()))
+            df_diff = df_upsert.union(df_delete)
+        else:
+            print('No destination data to diff, copy from source')
+            df_diff = df_src.withColumn('_state', lit(0))
+
+        # augment with ingest date info
+        if df_diff.count():
+            df_diff = df_diff.withColumn('_ingestdate', lit(now.strftime('%Y-%m-%dT%H%M%S')))
+
+            partition_cols = ['_ingestdate']
+            partition_cols += [filter.get('column')] if filter.get('policy')=='date' and filter.get('column') else []
+
+            options = {'mode':'append', 'partitionBy':partition_cols}
+            self.write(df_diff, path=dest_path, provider=md_dest['resource']['provider'], **options)
 
 def elastic_read(url, query):
     """
