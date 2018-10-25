@@ -16,8 +16,6 @@ import pyspark
 from pyspark.sql.functions import desc, lit, date_format
 
 from . import logging
-logger = logging.getLogger()
-
 import pandas as pd
 
 # purpose of engines
@@ -91,6 +89,7 @@ class SparkEngine():
         return self._read(md, **kargs)
 
     def _read(self, md, **kargs):
+        logger = logging.getLogger()
 
         pmd = md['provider']
         rmd = md['resource']
@@ -189,6 +188,8 @@ class SparkEngine():
         return obj
 
     def write(self, obj, resource=None, path=None, provider=None, **kargs):
+        logger = logging.getLogger()
+
         md = data.metadata(resource, path, provider)
         if not md:
             return
@@ -288,6 +289,8 @@ class SparkEngine():
                      dest_resource=None, dest_path=None, dest_provider=None,
                      delete=False):
 
+        logger = logging.getLogger()
+
         #### contants:
         now = datetime.now()
         reserved_cols = ['_ingestdate','_date','_state']
@@ -381,7 +384,7 @@ class SparkEngine():
             df_diff = df_src.withColumn('_state', lit(0))
 
         # augment with ingest date info
-        if df_diff.count():
+        if df_diff.count() or schema_changed:
             partition_cols = ['_ingestdate']
             df_diff = df_diff.withColumn('_ingestdate', lit(now.strftime('%Y-%m-%dT%H%M%S')))
 
