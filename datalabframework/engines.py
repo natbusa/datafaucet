@@ -169,6 +169,14 @@ class SparkEngine():
                 .option("user", pmd['username']) \
                 .option('password', pmd['password']) \
                 .load(**options)
+        elif pmd['service'] == 'oracle':
+            driver = "oracle.jdbc.driver.OracleDriver"
+            obj = self._ctx.read \
+                .format('jdbc') \
+                .option('url', url) \
+                .option("dbtable", rmd['path']) \
+                .option("driver", driver) \
+                .load(**options)
         elif pmd['service'] == 'elastic':
             # uri = 'http://{}:{}/{}'.format(pmd["hostname"], pmd["port"], md['path'])
             # print(options)
@@ -270,6 +278,14 @@ class SparkEngine():
                 .option("driver", driver) \
                 .option("user", pmd['username']) \
                 .option('password', pmd['password']) \
+                .save(**kargs)
+        elif pmd['service'] == 'oracle':
+            driver = "oracle.jdbc.driver.OracleDriver"
+            obj.write \
+                .format('jdbc') \
+                .option('url', url) \
+                .option("dbtable", rmd['path']) \
+                .option("driver", driver) \
                 .save(**kargs)
         elif pmd['service'] == 'elastic':
             uri = 'http://{}:{}'.format(pmd["hostname"], pmd["port"])
