@@ -1,0 +1,28 @@
+--
+type: object
+properties:
+    severity:
+      type: string
+    stream:
+      type: object
+      properties:
+        severity:
+          type: string
+        enable:
+          type: boolean
+      additionalProperties: false
+    kafka:
+      type: object
+      properties:
+        severity:
+          type: string
+        enable:
+          type: boolean
+        hosts:
+          type: string
+        topic:
+          type: string
+      additionalProperties: false
+      required:
+        - hosts
+  additionalProperties: false
