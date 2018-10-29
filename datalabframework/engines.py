@@ -88,6 +88,20 @@ class SparkEngine():
         if not md:
             logger.exception("No metadata")
             return
+
+        #### Read schema info
+        try:
+            schema_path = '{}/schema'.format(md['resource']['path'])
+            df_schema = self._read(path=schema_path,provider=md['provider'])
+            schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
+            resource_path = '{}/{}'.format(md['resource']['path'], schema_date_str)
+        except Exception as e:
+            resource_path = md['resource']['path']
+
+        # path - append schema date if available
+        md['resource']['path'] = resource_path
+        md['url'] = data._url(md)
+
         return self._read(md, **kargs)
 
     def _read(self, md, **kargs):
@@ -131,7 +145,6 @@ class SparkEngine():
                 obj= self._ctx.read.json(url, **options)
             elif format=='parquet':
                 obj= self._ctx.read.parquet(url, **options)
-
         elif pmd['service'] == 'sqlite':
             driver = "org.sqlite.JDBC"
             obj =  self._ctx.read \
@@ -140,7 +153,6 @@ class SparkEngine():
                 .option("dbtable", rmd['path'])\
                 .option("driver", driver)\
                 .load(**options)
-
         elif pmd['service'] == 'mysql':
             driver = "com.mysql.cj.jdbc.Driver"
             obj =  self._ctx.read\
@@ -180,8 +192,6 @@ class SparkEngine():
                 .option("driver", driver) \
                 .load(**options)
         elif pmd['service'] == 'elastic':
-            # uri = 'http://{}:{}/{}'.format(pmd["hostname"], pmd["port"], md['path'])
-            # print(options)
             obj = self.elastic_read(url, options.get('query', {}))
         else:
             raise('downt know how to handle this')
@@ -202,7 +212,13 @@ class SparkEngine():
 
         md = data.metadata(resource, path, provider)
         if not md:
+            logger.exception("No metadata")
             return
+
+        return self._write(obj, md, **kargs)
+
+    def _write(self, obj, md, **kargs):
+        logger = logging.getLogger()
 
         pmd = md['provider']
         rmd = md['resource']
