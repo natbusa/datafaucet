@@ -83,8 +83,10 @@ class SparkEngine():
         return self._ctx
 
     def read(self, resource=None, path=None, provider=None, **kargs):
+        logger = logging.getLogger()
         md = data.metadata(resource, path, provider)
         if not md:
+            logger.exception("No metadata")
             return
         return self._read(md, **kargs)
 
@@ -247,7 +249,7 @@ class SparkEngine():
             elif format=='parquet':
                 obj.write.parquet(url, **options)
             else:
-                print('format unknown')
+                logger.info('format unknown')
 
         elif pmd['service'] == 'sqlite':
             driver = "org.sqlite.JDBC"
@@ -314,6 +316,7 @@ class SparkEngine():
         #### Source metadata:
         md_src = data.metadata(src_resource, src_path, src_provider)
         if not md_src:
+            logger.error("No metadata")
             return
 
         # filter settings from src (provider and resource)
@@ -341,7 +344,8 @@ class SparkEngine():
         try:
             df_src = self._read(md_src)
         except Exception as e:
-            print(e)
+            logger.exception(e)
+
             return
 
         #### Read schema info
@@ -350,8 +354,8 @@ class SparkEngine():
             df_schema = self.read(path=schema_path,provider=dest_provider)
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
         except Exception as e:
-            print(e)
-            print('schema does not exist yet.')
+            logger.exception(e)
+            # print('schema does not exist yet.')
             schema_date_str = now.strftime('%Y-%m-%dT%H%M%S')
 
         # destination path - append schema date
@@ -371,7 +375,7 @@ class SparkEngine():
             df_dest_cols = [x for x in df_dest.columns if x not in reserved_cols]
             schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
         except Exception as e:
-            print(e)
+            logger.exception(e)
 
         if schema_changed:
             #Different schema, update schema table with new entry
@@ -386,21 +390,22 @@ class SparkEngine():
             df_upsert, df_delete = dataframe_diff(df_src, df_dest, exclude_cols=reserved_cols)
 
             df_upsert = df_upsert.withColumn('_state', lit(0))
-            print('Added: {}'.format(df_upsert.count()))
+            logger.info({'Added': df_upsert.count()}, extra={'dlf_type': 'engine.schema_check'})
 
             if delete:
                 df_delete = df_delete.withColumn('_state', lit(1))
                 df_diff = df_upsert.union(df_delete)
-                print('Deleted: {}'.format(df_delete.count()))
+                logger.info('Deleted: {}'.format(df_delete.count()), extra={'dlf_type': 'engine.schema_check'})
             else:
                 df_diff = df_upsert
 
         else:
-            print('No destination data to diff, copy from source')
+            logger.info('No destination data to diff, copy from source', extra={'dlf_type': 'engine.schema_check'})
             df_diff = df_src.withColumn('_state', lit(0))
 
         # augment with ingest date info
-        if df_diff.count() or schema_changed:
+        diff_records = df_diff.count()
+        if diff_records:
             partition_cols = ['_ingestdate']
             df_diff = df_diff.withColumn('_ingestdate', lit(now.strftime('%Y-%m-%dT%H%M%S')))
 
@@ -410,6 +415,18 @@ class SparkEngine():
 
             options = {'mode':'append', 'partitionBy':partition_cols}
             self.write(df_diff, path=dest_path, provider=md_dest['resource']['provider'], **options)
+
+        end = datetime.now()
+        time_diff = end - now
+
+        logger.info({'src_url': md_src['url'],
+                     'src_table': md_src['resource']['path'],
+                     'source_option': filter,
+                     'schema_change': schema_changed,
+                     'target': dest_path,
+                     'records': diff_records,
+                     'diff_time': time_diff.total_seconds()},
+                    extra={'dlf_type': 'engine.ingest'})
 
 def elastic_read(url, query):
     """
