@@ -33,7 +33,7 @@ def _url(md):
     elif pmd['service'] == 'minio':
         url = "s3a:///{}".format(fullpath)
     elif pmd['service'] == 'sqlite':
-        url = "jdbc:sqlite:" + pmd['path']
+        url = "jdbc:sqlite:{}".format(fullpath)
     elif pmd['service'] == 'mysql':
         url = "jdbc:mysql://{}:{}/{}".format(pmd['hostname'],pmd.get('port', '3306'),pmd['database'])
     elif pmd['service'] == 'postgres':
