@@ -86,16 +86,18 @@ class SparkEngine():
         logger = logging.getLogger()
         md = data.metadata(resource, path, provider)
         if not md:
-            logger.exception("No metadata")
+            logger.error("No metadata")
             return
 
         #### Read schema info
         try:
             schema_path = '{}/schema'.format(md['resource']['path'])
-            df_schema = self._read(path=schema_path,provider=md['provider'])
+            df_schema = self._read(data.metadata(path=schema_path,provider=md['resource']['provider']))
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
             resource_path = '{}/{}'.format(md['resource']['path'], schema_date_str)
+            logger.info("schema found {}".format(resource_path))
         except Exception as e:
+            logger.info("schema not found {}".format(md['resource']['path']))
             resource_path = md['resource']['path']
 
         # path - append schema date if available
@@ -361,7 +363,6 @@ class SparkEngine():
             df_src = self._read(md_src)
         except Exception as e:
             logger.exception(e)
-
             return
 
         #### Read schema info
@@ -370,8 +371,7 @@ class SparkEngine():
             df_schema = self.read(path=schema_path,provider=dest_provider)
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
         except Exception as e:
-            logger.exception(e)
-            # print('schema does not exist yet.')
+            # logger.warning('source schema does not exist yet.'')
             schema_date_str = now.strftime('%Y-%m-%dT%H%M%S')
 
         # destination path - append schema date
@@ -391,7 +391,8 @@ class SparkEngine():
             df_dest_cols = [x for x in df_dest.columns if x not in reserved_cols]
             schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
         except Exception as e:
-            logger.exception(e)
+            # logger.warning('schema does not exist yet.'')
+            pass
 
         if schema_changed:
             #Different schema, update schema table with new entry
