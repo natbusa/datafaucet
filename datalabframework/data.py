@@ -14,14 +14,13 @@ def _url(md):
     #defaults
     if  pmd['service'] == 'local':
         pmd['path'] = pmd.get('path',project.rootpath())
-        if pmd['path'][0]!='/':
+        if not os.path.isabs(pmd['path']):
             pmd['path'] = '{}/{}'.format(project.rootpath(), pmd['path'])
             pmd['path'] = os.path.abspath(pmd['path'])
     else:
         pmd['path'] = pmd.get('path','')
 
     pmd['hostname'] = pmd.get('hostname', '127.0.0.1')
-    pmd['path'] = utils.lrchop(pmd['path'], '/')
     rmd['path'] = rmd.get('path','')
 
     fullpath = os.path.join(pmd['path'],rmd['path'])
