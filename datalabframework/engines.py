@@ -2,7 +2,7 @@ import os
 
 from datalabframework.spark.mapping import transform as mapping_transform
 from datalabframework.spark.filter import transform as filter_transform
-from datalabframework.spark.diff import dataframe_diff
+from datalabframework.spark.diff import dataframe_update
 
 from . import params
 from . import data
@@ -323,13 +323,13 @@ class SparkEngine():
 
     def ingest(self, src_resource=None, src_path=None, src_provider=None,
                      dest_resource=None, dest_path=None, dest_provider=None,
-                     delete=False):
+                     eventsourcing=False):
 
         logger = logging.getLogger()
 
         #### contants:
         now = datetime.now()
-        reserved_cols = ['_ingestdate','_date','_state']
+        reserved_cols = ['_ingested','_date','_state']
 
         #### Source metadata:
         md_src = data.metadata(src_resource, src_path, src_provider)
@@ -343,6 +343,10 @@ class SparkEngine():
                     md_src['resource'].get('read', {}).get('filter', {}))
 
         #### Target metadata:
+
+        # removed records
+        if delete is None:
+            delete = False if filter.get('policy')=='date' else True
 
         # default path for destination is src path
         if (not dest_resource) and (not dest_path) and dest_provider:
@@ -372,7 +376,7 @@ class SparkEngine():
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
         except Exception as e:
             # logger.warning('source schema does not exist yet.'')
-            schema_date_str = now.strftime('%Y-%m-%dT%H%M%S')
+            schema_date_str = now.strftime('%Y%m%dT%H%M%S')
 
         # destination path - append schema date
         dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
@@ -402,36 +406,24 @@ class SparkEngine():
             # write the schema to destination provider
             self.write(df_schema, path=schema_path, provider=md_dest['resource']['provider'], mode='append')
 
-        #diff function match dest read filter with source read filter
-        if df_dest:
-            df_upsert, df_delete = dataframe_diff(df_src, df_dest, exclude_cols=reserved_cols)
+        df_diff = dataframe_update(df_src, df_dest, updated_col='_ingested', eventsourcing=eventsourcing)
 
-            df_upsert = df_upsert.withColumn('_state', lit(0))
-            logger.info({'Added': df_upsert.count()}, extra={'dlf_type': 'engine.schema_check'})
+        records_add = df_diff.filter("_state = 0").count()
+        records_del = df_diff.filter("_state = 1").count()
 
-            if delete:
-                df_delete = df_delete.withColumn('_state', lit(1))
-                df_diff = df_upsert.union(df_delete)
-                logger.info('Deleted: {}'.format(df_delete.count()), extra={'dlf_type': 'engine.schema_check'})
-            else:
-                df_diff = df_upsert
+        # partitions
+        partition_cols = ['_ingested']
+        # if filter.get('policy')=='date' and filter.get('column'):
+        #         df_diff = df_diff.withColumn('_date', date_format(filter['column'], 'yyyy-MM-dd'))
+        #         partition_cols += ['_date']
 
-        else:
-            logger.info('No destination data to diff, copy from source', extra={'dlf_type': 'engine.schema_check'})
-            df_diff = df_src.withColumn('_state', lit(0))
-
-        # augment with ingest date info
-        diff_records = df_diff.count()
-        if diff_records:
-            partition_cols = ['_ingestdate']
-            df_diff = df_diff.withColumn('_ingestdate', lit(now.strftime('%Y-%m-%dT%H%M%S')))
-
-            if filter.get('policy')=='date' and filter.get('column'):
-                df_diff = df_diff.withColumn('_date', date_format(filter['column'], 'yyyy-MM-dd'))
-                partition_cols += ['_date']
-
+        if records_add or records_del or schema_changed:
             options = {'mode':'append', 'partitionBy':partition_cols}
+            # df_diff.printSchema()
+            # df_diff.show(1)
             self.write(df_diff, path=dest_path, provider=md_dest['resource']['provider'], **options)
+            # self.read(path=dest_path, provider=md_dest['resource']['provider']).printSchema()
+
 
         end = datetime.now()
         time_diff = end - now
@@ -441,7 +433,8 @@ class SparkEngine():
                      'source_option': filter,
                      'schema_change': schema_changed,
                      'target': dest_path,
-                     'records': diff_records,
+                     'upserts': records_add,
+                     'deletes': records_del,
                      'diff_time': time_diff.total_seconds()},
                     extra={'dlf_type': 'engine.ingest'})
 

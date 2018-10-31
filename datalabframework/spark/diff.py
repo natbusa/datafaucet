@@ -43,23 +43,17 @@ def dataframe_eventsource_view(df, state_col='_state', updated_col='_updated'):
 
     return df
 
-def dataframe_update(df_a, df_b=None, eventsource=True, exclude_cols=[], state_col='_state', updated_col='_updated'):
+def dataframe_update(df_a, df_b=None, eventsourcing=True, exclude_cols=[], state_col='_state', updated_col='_updated'):
 
     df_b = df_b if df_b else df_a.filter("False")
 
     exclude_cols += [state_col, updated_col]
     colnames_a, colnames_b = common_columns(df_a, df_b, exclude_cols)
 
-    if eventsource and (state_col in df_b.columns) and  (updated_col in df_b.columns) :
+    if eventsourcing and (state_col in df_b.columns) and  (updated_col in df_b.columns) :
         df_b = dataframe_eventsource_view(df_b, state_col=state_col, updated_col=updated_col)
-    #
-    # df_a.show()
-    # df_b.show()
-    #
+
     df_upsert, df_delete = dataframe_diff(df_a, df_b, exclude_cols)
-    #
-    # df_upsert.show()
-    # df_delete.show()
 
     df_upsert = df_upsert.withColumn(state_col, F.lit(0))
     df_delete = df_delete.withColumn(state_col, F.lit(1))
