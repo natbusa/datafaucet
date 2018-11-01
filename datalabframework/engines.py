@@ -26,6 +26,10 @@ import pandas as pd
 
 engines = dict()
 
+import sys
+def func_name():
+    return sys._getframe(1).f_code.co_name
+
 class SparkEngine():
     def __init__(self, name, config):
         from pyspark import SparkContext, SparkConf
@@ -95,16 +99,24 @@ class SparkEngine():
             df_schema = self._read(data.metadata(path=schema_path,provider=md['resource']['provider']))
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
             resource_path = '{}/{}'.format(md['resource']['path'], schema_date_str)
-            logger.info("schema found {}".format(resource_path))
         except Exception as e:
-            logger.info("schema not found {}".format(md['resource']['path']))
             resource_path = md['resource']['path']
 
         # path - append schema date if available
         md['resource']['path'] = resource_path
         md['url'] = data._url(md)
 
-        return self._read(md, **kargs)
+        obj = self._read(md, **kargs)
+
+        #logging
+        logdata = {
+            'format':md['provider']['format'],
+            'service':md['provider']['service'],
+            'path':md['resource']['path'],
+            'url':md['url']}
+        logtype = {'dlf_type':'{}.{}'.format(self.__class__.__name__, func_name())}
+        logger.info(logdata, extra=logtype)
+        return obj
 
     def _read(self, md, **kargs):
         logger = logging.getLogger()
@@ -204,9 +216,6 @@ class SparkEngine():
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
 
-        #logging
-        logger.info({'format':format,'service':pmd['service'],'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.read'})
-
         return obj
 
     def write(self, obj, resource=None, path=None, provider=None, **kargs):
@@ -217,7 +226,17 @@ class SparkEngine():
             logger.exception("No metadata")
             return
 
-        return self._write(obj, md, **kargs)
+        self._write(obj, md, **kargs)
+
+        logdata = {
+            'format':md['provider']['format'],
+            'service':md['provider']['service'],
+            'path':md['resource']['path'],
+            'url':md['url']}
+        logtype = {'dlf_type':'{}.{}'.format(self.__class__.__name__, func_name())}
+        logger.info(logdata, extra=logtype)
+
+        return obj
 
     def _write(self, obj, md, **kargs):
         logger = logging.getLogger()
@@ -314,7 +333,6 @@ class SparkEngine():
         else:
             raise('downt know how to handle this')
 
-        logger.info({'format':format,'service':pmd['service'], 'path':rmd['path'], 'url':md['url']}, extra={'dlf_type':'engine.write'})
 
     def elastic_read(self, url, query):
         results = elastic_read(url, query)
@@ -344,10 +362,6 @@ class SparkEngine():
 
         #### Target metadata:
 
-        # removed records
-        if delete is None:
-            delete = False if filter.get('policy')=='date' else True
-
         # default path for destination is src path
         if (not dest_resource) and (not dest_path) and dest_provider:
             dest_path = md_src['resource']['path']
@@ -372,7 +386,8 @@ class SparkEngine():
         #### Read schema info
         try:
             schema_path = '{}/schema'.format(md_dest['resource']['path'])
-            df_schema = self.read(path=schema_path,provider=dest_provider)
+            md = data.metadata(path=schema_path,provider=dest_provider)
+            df_schema = self._read(md)
             schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
         except Exception as e:
             # logger.warning('source schema does not exist yet.'')
@@ -385,7 +400,6 @@ class SparkEngine():
 
         # if schema not present or schema change detected
         schema_changed = True
-        df_dest = None
 
         try:
             df_dest = self._read(md_dest)
@@ -396,7 +410,7 @@ class SparkEngine():
             schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
         except Exception as e:
             # logger.warning('schema does not exist yet.'')
-            pass
+            df_dest = df_src.filter("False")
 
         if schema_changed:
             #Different schema, update schema table with new entry
@@ -404,39 +418,49 @@ class SparkEngine():
             df_schema = self.context().createDataFrame([schema_entry],['id', 'date', 'schema'])
 
             # write the schema to destination provider
-            self.write(df_schema, path=schema_path, provider=md_dest['resource']['provider'], mode='append')
+            md = data.metadata(path=schema_path, provider=md_dest['resource']['provider'])
+            self._write(df_schema, md, mode='append')
 
-        df_diff = dataframe_update(df_src, df_dest, updated_col='_ingested', eventsourcing=eventsourcing)
+        # partitions
+        partition_cols = ['_ingested']
+        
+        if not eventsourcing:
+            if filter.get('policy')=='date' and filter.get('column'):
+                 df_diff = dataframe_update(df_src, df_dest, updated_col='_ingested', eventsourcing=eventsourcing)
+                 df_diff = df_diff.withColumn('_date', date_format(filter['column'], 'yyyy-MM-dd'))
+                 partition_cols += ['_date']
+                 ingest_mode = 'append'
+                 options = {'mode':ingest_mode, 'partitionBy':partition_cols}
+            else:
+                 df_diff = dataframe_update(df_src, df_dest.filter("False"), updated_col='_ingested', eventsourcing=eventsourcing)
+                 ingest_mode = 'overwrite'
+                 options = {'mode':ingest_mode, 'partitionBy':partition_cols}
+        else:
+            # to do
+            logger.fatal('event sourcing not implemented yet')
 
         records_add = df_diff.filter("_state = 0").count()
         records_del = df_diff.filter("_state = 1").count()
 
-        # partitions
-        partition_cols = ['_ingested']
-        # if filter.get('policy')=='date' and filter.get('column'):
-        #         df_diff = df_diff.withColumn('_date', date_format(filter['column'], 'yyyy-MM-dd'))
-        #         partition_cols += ['_date']
-
         if records_add or records_del or schema_changed:
-            options = {'mode':'append', 'partitionBy':partition_cols}
-            # df_diff.printSchema()
-            # df_diff.show(1)
-            self.write(df_diff, path=dest_path, provider=md_dest['resource']['provider'], **options)
-            # self.read(path=dest_path, provider=md_dest['resource']['provider']).printSchema()
-
+            md = data.metadata(path=dest_path, provider=md_dest['resource']['provider'])
+            self._write(df_diff, md, **options)
 
         end = datetime.now()
         time_diff = end - now
 
-        logger.info({'src_url': md_src['url'],
-                     'src_table': md_src['resource']['path'],
-                     'source_option': filter,
-                     'schema_change': schema_changed,
-                     'target': dest_path,
-                     'upserts': records_add,
-                     'deletes': records_del,
-                     'diff_time': time_diff.total_seconds()},
-                    extra={'dlf_type': 'engine.ingest'})
+        logdata = {
+            'src_url': md_src['url'],
+            'src_table': md_src['resource']['path'],
+            'source_option': filter,
+            'schema_change': schema_changed,
+            'target': dest_path,
+            'upserts': records_add,
+            'deletes': records_del,
+            'diff_time': time_diff.total_seconds()}
+
+        logtype = {'dlf_type':'{}.{}'.format(self.__class__.__name__, func_name())}
+        logger.info(logdata, extra=logtype)
 
 def elastic_read(url, query):
     """

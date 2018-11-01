@@ -17,6 +17,9 @@ def common_columns(df_a, df_b, exclude_cols=[]):
         return colnames_a, colnames_b
 
 def dataframe_diff(df_a, df_b, exclude_cols=[]):
+    # This function will only produce DISTICT rows out!
+    # Multiple exactly identical rows will be ingested only as one row
+
     # get columns
     colnames_a, colnames_b = common_columns(df_a, df_b, exclude_cols)
 
@@ -43,7 +46,7 @@ def dataframe_eventsource_view(df, state_col='_state', updated_col='_updated'):
 
     return df
 
-def dataframe_update(df_a, df_b=None, eventsourcing=True, exclude_cols=[], state_col='_state', updated_col='_updated'):
+def dataframe_update(df_a, df_b=None, eventsourcing=False, exclude_cols=[], state_col='_state', updated_col='_updated'):
 
     df_b = df_b if df_b else df_a.filter("False")
 
@@ -52,8 +55,10 @@ def dataframe_update(df_a, df_b=None, eventsourcing=True, exclude_cols=[], state
 
     if eventsourcing and (state_col in df_b.columns) and  (updated_col in df_b.columns) :
         df_b = dataframe_eventsource_view(df_b, state_col=state_col, updated_col=updated_col)
-
-    df_upsert, df_delete = dataframe_diff(df_a, df_b, exclude_cols)
+        df_upsert, df_delete = dataframe_diff(df_a, df_b, exclude_cols)
+    else:
+        df_upsert, df_delete = dataframe_diff(df_a, df_b, exclude_cols)
+        df_delete = df_delete.filter("False")
 
     df_upsert = df_upsert.withColumn(state_col, F.lit(0))
     df_delete = df_delete.withColumn(state_col, F.lit(1))

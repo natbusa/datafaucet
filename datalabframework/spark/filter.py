@@ -34,11 +34,12 @@ def filter_by_date(obj, options):
     obj = obj.filter(F.to_timestamp(column) >= start_date) if start_date else obj
 
     # print('start date {}, end date {}'.format(start_date.isoformat(), end_date.isoformat()))
-    logger.info('start date {}, end date {}'.format(start_date.isoformat(), end_date.isoformat()),
-                extra={'dlf_type':'engine.read'})
-    # print('filtered records', obj.count())
-    logger.info('filtered records {}'.format(obj.count()),
-                extra={'dlf_type': 'engine.read'})
+    if start_date:
+        logger.info('start date {}, end date {}'.format(start_date.isoformat(), end_date.isoformat()), extra={'dlf_type':'engine.read'})
+    else:
+        logger.info('start date: none, end date {}'.format(end_date.isoformat()), extra={'dlf_type':'engine.read'})
+
+    logger.info('filtered records {}'.format(obj.count()), extra={'dlf_type': 'engine.read'})
 
     return obj
 
