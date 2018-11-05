@@ -1,16 +1,12 @@
 import os
-import sys
 import glob
 
 from textwrap import dedent
 
-from ..utils import pretty_print
-from .application import DatalabframeworkApp
-
 import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 
-from traitlets.config.configurable import Configurable
+from .application import DatalabframeworkApp
 
 from traitlets import (
     Bool, Unicode, Int, List, Dict
@@ -118,7 +114,6 @@ class DlfRunApp(DatalabframeworkApp):
         resources ={}
         resources['metadata'] = {'path': os.getcwd()}
 
-        #print('running {} (cwd={})'.format(fullpath_filename, cwd))
         (nb_out, resources_out) = self.ep.preprocess(nb, resources)
         #print(self.notebook_statistics(nb_out))
 

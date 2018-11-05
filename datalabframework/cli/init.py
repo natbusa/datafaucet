@@ -1,9 +1,6 @@
 import os
-import sys
-import glob
 
 from .application import DatalabframeworkApp
-from traitlets.config.configurable import Configurable
 from traitlets import Bool, Unicode, Int, List, Dict
 
 from cookiecutter.main import cookiecutter

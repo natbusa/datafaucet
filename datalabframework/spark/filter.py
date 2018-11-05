@@ -1,7 +1,7 @@
 import pandas as pd
 import dateutil.parser as dp
 
-from datetime import date, timedelta, datetime
+from datetime import date, datetime
 import pyspark.sql.functions as F
 
 from .. import logging

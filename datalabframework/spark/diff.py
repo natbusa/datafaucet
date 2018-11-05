@@ -1,7 +1,6 @@
-from pyspark.sql.types import  StringType
+from datetime import datetime
 import pyspark.sql.functions as F
 
-from datetime import datetime
 
 def common_columns(df_a, df_b, exclude_cols=[]):
         colnames_a = set(df_a.columns)

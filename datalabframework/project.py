@@ -2,7 +2,7 @@ import os
 import io
 import sys
 import types
-import subprocess
+
 import getpass
 from urllib.parse import urljoin
 

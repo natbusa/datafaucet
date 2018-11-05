@@ -1,5 +1,4 @@
 import os
-import copy
 
 from ruamel.yaml import YAML
 

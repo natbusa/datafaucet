@@ -10,13 +10,12 @@ from . import utils
 
 import elasticsearch.helpers
 
-from datetime import date, timedelta, datetime
+from datetime import datetime
 
 import pyspark
 from pyspark.sql.functions import desc, lit, date_format
 
 from . import logging
-import pandas as pd
 
 # purpose of engines
 # abstract engine init, data read and data write

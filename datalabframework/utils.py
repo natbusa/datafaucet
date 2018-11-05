@@ -1,7 +1,6 @@
 import errno
 import os
 
-import json
 import jsonschema
 
 import sys

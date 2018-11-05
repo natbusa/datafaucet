@@ -5,21 +5,16 @@ try:
 except:
     KafkaProducer=None
 
-import socket
 import getpass
 import datetime
-import traceback as tb
 import json
 
 import sys
-import os
 from numbers import Number
 
 #import a few help methods
 from . import project
-from . import notebook
 from . import params
-from . import utils
 
 #logging object is a singleton
 _logger = None

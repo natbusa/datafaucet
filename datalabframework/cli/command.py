@@ -10,7 +10,6 @@ from __future__ import print_function
 
 import argparse
 import errno
-import json
 import os
 import sys
 from subprocess import Popen

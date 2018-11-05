@@ -1,6 +1,5 @@
 from . import params
 from . import project
-from . import utils
 
 import os
 
