@@ -23,8 +23,7 @@ yaml = StringDumpYAML()
 yaml.preserve_quotes = True
 yaml.indent(mapping=4, sequence=4, offset=2)
 
-from jinja2 import Environment, Template, filters
-
+from jinja2 import Environment
 from copy import deepcopy
 
 import git

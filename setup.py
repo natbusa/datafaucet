@@ -37,20 +37,15 @@ setup_args = dict(
 install_requires = [
     'requests',
     'traitlets',
+    'ipykernel',
     'ruamel.yaml',
     'jinja2',
-    'ipykernel',
-    'jupyter',
-    'traitlets',
     'cookiecutter',
     'elasticsearch',
     'gitpython',
     'jsonschema',
     'python-dateutil',
-    'kafka-python',
-    'pandas',
-    'pyarrow',
-    'pyspark',
+    'kafka-python'
 ]
 
 setup_args['include_package_data'] = True

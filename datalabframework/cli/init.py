@@ -1,7 +1,7 @@
 import os
 
 from .application import DatalabframeworkApp
-from traitlets import Bool, Unicode, Int, List, Dict
+from traitlets import Unicode, Dict
 
 from cookiecutter.main import cookiecutter
 

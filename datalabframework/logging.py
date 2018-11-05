@@ -64,6 +64,7 @@ def _json_default(obj):
         return str(obj)
 
 
+# noinspection PyUnusedLocal
 class LogstashFormatter(logging.Formatter):
     """
     A custom formatter to prepare logs to be

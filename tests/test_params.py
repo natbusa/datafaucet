@@ -20,6 +20,8 @@ def tempdir():
         yield dir
         os.chdir(original_dir)
 
+
+# noinspection PyProtectedMember,PyProtectedMember,PyProtectedMember,PyProtectedMember,PyProtectedMember,PyProtectedMember,PyProtectedMember,PyProtectedMember
 class Test_rootpath(object):
     def test_minimal(self, tempdir):
         yml = '''\

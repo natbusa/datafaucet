@@ -33,6 +33,10 @@ class NoStart(Exception):
     """Exception to raise when an application shouldn't start"""
 
 
+def _log_level_default():
+    return logging.INFO
+
+
 class DatalabframeworkApp(Application):
     """Base class for Datalabframework applications"""
     name = 'datalabframework'  # override in subclasses
@@ -40,9 +44,6 @@ class DatalabframeworkApp(Application):
 
     aliases = base_aliases
     flags = base_flags
-
-    def _log_level_default(self):
-        return logging.INFO
 
     # subcommand-related
     def _find_subcommand(self, name):

@@ -20,6 +20,7 @@ def tempdir():
 
 
 class Test_init(object):
+    # noinspection PyProtectedMember,PyProtectedMember
     def test_init(self):
         p = project.Config()
         p.__class__._instances = {}
@@ -28,6 +29,7 @@ class Test_init(object):
         assert (p._rootpath == os.getcwd())
         assert (p._workdir == os.getcwd())
 
+    # noinspection PyProtectedMember,PyProtectedMember,PyProtectedMember
     def test_init_params(self, tempdir):
         subdir = tempdir.makedir('abc')
         tempdir.write('__main__.py', b'')
@@ -61,6 +63,7 @@ class Test_rootpath(object):
         assert (project.rootpath() == tempdir.path)
 
 
+# noinspection PyProtectedMember,PyProtectedMember,PyProtectedMember,PyProtectedMember
 def test_find_notebook(tempdir):
     tempdir.write('foo.ipynb', b'')
     tempdir.write('foo bar.ipynb', b'')

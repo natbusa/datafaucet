@@ -7,7 +7,7 @@ from testfixtures import TempDirectory
 
 from ruamel.yaml import YAML
 
-yaml = YAML()
+yaml =  YAML()
 yaml.preserve_quotes = True
 yaml.indent(mapping=4, sequence=4, offset=2)
 
@@ -98,20 +98,20 @@ def test_get_project_files():
         dir.write('123/ignored/md.yml', b'')
         os.chdir(dir.path)
 
-        l = utils.get_project_files('.txt', '.', ['excluded'], '.ignored', True)
-        assert (l == ['1.txt', os_sep('abc/2.txt'), os_sep('abc/def/3.txt')])
-        l = utils.get_project_files('.txt', '.', ['excluded'], '.ignored', False)
-        assert (l == [os_sep('./1.txt'), os_sep('./abc/2.txt'), os_sep('./abc/def/3.txt')])
-        l = utils.get_project_files('.txt', dir.path, ['excluded'], '.ignored', True)
-        assert (l == ['1.txt', os_sep('abc/2.txt'), os_sep('abc/def/3.txt')])
-        l = utils.get_project_files('.txt', dir.path, ['excluded'], '.ignored', False)
-        assert (l == [os.path.join(dir.path, '1.txt'), os.path.join(dir.path, 'abc', '2.txt'),
+        f =  utils.get_project_files('.txt', '.', ['excluded'], '.ignored', True)
+        assert (f == ['1.txt', os_sep('abc/2.txt'), os_sep('abc/def/3.txt')])
+        f =  utils.get_project_files('.txt', '.', ['excluded'], '.ignored', False)
+        assert (f == [os_sep('./1.txt'), os_sep('./abc/2.txt'), os_sep('./abc/def/3.txt')])
+        f =  utils.get_project_files('.txt', dir.path, ['excluded'], '.ignored', True)
+        assert (f == ['1.txt', os_sep('abc/2.txt'), os_sep('abc/def/3.txt')])
+        f =  utils.get_project_files('.txt', dir.path, ['excluded'], '.ignored', False)
+        assert (f == [os.path.join(dir.path, '1.txt'), os.path.join(dir.path, 'abc', '2.txt'),
                       os.path.join(dir.path, 'abc', 'def', '3.txt')])
 
-        l = utils.get_project_files('md.yml', '.', ['excluded'], 'ignored.yml', True)
-        assert (l == ['md.yml', os_sep('123/md.yml'), os_sep('123/xyz/md.yml'), os_sep('abc/def/md.yml')])
-        l = utils.get_project_files('md.yml', '.', ['excluded'], 'ignored.yml', False)
-        assert (l == [os_sep('./md.yml'), os_sep('./123/md.yml'), os_sep('./123/xyz/md.yml'),
+        f =  utils.get_project_files('md.yml', '.', ['excluded'], 'ignored.yml', True)
+        assert (f == ['md.yml', os_sep('123/md.yml'), os_sep('123/xyz/md.yml'), os_sep('abc/def/md.yml')])
+        f =  utils.get_project_files('md.yml', '.', ['excluded'], 'ignored.yml', False)
+        assert (f == [os_sep('./md.yml'), os_sep('./123/md.yml'), os_sep('./123/xyz/md.yml'),
                       os_sep('./abc/def/md.yml')])
 
 

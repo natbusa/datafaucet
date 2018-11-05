@@ -9,7 +9,7 @@ from nbconvert.preprocessors import ExecutePreprocessor
 from .application import DatalabframeworkApp
 
 from traitlets import (
-    Bool, Unicode, Int, List, Dict
+    Unicode, List, Dict
 )
 
 
@@ -35,8 +35,6 @@ class DlfRunApp(DatalabframeworkApp):
                         log_level='DlfRunApp.log_level'))
 
     flags = Dict(dict(debug=({'DlfRunApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
-
-    self.ep = None
 
     def init_preprocessor(self):
         self.ep = ExecutePreprocessor(config=self.config)
@@ -111,11 +109,6 @@ class DlfRunApp(DatalabframeworkApp):
 
         nc = nbformat.v4.new_code_cell(init_str)
         nb['cells'].insert(0, nc)
-
-        resources = {}
-        resources['metadata'] = {'path': os.getcwd()}
-
-        # print(self.notebook_statistics(nb_out))
 
     def start(self):
         for notebook_filename in self.notebooks:

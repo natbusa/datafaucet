@@ -13,7 +13,7 @@ import elasticsearch.helpers
 from datetime import datetime
 
 import pyspark
-from pyspark.sql.functions import desc, lit, date_format
+from pyspark.sql.functions import desc, date_format
 
 from . import logging
 
@@ -28,6 +28,7 @@ engines = dict()
 import sys
 
 
+# noinspection PyProtectedMember
 def func_name():
     return sys._getframe(1).f_code.co_name
 
@@ -36,8 +37,6 @@ class SparkEngine():
     def __init__(self, name, config):
         from pyspark import SparkContext, SparkConf
         from pyspark.sql import SQLContext
-
-        here = os.path.dirname(os.path.realpath(__file__))
 
         submit_args = ''
 
@@ -121,7 +120,6 @@ class SparkEngine():
         return obj
 
     def _read(self, md, **kargs):
-        logger = logging.getLogger()
 
         pmd = md['provider']
         rmd = md['resource']
@@ -333,7 +331,9 @@ class SparkEngine():
             mode = kargs.get("mode", None)
             elastic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
         else:
-            raise ('downt know how to handle this')
+            raise ValueError('downt know how to handle this')
+
+        return obj
 
     def elastic_read(self, url, query):
         results = elastic_read(url, query)
