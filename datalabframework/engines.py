@@ -28,12 +28,11 @@ engines = dict()
 import sys
 
 
-# noinspection PyProtectedMember
 def func_name():
+    # noinspection PyProtectedMember
     return sys._getframe(1).f_code.co_name
 
-
-class SparkEngine():
+class SparkEngine:
     def __init__(self, name, config):
         from pyspark import SparkContext, SparkConf
         from pyspark.sql import SQLContext
@@ -138,26 +137,28 @@ class SparkEngine():
         mapping = pmd.get('read', {}).get('mapping', None)
         mapping = rmd.get('read', {}).get('mapping', mapping)
 
-        filter = pmd.get('read', {}).get('filter', None)
-        filter = rmd.get('read', {}).get('filter', filter)
+        filter_params = pmd.get('read', {}).get('filter', None)
+        filter_params = rmd.get('read', {}).get('filter', filter_params)
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('read', {}).get('options', {}), rmd.get('read', {}).get('options', {}))
         options = utils.merge(options, kargs)
 
         if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
-            format = pmd.get('format', 'rdbms')
+            obj_fmt = pmd.get('format', 'rdbms')
         else:
-            format = pmd.get('format', 'parquet')
+            obj_fmt = pmd.get('format', 'parquet')
+
+        obj = None
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if format == 'csv':
+            if obj_fmt == 'csv':
                 obj = self._ctx.read.csv(url, **options)
-            if format == 'json':
+            if obj_fmt == 'json':
                 obj = self._ctx.read.option('multiLine', True).json(url, **options)
-            if format == 'jsonl':
+            if obj_fmt == 'jsonl':
                 obj = self._ctx.read.json(url, **options)
-            elif format == 'parquet':
+            elif obj_fmt == 'parquet':
                 obj = self._ctx.read.parquet(url, **options)
         elif pmd['service'] == 'sqlite':
             driver = "org.sqlite.JDBC"
@@ -208,10 +209,13 @@ class SparkEngine():
         elif pmd['service'] == 'elastic':
             obj = self.elastic_read(url, options.get('query', {}))
         else:
-            raise ('downt know how to handle this')
+            raise ValueError('downt know how to handle this')
+
+        if not obj:
+            return None
 
         obj = mapping_transform(obj, mapping) if mapping else obj
-        obj = filter_transform(obj, filter) if filter else obj
+        obj = filter_transform(obj, filter_params) if filter_params else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
@@ -258,8 +262,8 @@ class SparkEngine():
         mapping = pmd.get('write', {}).get('mapping', None)
         mapping = rmd.get('write', {}).get('mapping', mapping)
 
-        filter = pmd.get('write', {}).get('filter', None)
-        filter = rmd.get('write', {}).get('filter', filter)
+        filter_params = pmd.get('write', {}).get('filter', None)
+        filter_params = rmd.get('write', {}).get('filter', filter_params)
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('write', {}).get('options', {}), rmd.get('write', {}).get('options', {}))
@@ -269,21 +273,21 @@ class SparkEngine():
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = mapping_transform(obj, mapping) if mapping else obj
-        obj = filter_transform(obj, mapping) if mapping else obj
+        obj = filter_transform(obj, filter_params) if filter_params else obj
 
         if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
-            format = pmd.get('format', 'rdbms')
+            obj_fmt = pmd.get('format', 'rdbms')
         else:
-            format = pmd.get('format', 'parquet')
+            obj_fmt = pmd.get('format', 'parquet')
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if format == 'csv':
+            if obj_fmt == 'csv':
                 obj.write.csv(url, **options)
-            if format == 'json':
+            if obj_fmt == 'json':
                 obj.write.option('multiLine', True).json(url, **options)
-            if format == 'jsonl':
+            if obj_fmt == 'jsonl':
                 obj.write.json(url, **options)
-            elif format == 'parquet':
+            elif obj_fmt == 'parquet':
                 obj.write.parquet(url, **options)
             else:
                 logger.info('format unknown')
@@ -357,7 +361,7 @@ class SparkEngine():
             return
 
         # filter settings from src (provider and resource)
-        filter = utils.merge(
+        filter_params = utils.merge(
             md_src['provider'].get('read', {}).get('filter', {}),
             md_src['resource'].get('read', {}).get('filter', {}))
 
@@ -375,7 +379,7 @@ class SparkEngine():
             md_dest['resource']['read'] = {}
 
         # match filter with the one from source resource
-        md_dest['resource']['read']['filter'] = filter
+        md_dest['resource']['read']['filter'] = filter_params
 
         #### Read source resource
         try:
@@ -384,7 +388,7 @@ class SparkEngine():
             logger.exception(e)
             return
 
-        #### Read schema info
+        #### Read destination schema info
         try:
             schema_path = '{}/schema'.format(md_dest['resource']['path'])
             md = data.metadata(path=schema_path, provider=dest_provider)
@@ -425,10 +429,13 @@ class SparkEngine():
         # partitions
         partition_cols = ['_ingested']
 
+        #init df_diff to empty dest dataframe
+        df_diff = df_dest.filter("False")
+
         if not eventsourcing:
-            if filter.get('policy') == 'date' and filter.get('column'):
+            if filter_params.get('policy') == 'date' and filter_params.get('column'):
                 df_diff = dataframe_update(df_src, df_dest, updated_col='_ingested', eventsourcing=eventsourcing)
-                df_diff = df_diff.withColumn('_date', date_format(filter['column'], 'yyyy-MM-dd'))
+                df_diff = df_diff.withColumn('_date', date_format(filter_params['column'], 'yyyy-MM-dd'))
                 partition_cols += ['_date']
                 ingest_mode = 'append'
                 options = {'mode': ingest_mode, 'partitionBy': partition_cols}
@@ -454,7 +461,7 @@ class SparkEngine():
         logdata = {
             'src_url': md_src['url'],
             'src_table': md_src['resource']['path'],
-            'source_option': filter,
+            'source_option': filter_params,
             'schema_change': schema_changed,
             'target': dest_path,
             'upserts': records_add,
@@ -524,7 +531,7 @@ def elastic_read(url, query):
     return hits2
 
 
-def elastic_write(obj, uri, mode='append', indexName=None, settings=None, mappings=None):
+def elastic_write(obj, uri, mode='append', index_name=None, settings=None, mappings=None):
     """
     :param mode: overwrite | append
     :param obj: spark dataframe, or list of Python dictionaries
@@ -594,9 +601,9 @@ def elastic_write(obj, uri, mode='append', indexName=None, settings=None, mappin
         print(mappings["properties"])
 
         if not settings or not settings:
-            raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
-        es.indices.delete(index=indexName, ignore=404)
-        es.indices.create(index=indexName, body={
+            raise ValueError("'settings' and 'mappings' are required for 'overwrite' mode!")
+        es.indices.delete(index=index_name, ignore=404)
+        es.indices.create(index=index_name, body={
             "settings": settings,
             "mappings": {
                 mappings["doc_type"]: {
@@ -625,8 +632,7 @@ def elastic_write(obj, uri, mode='append', indexName=None, settings=None, mappin
         pass
 
     from collections import deque
-    deque(elasticsearch.helpers.parallel_bulk(es, obj, index=indexName,
-                                              doc_type=mappings["doc_type"]), maxlen=0)
+    deque(elasticsearch.helpers.parallel_bulk(es, obj, index=index_name, doc_type=mappings["doc_type"]), maxlen=0)
     es.indices.refresh()
 
 
