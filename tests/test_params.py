@@ -14,7 +14,7 @@ def dir():
         os.chdir(dir.path)
 
         p = project.Config()
-        p.__class__._instances={};
+        p.__class__._instances={}
 
         project.Config(dir.path)
         yield dir
@@ -122,7 +122,6 @@ class Test_rootpath(object):
                         b: 2
                '''
 
-        subdir = dir.makedir('abc')
         dir.write('metadata.yml', dedent(yml_1).encode())
         dir.write('abc/metadata.yml', dedent(yml_2).encode())
         assert(params._metadata()['default']=={'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {},'profile':'default', 'variables': {}})
@@ -154,7 +153,6 @@ class Test_metadata_info(object):
                         b: 2
                '''
 
-        subdir = dir.makedir('abc')
         dir.write('__main__.py', b'')
         dir.write('metadata.yml', dedent(yml_1).encode())
         dir.write('abc/metadata.yml', dedent(yml_2).encode())

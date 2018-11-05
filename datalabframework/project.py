@@ -16,6 +16,7 @@ from notebook.notebookapp import list_running_servers
 import nbformat
 from . import utils
 
+
 def _rootpath(rootfile='__main__.py'):
     path = os.getcwd()
     while True:
@@ -28,9 +29,10 @@ def _rootpath(rootfile='__main__.py'):
         except:
             break
 
-    #fallback: current dir
+    # fallback: current dir
     path = os.getcwd()
     return path
+
 
 def _get_filename(f=None):
     """
@@ -53,15 +55,15 @@ def _get_filename(f=None):
     except:
         pass
 
-    #fallback 2: interactive shell (ipynb notebook)
+    # fallback 2: interactive shell (ipynb notebook)
     try:
         kernel_filename = ipykernel.connect.get_connection_file()
-        kernel_id = re.search('kernel-(.*).json',kernel_filename).group(1)
+        kernel_id = re.search('kernel-(.*).json', kernel_filename).group(1)
 
         for s in list_running_servers():
-            url =urljoin(s['url'], 'api/sessions')
-            params={'token': s.get('token', '')}
-            response = requests.get(url,params)
+            url = urljoin(s['url'], 'api/sessions')
+            params = {'token': s.get('token', '')}
+            response = requests.get(url, params)
             for nn in json.loads(response.text):
                 if nn['kernel']['id'] == kernel_id:
                     relative_path = nn['notebook']['path']
@@ -70,21 +72,22 @@ def _get_filename(f=None):
     except:
         pass
 
-    #check if running an interactive ipython sessions
+    # check if running an interactive ipython sessions
     try:
         __IPYTHON__
-        return os.path.join(os.getcwd(),'<ipython-session>')
+        return os.path.join(os.getcwd(), '<ipython-session>')
     except NameError:
         pass
 
     try:
         __DATALABFRAMEWORK__
-        return os.path.join(os.getcwd(),'<datalabframework>')
+        return os.path.join(os.getcwd(), '<datalabframework>')
     except NameError:
         pass
 
-    #nothing found. Use a fake name
-    return os.path.join(os.getcwd(),'<unknown>')
+    # nothing found. Use a fake name
+    return os.path.join(os.getcwd(), '<unknown>')
+
 
 def _find_notebook(fullname, paths=None):
     """find a notebook, given its fully qualified name and an optional path
@@ -105,8 +108,10 @@ def _find_notebook(fullname, paths=None):
         if os.path.isfile(nb_path):
             return nb_path
 
+
 class NotebookLoader(object):
     """Module Loader for Jupyter Notebooks"""
+
     def __init__(self, path=None):
         if not InteractiveShell:
             return
@@ -121,7 +126,7 @@ class NotebookLoader(object):
         """import a notebook as a module"""
         path = _find_notebook(fullname, self.path)
 
-        print ("importing Jupyter notebook from %s" % path)
+        print("importing Jupyter notebook from %s" % path)
 
         # load the notebook object
         with io.open(path, 'r', encoding='utf-8') as f:
@@ -142,19 +147,21 @@ class NotebookLoader(object):
         self.shell.user_ns = mod.__dict__
 
         try:
-          for cell in nb.cells:
-            if cell['cell_type'] == 'code' and cell['source'].startswith('#EXPORT'):
-                # transform the input to executable Python
-                code = self.shell.input_transformer_manager.transform_cell(cell.source)
+            for cell in nb.cells:
+                if cell['cell_type'] == 'code' and cell['source'].startswith('#EXPORT'):
+                    # transform the input to executable Python
+                    code = self.shell.input_transformer_manager.transform_cell(cell.source)
 
-                # run the code in themodule
-                exec(code, mod.__dict__)
+                    # run the code in themodule
+                    exec(code, mod.__dict__)
         finally:
             self.shell.user_ns = save_user_ns
         return mod
 
+
 class NotebookFinder(object):
     """Module finder that locates Jupyter Notebooks"""
+
     def __init__(self):
         self.loaders = {}
 
@@ -175,18 +182,21 @@ class NotebookFinder(object):
 
         return self.loaders[key]
 
+
 class Singleton(type):
     _instances = {}
+
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
+
 class Config(metaclass=Singleton):
     _rootpath = None
     _filename = None
-    _workdir  = None
-    _profile  = None
+    _workdir = None
+    _profile = None
 
     def _init_sys_paths(self):
         # add roothpath to the list of python sys paths
@@ -198,7 +208,7 @@ class Config(metaclass=Singleton):
             sys.meta_path.append(NotebookFinder())
 
     def __init__(self, cwd=None, filename=None, profile=None):
-        #set workdir
+        # set workdir
         try:
             os.chdir(cwd)
         except:
@@ -251,33 +261,41 @@ class Config(metaclass=Singleton):
 
         return self._profile if self._profile else 'default'
 
+
 def rootpath():
     c = Config()
     return c.rootpath()
+
 
 def workdir():
     c = Config()
     return c.workdir()
 
+
 def filename(relative_path=True):
     c = Config()
     return c.filename(relative_path)
+
 
 def profile(p=None):
     c = Config()
     return c.profile(p)
 
+
 def info():
-    k = ['profile','filename','rootpath', 'workdir']
-    v = [eval(x+'()') for x in k]
-    return dict(zip(k,v))
+    k = ['profile', 'filename', 'rootpath', 'workdir']
+    v = [eval(x + '()') for x in k]
+    return dict(zip(k, v))
+
 
 def notebooks():
     return utils.get_project_files(ext='.ipynb', exclude_dirs=['.ipynb_checkpoints'])
 
+
 def repository():
     c = Config()
     return c.repository()
+
 
 def username():
     c = Config()

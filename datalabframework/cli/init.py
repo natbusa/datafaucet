@@ -5,23 +5,23 @@ from traitlets import Bool, Unicode, Int, List, Dict
 
 from cookiecutter.main import cookiecutter
 
-class DlfInitApp(DatalabframeworkApp):
 
+class DlfInitApp(DatalabframeworkApp):
     name = Unicode(u'datalabframework-init')
     description = "Generating a data science project template"
 
-    config_file  = Unicode(u'',help="Load this config file").tag(config=True)
+    config_file = Unicode(u'', help="Load this config file").tag(config=True)
     template = Unicode(u'titanic', help="Project template").tag(config=True)
 
     user_name = Unicode(u'natbusa', help="Project name")
     project_name = Unicode(u'', help="Project name")
 
     aliases = Dict(
-                dict(
-                    template_name='DlfInitApp.template',
-                    log_level='DlfInitApp.log_level'))
+        dict(
+            template_name='DlfInitApp.template',
+            log_level='DlfInitApp.log_level'))
 
-    flags = Dict(dict(debug=({'DlfInitApp':{'log_level':10}}, "Set loglevel to DEBUG")))
+    flags = Dict(dict(debug=({'DlfInitApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
 
     def initialize(self, argv=None):
         self.parse_command_line(argv)
@@ -41,7 +41,8 @@ class DlfInitApp(DatalabframeworkApp):
         print(filename)
 
         # Create project from the cookiecutter-pypackage/ template
-        cookiecutter(filename, extra_context={'user_name':self.user_name, 'project_name': self.project_name})
+        cookiecutter(filename, extra_context={'user_name': self.user_name, 'project_name': self.project_name})
+
 
 def main():
     app = DlfInitApp()

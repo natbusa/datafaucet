@@ -2,7 +2,9 @@ from datetime import datetime
 import pyspark.sql.functions as F
 
 
-def common_columns(df_a, df_b, exclude_cols=[]):
+def common_columns(df_a, df_b, exclude_cols=None):
+        if exclude_cols is None:
+            exclude_cols = []
         colnames_a = set(df_a.columns)
         colnames_b = set(df_a.columns)
         colnames = colnames_a & colnames_b
@@ -15,11 +17,13 @@ def common_columns(df_a, df_b, exclude_cols=[]):
 
         return colnames_a, colnames_b
 
-def dataframe_diff(df_a, df_b, exclude_cols=[]):
+def dataframe_diff(df_a, df_b, exclude_cols=None):
     # This function will only produce DISTICT rows out!
     # Multiple exactly identical rows will be ingested only as one row
 
     # get columns
+    if exclude_cols is None:
+        exclude_cols = []
     colnames_a, colnames_b = common_columns(df_a, df_b, exclude_cols)
 
     # insert, modified
@@ -45,12 +49,13 @@ def dataframe_eventsource_view(df, state_col='_state', updated_col='_updated'):
 
     return df
 
-def dataframe_update(df_a, df_b=None, eventsourcing=False, exclude_cols=[], state_col='_state', updated_col='_updated'):
+def dataframe_update(df_a, df_b=None, eventsourcing=False, exclude_cols=None, state_col='_state', updated_col='_updated'):
 
+    if exclude_cols is None:
+        exclude_cols = []
     df_b = df_b if df_b else df_a.filter("False")
 
     exclude_cols += [state_col, updated_col]
-    colnames_a, colnames_b = common_columns(df_a, df_b, exclude_cols)
 
     if eventsourcing and (state_col in df_b.columns) and  (updated_col in df_b.columns) :
         df_b = dataframe_eventsource_view(df_b, state_col=state_col, updated_col=updated_col)

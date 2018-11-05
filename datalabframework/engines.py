@@ -1,21 +1,17 @@
 import os
 
-from datalabframework.spark.mapping import transform as mapping_transform
-from datalabframework.spark.filter import transform as filter_transform
-from datalabframework.spark.diff import dataframe_update
-
-from . import params
-from . import data
-from . import utils
-
 import elasticsearch.helpers
-
-from datetime import datetime
-
 import pyspark
-from pyspark.sql.functions import desc, lit, date_format
+from datetime import datetime
+from pyspark.sql.functions import date_format
 
+from datalabframework.spark.diff import dataframe_update
+from datalabframework.spark.filter import transform as filter_transform
+from datalabframework.spark.mapping import transform as mapping_transform
+from . import data
 from . import logging
+from . import params
+from . import utils
 
 # purpose of engines
 # abstract engine init, data read and data write
@@ -26,15 +22,16 @@ from . import logging
 engines = dict()
 
 import sys
+
+
+# noinspection PyProtectedMember
 def func_name():
     return sys._getframe(1).f_code.co_name
 
-class SparkEngine():
+class SparkEngine:
     def __init__(self, name, config):
         from pyspark import SparkContext, SparkConf
         from pyspark.sql import SQLContext
-
-        here = os.path.dirname(os.path.realpath(__file__))
 
         submit_args = ''
 
@@ -93,13 +90,6 @@ class SparkEngine():
             return
 
         #### Read schema info
-        try:
-            schema_path = '{}/schema'.format(md['resource']['path'])
-            df_schema = self._read(data.metadata(path=schema_path,provider=md['resource']['provider']))
-            schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
-            resource_path = '{}/{}'.format(md['resource']['path'], schema_date_str)
-        except Exception as e:
-            resource_path = md['resource']['path']
 
         # path - append schema date if available
         md['resource']['path'] = resource_path
@@ -118,7 +108,6 @@ class SparkEngine():
         return obj
 
     def _read(self, md, **kargs):
-        logger = logging.getLogger()
 
         pmd = md['provider']
         rmd = md['resource']
@@ -207,7 +196,7 @@ class SparkEngine():
         elif pmd['service'] == 'elastic':
             obj = self.elastic_read(url, options.get('query', {}))
         else:
-            raise('downt know how to handle this')
+            return None
 
         obj = mapping_transform(obj, mapping) if mapping else obj
         obj = filter_transform(obj,filter) if filter else obj
@@ -258,7 +247,6 @@ class SparkEngine():
         mapping = rmd.get('write', {}).get('mapping', mapping)
 
         filter = pmd.get('write', {}).get('filter', None)
-        filter = rmd.get('write', {}).get('filter', filter)
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('write',{}).get('options',{}), rmd.get('write',{}).get('options',{}))
@@ -383,14 +371,6 @@ class SparkEngine():
             return
 
         #### Read schema info
-        try:
-            schema_path = '{}/schema'.format(md_dest['resource']['path'])
-            md = data.metadata(path=schema_path,provider=dest_provider)
-            df_schema = self._read(md)
-            schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
-        except Exception as e:
-            # logger.warning('source schema does not exist yet.'')
-            schema_date_str = now.strftime('%Y%m%dT%H%M%S')
 
         # destination path - append schema date
         dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
@@ -399,17 +379,6 @@ class SparkEngine():
 
         # if schema not present or schema change detected
         schema_changed = True
-
-        try:
-            df_dest = self._read(md_dest)
-
-            # compare schemas
-            df_src_cols = [x for x in df_src.columns if x not in reserved_cols]
-            df_dest_cols = [x for x in df_dest.columns if x not in reserved_cols]
-            schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
-        except Exception as e:
-            # logger.warning('schema does not exist yet.'')
-            df_dest = df_src.filter("False")
 
         if schema_changed:
             #Different schema, update schema table with new entry

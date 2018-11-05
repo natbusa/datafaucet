@@ -6,18 +6,18 @@ import pyspark.sql.functions as F
 
 from .. import logging
 
+
 def filter_by_date(obj, options):
     logger = logging.getLogger()
 
-    #Get ingest date
-    now = datetime.now()
+    # Get ingest date
     today = datetime.combine(date.today(), datetime.min.time())
 
     end_date_str = options.get('end_date')
     start_date_str = options.get('start_date')
     window_str = options.get('window')
 
-    #Get ingest key column
+    # Get ingest key column
     column = options.get('column')
 
     # defaults
@@ -29,26 +29,27 @@ def filter_by_date(obj, options):
     if not start_date and window:
         start_date = end_date - window
 
-    #build condition
+    # build condition
     obj = obj.filter(F.to_timestamp(column) < end_date)
     obj = obj.filter(F.to_timestamp(column) >= start_date) if start_date else obj
 
     # print('start date {}, end date {}'.format(start_date.isoformat(), end_date.isoformat()))
     if start_date:
-        logger.info('start date {}, end date {}'.format(start_date.isoformat(), end_date.isoformat()), extra={'dlf_type':'engine.read'})
+        logger.info('start date {}, end date {}'.format(start_date.isoformat(), end_date.isoformat()),
+                    extra={'dlf_type': 'engine.read'})
     else:
-        logger.info('start date: none, end date {}'.format(end_date.isoformat()), extra={'dlf_type':'engine.read'})
+        logger.info('start date: none, end date {}'.format(end_date.isoformat()), extra={'dlf_type': 'engine.read'})
 
     logger.info('filtered records {}'.format(obj.count()), extra={'dlf_type': 'engine.read'})
 
     return obj
 
-def transform(obj, settings):
 
-    #1. Get ingress policy
+def transform(obj, settings):
+    # 1. Get ingress policy
     policy = settings.get('policy')
 
-    if policy=='date':
+    if policy == 'date':
         obj = filter_by_date(obj, settings)
 
     return obj

@@ -16,6 +16,7 @@ from subprocess import Popen
 
 from .._version import __version__
 
+
 class DatalabframeworkParser(argparse.ArgumentParser):
 
     @property
@@ -31,6 +32,7 @@ class DatalabframeworkParser(argparse.ArgumentParser):
         """Ignore epilog set in Parser.__init__"""
         pass
 
+
 def datalabframework_parser():
     parser = DatalabframeworkParser(
         description="Datalabframework: Interactive Computing",
@@ -38,10 +40,11 @@ def datalabframework_parser():
     group = parser.add_mutually_exclusive_group(required=True)
     # don't use argparse's version action because it prints to stderr on py2
     group.add_argument('--version', action='store_true',
-        help="show the datalabframework command's version and exit")
+                       help="show the datalabframework command's version and exit")
     group.add_argument('subcommand', type=str, nargs='?', help='the subcommand to launch')
 
     return parser
+
 
 def list_subcommands():
     """List all datalabframework subcommands
@@ -81,10 +84,7 @@ def _execvp(cmd, argv):
     if sys.platform.startswith('win'):
         # PATH is ignored when shell=False,
         # so rely on shutil.which
-        try:
-            from shutil import which
-        except ImportError:
-            from .utils.shutil_which import which
+        from shutil import which
         cmd_path = which(cmd)
         if cmd_path is None:
             raise OSError('%r not found' % cmd, errno.ENOENT)
@@ -114,8 +114,7 @@ def _path_with_self():
     path_list = (os.environ.get('PATH') or os.defpath).split(os.pathsep)
     for script in scripts:
         bindir = os.path.dirname(script)
-        if (os.path.isdir(bindir)
-            and os.access(script, os.X_OK) # only if it's a script
+        if (os.path.isdir(bindir) and os.access(script, os.X_OK)  # only if it's a script
         ):
             # ensure executable's dir is on PATH
             # avoids missing subcommands when datalabframework is run via absolute path
@@ -125,7 +124,7 @@ def _path_with_self():
 
 
 def main():
-    _path_with_self() # ensure executable is on PATH
+    _path_with_self()  # ensure executable is on PATH
     if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
         # Don't parse if a subcommand is given
         # Avoids argparse gobbling up args passed to subcommand, such as `-h`.

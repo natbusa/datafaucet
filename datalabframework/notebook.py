@@ -3,12 +3,12 @@ import json
 from . import utils
 from . import project
 
+
 def statistics(filename):
-    data = {}
     with open(utils.absolute_filename(filename, project.rootpath())) as f:
         data = json.load(f)
 
-    #todo: check for filetype
+    # todo: check for filetype
     stats = {'cells': len(data['cells'])}
 
     h = dict()
@@ -19,17 +19,17 @@ def statistics(filename):
 
     error = {'ename': None, 'evalue': None}
     for c in data['cells']:
-        if c['cell_type']=='code':
+        if c['cell_type'] == 'code':
             for o in c['outputs']:
                 if o['output_type'] == 'error':
                     error = {'ename': o['ename'], 'evalue': o['evalue']}
                     break
     stats.update(error)
 
-    count =0
+    count = 0
     for c in data['cells']:
-        if c['cell_type']=='code' and c['execution_count']:
-            count +=1
+        if c['cell_type'] == 'code' and c['execution_count']:
+            count += 1
     stats.update({'executed': count})
 
     return stats

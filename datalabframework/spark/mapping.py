@@ -1,6 +1,7 @@
 from datalabframework.spark.utils import remove_tones_udf
 from pyspark.sql import types
 
+
 def transform(df, settings):
     """
     :param df:
