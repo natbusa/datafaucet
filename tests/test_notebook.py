@@ -1,14 +1,13 @@
-from datalabframework import notebook, project
+from datalabframework import notebook
 
 import os
-from textwrap import dedent
 
 import pytest
 from testfixtures import TempDirectory
 
 
 @pytest.fixture()
-def dir():
+def tempdir():
     with TempDirectory() as dir:
         original_dir = os.getcwd()
         os.chdir(dir.path)

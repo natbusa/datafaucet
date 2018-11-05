@@ -1,13 +1,15 @@
 from datalabframework import utils
+from datalabframework.utils import os_sep
 
 import os
-import yaml
 from textwrap import dedent
-
-import pytest
 from testfixtures import TempDirectory
 
-from datalabframework.utils import os_sep
+from ruamel.yaml import YAML
+
+yaml = YAML()
+yaml.preserve_quotes = True
+yaml.indent(mapping=4, sequence=4, offset=2)
 
 
 def test_lrchop():

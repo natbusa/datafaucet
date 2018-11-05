@@ -34,12 +34,13 @@ setup_args = dict(
         'Intended Audience :: Science/Research'],
 )
 
-setup_args['install_requires'] = [
+install_requires = [
     'requests',
-    'traitlets'
+    'traitlets',
     'ruamel.yaml',
     'jinja2',
     'ipykernel',
+    'jupyter',
     'traitlets',
     'cookiecutter',
     'elasticsearch',
@@ -47,10 +48,12 @@ setup_args['install_requires'] = [
     'jsonschema',
     'python-dateutil',
     'kafka-python',
+    'pandas',
+    'pyarrow',
     'pyspark',
 ]
 
 setup_args['include_package_data'] = True
 
 if __name__ == '__main__':
-    setup(**setup_args)
+    setup(**setup_args, install_requires = install_requires )

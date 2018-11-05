@@ -114,8 +114,7 @@ def _path_with_self():
     path_list = (os.environ.get('PATH') or os.defpath).split(os.pathsep)
     for script in scripts:
         bindir = os.path.dirname(script)
-        if (os.path.isdir(bindir) and os.access(script, os.X_OK)  # only if it's a script
-        ):
+        if os.path.isdir(bindir) and os.access(script, os.X_OK):   # only if it's a script
             # ensure executable's dir is on PATH
             # avoids missing subcommands when datalabframework is run via absolute path
             path_list.insert(0, bindir)

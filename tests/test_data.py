@@ -1,15 +1,10 @@
-from datalabframework import data
-
 import os
-import yaml
-from textwrap import dedent
 
 import pytest
 from testfixtures import TempDirectory
 
-
 @pytest.fixture()
-def dir():
+def tempdir():
     with TempDirectory() as dir:
         original_dir = os.getcwd()
         os.chdir(dir.path)

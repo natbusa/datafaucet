@@ -35,7 +35,7 @@ def merge(a, b):
         a_and_b = set(a.keys()) & set(b.keys())
         every_key = set(a.keys()) | set(b.keys())
         return {k: merge(a[k], b[k]) if k in a_and_b else
-        deepcopy(a[k] if k in a else b[k]) for k in every_key}
+            deepcopy(a[k] if k in a else b[k]) for k in every_key}
 
     return deepcopy(b)
 
@@ -78,7 +78,7 @@ def get_project_files(ext, rootpath='.', exclude_dirs=None, ignore_dir_with_file
 
         if ignore_dir_with_file in files:
             dirs[:] = []
-            next()
+            next
         else:
             for file in files:
                 if file.endswith(ext):

@@ -71,7 +71,7 @@ def transform(df, settings):
         column_name = key
         isNew = not (column_name in df.columns)
 
-        type = value.get("type", None)
+        column_type = value.get("type", None)
         supported_types = [
             types.ByteType.typeName(),
             types.ShortType.typeName(),
@@ -88,8 +88,8 @@ def transform(df, settings):
         ]
 
         from pyspark.sql import functions as F
-        if (type is not None) and (not type in supported_types):
-            raise ValueError("Type '{}' not supported!".format(type))
+        if (column_type is not None) and (column_type not in supported_types):
+            raise ValueError("Type '{}' not supported!".format(column_type))
 
         if isNew:  # new column
             column_value = value.get("value", None)
@@ -97,11 +97,11 @@ def transform(df, settings):
                 raise ValueError("'value' is required for new column '{}'".format(column_name))
             df = df.withColumn(column_name, F.expr(column_value))
 
-        if type is not None:  # casting
-            df = df.withColumn(column_name, F.col(column_name).cast(type))
+        if column_type is not None:  # casting
+            df = df.withColumn(column_name, F.col(column_name).cast(column_type))
 
         if value.get("remove_tones", False):
-            if df.schema[column_name].dataType != types.StringType():
+            if not isinstance(df.schema[column_name].dataType, types.StringType()):
                 raise ValueError("'remove_tones' option works for 'string' column only!")
             # print("Removed tones:", currentname)
             df = df.withColumn(column_name, remove_tones_udf(F.col(column_name)))

@@ -126,26 +126,26 @@ class SparkEngine:
         mapping = pmd.get('read', {}).get('mapping', None)
         mapping = rmd.get('read', {}).get('mapping', mapping)
 
-        filter = pmd.get('read', {}).get('filter', None)
-        filter = rmd.get('read', {}).get('filter', filter)
+        filter_params = pmd.get('read', {}).get('filter', None)
+        filter_params = rmd.get('read', {}).get('filter', filter_params)
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('read',{}).get('options',{}), rmd.get('read',{}).get('options',{}))
         options = utils.merge(options, kargs)
 
         if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
-            format = pmd.get('format', 'rdbms')
+            fmt = pmd.get('format', 'rdbms')
         else:
-            format = pmd.get('format', 'parquet')
+            fmt = pmd.get('format', 'parquet')
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if format=='csv':
+            if fmt=='csv':
                 obj= self._ctx.read.csv(url, **options)
-            if format=='json':
+            if fmt=='json':
                 obj= self._ctx.read.option('multiLine',True).json(url, **options)
-            if format=='jsonl':
+            if fmt=='jsonl':
                 obj= self._ctx.read.json(url, **options)
-            elif format=='parquet':
+            elif fmt=='parquet':
                 obj= self._ctx.read.parquet(url, **options)
         elif pmd['service'] == 'sqlite':
             driver = "org.sqlite.JDBC"
@@ -199,7 +199,7 @@ class SparkEngine:
             return None
 
         obj = mapping_transform(obj, mapping) if mapping else obj
-        obj = filter_transform(obj,filter) if filter else obj
+        obj = filter_transform(obj,filter_params) if filter_params else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.cache() if cache else obj
@@ -246,7 +246,8 @@ class SparkEngine:
         mapping = pmd.get('write', {}).get('mapping', None)
         mapping = rmd.get('write', {}).get('mapping', mapping)
 
-        filter = pmd.get('write', {}).get('filter', None)
+        filter_params = pmd.get('write', {}).get('filter', None)
+        filter_params = rmd.get('write', {}).get('filter', filter_params)
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('write',{}).get('options',{}), rmd.get('write',{}).get('options',{}))
@@ -256,21 +257,21 @@ class SparkEngine:
         obj = obj.coalesce(coalesce) if coalesce else obj
         obj = obj.repartition(repartition) if repartition else obj
         obj = mapping_transform(obj, mapping) if mapping else obj
-        obj = filter_transform(obj, mapping) if mapping else obj
+        obj = filter_transform(obj, filter_params) if filter_params else obj
 
         if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
-            format = pmd.get('format', 'rdbms')
+            fmt = pmd.get('format', 'rdbms')
         else:
-            format = pmd.get('format', 'parquet')
+            fmt = pmd.get('format', 'parquet')
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if format=='csv':
+            if fmt=='csv':
                 obj.write.csv(url, **options)
-            if format=='json':
+            if fmt=='json':
                 obj.write.option('multiLine',True).json(url, **options)
-            if format=='jsonl':
+            if fmt=='jsonl':
                 obj.write.json(url, **options)
-            elif format=='parquet':
+            elif fmt=='parquet':
                 obj.write.parquet(url, **options)
             else:
                 logger.info('format unknown')
@@ -318,7 +319,7 @@ class SparkEngine:
             mode = kargs.get("mode", None)
             elastic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
         else:
-            raise('downt know how to handle this')
+            raise ValueError('downt know how to handle this')
 
 
     def elastic_read(self, url, query):
@@ -343,7 +344,7 @@ class SparkEngine:
             return
 
         # filter settings from src (provider and resource)
-        filter = utils.merge(
+        filter_params = utils.merge(
                     md_src['provider'].get('read', {}).get('filter', {}),
                     md_src['resource'].get('read', {}).get('filter', {}))
 
@@ -361,7 +362,7 @@ class SparkEngine:
             md_dest['resource']['read'] = {}
 
         # match filter with the one from source resource
-        md_dest['resource']['read']['filter'] = filter
+        md_dest['resource']['read']['filter'] = filter_params
 
         #### Read source resource
         try:
@@ -393,9 +394,9 @@ class SparkEngine:
         partition_cols = ['_ingested']
         
         if not eventsourcing:
-            if filter.get('policy')=='date' and filter.get('column'):
+            if filter_params.get('policy')== 'date' and filter_params.get('column'):
                  df_diff = dataframe_update(df_src, df_dest, updated_col='_ingested', eventsourcing=eventsourcing)
-                 df_diff = df_diff.withColumn('_date', date_format(filter['column'], 'yyyy-MM-dd'))
+                 df_diff = df_diff.withColumn('_date', date_format(filter_params['column'], 'yyyy-MM-dd'))
                  partition_cols += ['_date']
                  ingest_mode = 'append'
                  options = {'mode':ingest_mode, 'partitionBy':partition_cols}
@@ -420,7 +421,7 @@ class SparkEngine:
         logdata = {
             'src_url': md_src['url'],
             'src_table': md_src['resource']['path'],
-            'source_option': filter,
+            'source_option': filter_params,
             'schema_change': schema_changed,
             'target': dest_path,
             'upserts': records_add,
@@ -559,7 +560,7 @@ def elastic_write(obj, uri, mode='append', indexName=None, settings=None, mappin
         print(mappings["properties"])
 
         if not settings or not settings:
-            raise ("'settings' and 'mappings' are required for 'overwrite' mode!")
+            raise ValueError("'settings' and 'mappings' are required for 'overwrite' mode!")
         es.indices.delete(index=indexName, ignore=404)
         es.indices.create(index=indexName, body={
             "settings": settings,

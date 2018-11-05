@@ -17,7 +17,7 @@ def resource_unique_name(resource, fullpath_filename):
     unique_name = resource
     if not resource.startswith('.'):
         filename_path = os.path.split(fullpath_filename)[0]
-        if not 'metadata.yml' in os.listdir(filename_path):
+        if 'metadata.yml' not in os.listdir(filename_path):
             raise ValueError(
                 'A relative resource "{}" is declared, but there is no metadata file dir : {}'.format(resource,
                                                                                                       filename_path))

@@ -6,16 +6,16 @@ from testfixtures import TempDirectory
 
 
 @pytest.fixture()
-def dir():
-    with TempDirectory() as dir:
+def tempdir():
+    with TempDirectory() as d:
         original_dir = os.getcwd()
-        os.chdir(dir.path)
+        os.chdir(d.path)
 
         p = project.Config()
         p.__class__._instances = {}
 
-        project.Config(dir.path)
-        yield dir
+        project.Config(d.path)
+        yield d
         os.chdir(original_dir)
 
 
@@ -28,44 +28,44 @@ class Test_init(object):
         assert (p._rootpath == os.getcwd())
         assert (p._workdir == os.getcwd())
 
-    def test_init_params(self, dir):
-        subdir = dir.makedir('abc')
-        dir.write('__main__.py', b'')
-        dir.write('abc/test.ipynb', b'')
+    def test_init_params(self, tempdir):
+        subdir = tempdir.makedir('abc')
+        tempdir.write('__main__.py', b'')
+        tempdir.write('abc/test.ipynb', b'')
 
         p = project.Config()
         p.__class__._instances = {}
         p = project.Config(subdir, os.path.join(subdir, 'test.ipynb'))
 
-        assert (p._rootpath == dir.path)
+        assert (p._rootpath == tempdir.path)
         assert (p._filename == os.path.join(subdir, 'test.ipynb'))
         assert (p._workdir == subdir)
 
 
 class Test_rootpath(object):
-    def test_emptydir(self, dir):
+    def test_emptydir(self, tempdir):
         project.Config()._workdir = None
-        assert (project.rootpath() == dir.path)
+        assert (project.rootpath() == tempdir.path)
 
-    def test_main(self, dir):
-        dir.write('__main__.py', b'')
-        dir.write('test.123', b'')
-        assert (project.rootpath() == dir.path)
+    def test_main(self, tempdir):
+        tempdir.write('__main__.py', b'')
+        tempdir.write('test.123', b'')
+        assert (project.rootpath() == tempdir.path)
 
-    def test_submodule(self, dir):
-        subdir = dir.makedir('abc')
-        dir.write('__main__.py', b'')
-        dir.write('test.123', b'')
-        dir.write('abc/__init__.py', b'')
+    def test_submodule(self, tempdir):
+        subdir = tempdir.makedir('abc')
+        tempdir.write('__main__.py', b'')
+        tempdir.write('test.123', b'')
+        tempdir.write('abc/__init__.py', b'')
         os.chdir(subdir)
-        assert (project.rootpath() == dir.path)
+        assert (project.rootpath() == tempdir.path)
 
 
-def test_find_notebook(dir):
-    dir.write('foo.ipynb', b'')
-    dir.write('foo bar.ipynb', b'')
-    dir.write('abc/bar.ipynb', b'')
-    assert (project._find_notebook('foo', [dir.path]) == os.path.join(dir.path, 'foo.ipynb'))
+def test_find_notebook(tempdir):
+    tempdir.write('foo.ipynb', b'')
+    tempdir.write('foo bar.ipynb', b'')
+    tempdir.write('abc/bar.ipynb', b'')
+    assert (project._find_notebook('foo', [tempdir.path]) == os.path.join(tempdir.path, 'foo.ipynb'))
     assert (project._find_notebook('foo') == 'foo.ipynb')
     assert (project._find_notebook('abc.bar', ['abc']) == os.path.join('abc', 'bar.ipynb'))
     assert (project._find_notebook('foo_bar') == 'foo bar.ipynb')

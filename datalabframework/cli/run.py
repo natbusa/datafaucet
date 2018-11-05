@@ -36,6 +36,8 @@ class DlfRunApp(DatalabframeworkApp):
 
     flags = Dict(dict(debug=({'DlfRunApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
 
+    self.ep = None
+
     def init_preprocessor(self):
         self.ep = ExecutePreprocessor(config=self.config)
 
@@ -57,7 +59,7 @@ class DlfRunApp(DatalabframeworkApp):
                 self.log.warning("pattern %r matched no files", pattern)
 
             for filename in globbed_files:
-                if not filename in filenames:
+                if filename not in filenames:
                     filenames.append(filename)
         self.notebooks = filenames
 

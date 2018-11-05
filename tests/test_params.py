@@ -8,7 +8,7 @@ import pytest
 from testfixtures import TempDirectory
 
 @pytest.fixture()
-def dir():
+def tempdir():
     with TempDirectory() as dir:
         original_dir = os.getcwd()
         os.chdir(dir.path)
@@ -21,7 +21,7 @@ def dir():
         os.chdir(original_dir)
 
 class Test_rootpath(object):
-    def test_minimal(self, dir):
+    def test_minimal(self, tempdir):
         yml = '''\
                ---
                a:
@@ -29,10 +29,10 @@ class Test_rootpath(object):
                  c: 42
                  s: 1
                '''
-        dir.write('metadata.yml', dedent(yml).encode())
-        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
+        tempdir.write('metadata.yml', dedent(yml).encode())
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'variables': {}})
 
-    def test_minimal_with_resources(self, dir):
+    def test_minimal_with_resources(self, tempdir):
         yml = '''\
                 ---
                 a:
@@ -43,10 +43,10 @@ class Test_rootpath(object):
                     hello:
                         best:resource
                '''
-        dir.write('metadata.yml', dedent(yml).encode())
-        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': { '.hello': 'best:resource'},'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
+        tempdir.write('metadata.yml', dedent(yml).encode())
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 1}, 'resources': { '.hello': 'best:resource'},'engines':{}, 'loggers':{}, 'providers': {},  'variables': {}})
 
-    def test_minimal_with_rendering(self, dir):
+    def test_minimal_with_rendering(self, tempdir):
         yml = '''\
                 ---
                 a:
@@ -57,10 +57,10 @@ class Test_rootpath(object):
                     bar:
                         best: pong
                '''
-        dir.write('metadata.yml', dedent(yml).encode())
-        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'foo': { 'bar': {'best':'pong'}}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
+        tempdir.write('metadata.yml', dedent(yml).encode())
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'foo': { 'bar': {'best':'pong'}}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {},  'variables': {}})
 
-    def test_minimal_with_rendering_multiple_docs(self, dir):
+    def test_minimal_with_rendering_multiple_docs(self, tempdir):
         yml = '''\
                 ---
                 a:
@@ -74,10 +74,10 @@ class Test_rootpath(object):
                         best: pong
 
                '''
-        dir.write('metadata.yml', dedent(yml).encode())
-        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}})
+        tempdir.write('metadata.yml', dedent(yml).encode())
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh', 'c': 42, 's': 'ping-pong'}, 'resources': {}, 'engines':{}, 'loggers':{}, 'providers': {},  'variables': {}})
 
-    def test_multiple_docs(self,dir):
+    def test_multiple_docs(self,tempdir):
         yml = '''\
                 ---
                 a:
@@ -93,14 +93,11 @@ class Test_rootpath(object):
                     world:
                         b: 2
                '''
-        dir.write('metadata.yml', dedent(yml).encode())
-        assert(params._metadata()['default']=={'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'},'engines':{}, 'loggers':{}, 'providers': {},'profile':'default', 'variables': {}})
-        assert(params._metadata()=={
-            'default': {'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {}, 'profile': 'default', 'variables': {}},
-            'second': {'c': {'d': 'lalala'},'resources': {'.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'profile': 'second', 'variables': {}}
-            })
+        tempdir.write('metadata.yml', dedent(yml).encode())
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh'}, 'resources': {'.hello': 'a:1'},'engines':{}, 'loggers':{}, 'providers': {}, 'variables': {}})
+        assert(params._metadata()['second']=={'c': {'d': 'lalala'},'resources': {'.hello': 'a:1', '.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'profile': 'second', 'variables': {}})
 
-    def test_multiple_files(self,dir):
+    def test_multiple_files(self,tempdir):
         yml_1 = '''\
                 ---
                 a:
@@ -122,16 +119,13 @@ class Test_rootpath(object):
                         b: 2
                '''
 
-        dir.write('metadata.yml', dedent(yml_1).encode())
-        dir.write('abc/metadata.yml', dedent(yml_2).encode())
-        assert(params._metadata()['default']=={'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {},'profile':'default', 'variables': {}})
-        assert(params._metadata()=={
-            'default': {'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'},'engines':{}, 'loggers':{}, 'providers': {},'profile':'default', 'variables': {}},
-            'second': {'c': {'d': 'lalala'},'resources': {'.abc.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'profile': 'second', 'variables': {}}
-            })
+        tempdir.write('metadata.yml', dedent(yml_1).encode())
+        tempdir.write('abc/metadata.yml', dedent(yml_2).encode())
+        assert(params._metadata()['default']=={'a': {'b': 'ohoh'}, 'resources': {'.abc.hello': 'a:1'}, 'engines':{}, 'loggers':{}, 'providers': {}, 'variables': {}})
+        assert(params._metadata()['second']=={'c': {'d': 'lalala'},'resources': {'.abc.hello': 'a:1', '.abc.world': {'b': 2}},'engines':{}, 'loggers':{}, 'providers': {},'profile': 'second', 'variables': {}})
 
 class Test_metadata_info(object):
-    def test_multiple_files(self,dir):
+    def test_multiple_files(self,tempdir):
         yml_1 = '''\
                 ---
                 a:
@@ -153,8 +147,8 @@ class Test_metadata_info(object):
                         b: 2
                '''
 
-        dir.write('__main__.py', b'')
-        dir.write('metadata.yml', dedent(yml_1).encode())
-        dir.write('abc/metadata.yml', dedent(yml_2).encode())
+        tempdir.write('__main__.py', b'')
+        tempdir.write('metadata.yml', dedent(yml_1).encode())
+        tempdir.write('abc/metadata.yml', dedent(yml_2).encode())
         res = ['metadata.yml', os.path.join('abc', 'metadata.yml')]
         assert(params.metadata_files()==res)
