@@ -32,6 +32,9 @@ def dataframe_diff(df_a, df_b, exclude_cols=None):
     # deleted
     df_b_min_a = df_b.select(colnames_b).subtract(df_a.select(colnames_a))
 
+    df_a_min_b = df_a_min_b.coalesce(4).cache()
+    df_b_min_a = df_b_min_a.coalesce(4).cache()
+    
     return df_a_min_b, df_b_min_a
 
 def dataframe_eventsource_view(df, state_col='_state', updated_col='_updated'):
@@ -56,6 +59,9 @@ def dataframe_update(df_a, df_b=None, eventsourcing=False, exclude_cols=None, st
     df_b = df_b if df_b else df_a.filter("False")
 
     exclude_cols += [state_col, updated_col]
+    
+    df_a = df_a.coalesce(4).cache()
+    df_b = df_b.coalesce(4).cache()
 
     if eventsourcing and (state_col in df_b.columns) and  (updated_col in df_b.columns) :
         df_b = dataframe_eventsource_view(df_b, state_col=state_col, updated_col=updated_col)
@@ -66,7 +72,7 @@ def dataframe_update(df_a, df_b=None, eventsourcing=False, exclude_cols=None, st
 
     df_upsert = df_upsert.withColumn(state_col, F.lit(0))
     df_delete = df_delete.withColumn(state_col, F.lit(1))
-    df_diff = df_upsert.union(df_delete)
+    df_diff = df_upsert.union(df_delete).cache()
 
     now = datetime.now()
     df_diff = df_diff.withColumn(updated_col, F.lit(now.strftime('%Y%m%dT%H%M%S')))
