@@ -137,28 +137,22 @@ class SparkEngine:
         mapping = pmd.get('read', {}).get('mapping', None)
         mapping = rmd.get('read', {}).get('mapping', mapping)
 
-        filter_params = pmd.get('read', {}).get('filter', None)
-        filter_params = rmd.get('read', {}).get('filter', filter_params)
+        filter_params = utils.merge(pmd.get('read', {}).get('filter', {}), rmd.get('read', {}).get('filter',{}))
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('read', {}).get('options', {}), rmd.get('read', {}).get('options', {}))
         options = utils.merge(options, kargs)
 
-        if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
-            obj_fmt = pmd.get('format', 'rdbms')
-        else:
-            obj_fmt = pmd.get('format', 'parquet')
-
         obj = None
 
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if obj_fmt == 'csv':
+            if pmd['format'] == 'csv':
                 obj = self._ctx.read.csv(url, **options)
-            if obj_fmt == 'json':
+            if pmd['format'] == 'json':
                 obj = self._ctx.read.option('multiLine', True).json(url, **options)
-            if obj_fmt == 'jsonl':
+            if pmd['format'] == 'jsonl':
                 obj = self._ctx.read.json(url, **options)
-            elif obj_fmt == 'parquet':
+            elif pmd['format'] == 'parquet':
                 obj = self._ctx.read.parquet(url, **options)
         elif pmd['service'] == 'sqlite':
             driver = "org.sqlite.JDBC"
@@ -262,8 +256,7 @@ class SparkEngine:
         mapping = pmd.get('write', {}).get('mapping', None)
         mapping = rmd.get('write', {}).get('mapping', mapping)
 
-        filter_params = pmd.get('write', {}).get('filter', None)
-        filter_params = rmd.get('write', {}).get('filter', filter_params)
+        filter_params = utils.merge(pmd.get('write', {}).get('filter', {}), rmd.get('write', {}).get('filter',{}))
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('write', {}).get('options', {}), rmd.get('write', {}).get('options', {}))
@@ -275,19 +268,14 @@ class SparkEngine:
         obj = mapping_transform(obj, mapping) if mapping else obj
         obj = filter_transform(obj, filter_params) if filter_params else obj
 
-        if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
-            obj_fmt = pmd.get('format', 'rdbms')
-        else:
-            obj_fmt = pmd.get('format', 'parquet')
-
         if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if obj_fmt == 'csv':
+            if pmd['format'] == 'csv':
                 obj.write.csv(url, **options)
-            if obj_fmt == 'json':
+            if pmd['format'] == 'json':
                 obj.write.option('multiLine', True).json(url, **options)
-            if obj_fmt == 'jsonl':
+            if pmd['format'] == 'jsonl':
                 obj.write.json(url, **options)
-            elif obj_fmt == 'parquet':
+            elif pmd['format'] == 'parquet':
                 obj.write.parquet(url, **options)
             else:
                 logger.info('format unknown')

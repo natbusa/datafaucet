@@ -97,6 +97,13 @@ def metadata(resource=None, path=None, provider=None):
         print('Debug: resource={}, path={}, provider={}'.format(resource, path, provider))
         return None
 
+    # get the provider format
+    if not pmd.get('format'):
+        if pmd['service'] in ['sqlite', 'mysql', 'postgres', 'mssql']:
+            pmd['format'] = 'rdbms'
+        else:
+            pmd['format'] = 'parquet'
+
     #connstruct resource
     d = {'resource': rmd, 'provider':pmd}
 
