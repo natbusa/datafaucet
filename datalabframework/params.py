@@ -97,8 +97,8 @@ def _metadata():
     metadata_profiles = profiles
     
     # rendering of jinja constructs
-  metadata_profiles = utils.render(metadata_profiles)
-  return metadata_profiles
+  profiles = utils.render(metadata_profiles)
+  return profiles
 
 
 def metadata(profile=None):
