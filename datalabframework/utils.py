@@ -1,12 +1,20 @@
+import sys
 import errno
 import os
 
+import git
+import sys, traceback  
+
+import datetime
+
+from jinja2 import Environment
+from copy import deepcopy
+
+import json
 import jsonschema
 
-import sys
 from ruamel.yaml import YAML
 from ruamel.yaml.compat import StringIO
-
 
 class StringDumpYAML(YAML):
     def dump(self, data, stream=None, **kw):
@@ -23,11 +31,10 @@ yaml = StringDumpYAML()
 yaml.preserve_quotes = True
 yaml.indent(mapping=4, sequence=4, offset=2)
 
-from jinja2 import Environment
-from copy import deepcopy
-
-import git
-
+def print_trace(limit=None): 
+    stack =([str([x[0], x[1], x[2]]) for x in traceback.extract_stack(limit=limit)])
+    print('trace')
+    print('   \n'.join(stack))
 
 def merge(a, b):
     if isinstance(b, dict) and isinstance(a, dict):
@@ -95,17 +102,39 @@ def pretty_print(metadata):
 
 
 def render(m, passes=3):
+    start = datetime.datetime.now()
+    
     env = Environment()
     env.globals['env'] = lambda key, value=None: os.getenv(key, value)
     env.filters['env'] = lambda value, key: os.getenv(key, value)
 
-    doc = yaml.dump(m)
+    # quick hack to speed up things
+    # don't render resources
+    resources = {}
+    for k,v in m.items():
+      resources[k] = v['resources']
+      v['resources']={}
+    # end hack
+
+    doc = json.dumps(m)
     for i in range(passes):
         template = env.from_string(doc)
-        dictionary = yaml.load(doc)
+        dictionary = json.loads(doc)
         doc = template.render(dictionary)
+  
+    m = json.loads(doc)
+    
+    # quick hack to speed up things
+    # reinsert resources in metadata
+    for k,v in m.items():
+      v['resources']=resources[k]
+    # end hack
+    
+    end = datetime.datetime.now()
+    #print('render: {}'.format(end-start))
+    #print_trace(5)
 
-    return yaml.load(doc)
+    return m
 
 
 def ensure_dir_exists(path, mode=0o777):

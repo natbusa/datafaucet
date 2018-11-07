@@ -9,6 +9,7 @@ yaml.indent(mapping=4, sequence=4, offset=2)
 from . import utils
 from . import project
 
+import datetime
 
 def resource_unique_name(resource, fullpath_filename):
     if not resource:
@@ -36,14 +37,26 @@ def rename_resources(fullpath_filename, params):
         r[alias] = v
     return r
 
-
+# metadata files are cached once read the first time
+metadata_profiles = {}
+  
 def _metadata():
+  #todo: remove prints
+  #todo: better global metadata storing, 
+  #todo: avoid multiple rendering
+  
+  global metadata_profiles
+  
+  if not metadata_profiles:
+    profiles={}
     filenames = utils.get_project_files(
         ext='metadata.yml',
         rootpath=project.rootpath(),
         ignore_dir_with_file='metadata.ignore.yml',
         relative_path=False)
 
+    #start = datetime.datetime.now()
+    
     profiles = {}
     for filename in filenames:
         f = open(filename, 'r')
@@ -52,6 +65,8 @@ def _metadata():
             profile = doc['profile'] if 'profile' in doc else 'default'
             doc['resources'] = rename_resources(filename, doc)
             profiles[profile] = utils.merge(profiles.get(profile, {}), doc)
+    #end = datetime.datetime.now()
+    #print('metadata read files: {}'.format(end-start))
 
     elements = ['resources', 'variables', 'providers', 'engines', 'loggers']
 
@@ -63,10 +78,14 @@ def _metadata():
         if k not in profiles['default'].keys():
             profiles['default'][k] = {}
 
+    #start = datetime.datetime.now()
+
     # inherit from default if not vailable in the profile
     for r in set(profiles.keys()).difference({'default'}):
         for k in elements:
             profiles[r][k] = utils.merge(profiles['default'][k], profiles[r].get(k, {}))
+    #end = datetime.datetime.now()
+    #print('metadata merge profiles: {}'.format(end-start))
 
     # inherit from parent if not vailable in the profile
     for r in set(profiles.keys()).difference({'default'}):
@@ -74,11 +93,12 @@ def _metadata():
         if parent:
             for k in elements:
                 profiles[r][k] = utils.merge(profiles[parent][k], profiles[r].get(k, {}))
-
+    
+    metadata_profiles = profiles
+    
     # rendering of jinja constructs
-    profiles = utils.render(profiles)
-
-    return profiles
+  metadata_profiles = utils.render(metadata_profiles)
+  return metadata_profiles
 
 
 def metadata(profile=None):
