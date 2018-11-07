@@ -101,7 +101,9 @@ def pretty_print(metadata):
     yaml.dump(metadata, sys.stdout)
 
 
-def render(m, passes=3):
+def render(metadata_source, passes=3):
+    #todo: better removal of resources, 
+    # avoid destroyin data on the calling object
     start = datetime.datetime.now()
     
     env = Environment()
@@ -111,22 +113,27 @@ def render(m, passes=3):
     # quick hack to speed up things
     # don't render resources
     resources = {}
-    for k,v in m.items():
+    for k,v in metadata_source.items():
       resources[k] = v['resources']
       v['resources']={}
     # end hack
 
-    doc = json.dumps(m)
+    doc = json.dumps(metadata_source)
+    
+    #render loop
     for i in range(passes):
         template = env.from_string(doc)
         dictionary = json.loads(doc)
         doc = template.render(dictionary)
   
-    m = json.loads(doc)
+    metadata_rendered = json.loads(doc)
     
     # quick hack to speed up things
     # reinsert resources in metadata
-    for k,v in m.items():
+    for k,v in metadata_rendered.items():
+      v['resources']=resources[k]
+    
+    for k,v in metadata_source.items():
       v['resources']=resources[k]
     # end hack
     
@@ -134,7 +141,7 @@ def render(m, passes=3):
     #print('render: {}'.format(end-start))
     #print_trace(5)
 
-    return m
+    return metadata_rendered
 
 
 def ensure_dir_exists(path, mode=0o777):

@@ -38,17 +38,16 @@ def rename_resources(fullpath_filename, params):
     return r
 
 # metadata files are cached once read the first time
-metadata_profiles = {}
+profiles = {}
   
 def _metadata():
   #todo: remove prints
   #todo: better global metadata storing, 
   #todo: avoid multiple rendering
   
-  global metadata_profiles
+  global profiles
   
-  if not metadata_profiles:
-    profiles={}
+  if not profiles:
     filenames = utils.get_project_files(
         ext='metadata.yml',
         rootpath=project.rootpath(),
@@ -57,7 +56,6 @@ def _metadata():
 
     #start = datetime.datetime.now()
     
-    profiles = {}
     for filename in filenames:
         f = open(filename, 'r')
         docs = list(yaml.load_all(f))
@@ -94,12 +92,8 @@ def _metadata():
             for k in elements:
                 profiles[r][k] = utils.merge(profiles[parent][k], profiles[r].get(k, {}))
     
-    metadata_profiles = profiles
-    
-    # rendering of jinja constructs
-  profiles = utils.render(metadata_profiles)
-  return profiles
-
+  # rendering of jinja constructs
+  return utils.render(profiles)
 
 def metadata(profile=None):
     # if nothing passed take the current profile
