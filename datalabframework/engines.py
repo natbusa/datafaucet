@@ -13,7 +13,7 @@ import elasticsearch.helpers
 from datetime import datetime
 
 import pyspark
-from pyspark.sql.functions import desc, date_format
+from pyspark.sql.functions import desc, date_format, to_utc_timestamp, to_timestamp
 
 from . import logging
 
@@ -352,6 +352,9 @@ class SparkEngine:
         filter_params = utils.merge(
             md_src['provider'].get('read', {}).get('filter', {}),
             md_src['resource'].get('read', {}).get('filter', {}))
+        
+        # get tzone:
+        tzone = md_src['provider'].get('tzone', 'UTC')
 
         #### Target metadata:
 
@@ -423,7 +426,8 @@ class SparkEngine:
         if not eventsourcing:
             if filter_params.get('policy') == 'date' and filter_params.get('column'):
                 df_diff = dataframe_update(df_src, df_dest, updated_col='_ingested', eventsourcing=eventsourcing)
-                df_diff = df_diff.withColumn('_date', date_format(filter_params['column'], 'yyyy-MM-dd'))
+                partition_date = date_format(to_utc_timestamp(to_timestamp(filter_params['column']), tzone), 'yyyy-MM-dd')
+                df_diff = df_diff.withColumn('_date', partition_date)
                 partition_cols += ['_date']
                 ingest_mode = 'append'
                 options = {'mode': ingest_mode, 'partitionBy': partition_cols}
