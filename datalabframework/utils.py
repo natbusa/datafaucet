@@ -1,11 +1,7 @@
-import sys
-import errno
 import os
 
 import git
 import sys, traceback  
-
-import datetime
 
 from jinja2 import Environment
 from copy import deepcopy
@@ -101,59 +97,20 @@ def pretty_print(metadata):
     yaml.dump(metadata, sys.stdout)
 
 
-def render(metadata_source, passes=3):
-    #todo: better removal of resources, 
-    # avoid destroyin data on the calling object
-    start = datetime.datetime.now()
-    
+def render(metadata_source):
     env = Environment()
     env.globals['env'] = lambda key, value=None: os.getenv(key, value)
     env.filters['env'] = lambda value, key: os.getenv(key, value)
 
-    # quick hack to speed up things
-    # don't render resources
-    resources = {}
-    for k,v in deepcopy(metadata_source).items():
-        resources[k] = v['resources']
-        v['resources']={}
-    # end hack
-
     doc = json.dumps(metadata_source)
     
-    #render loop
-    for i in range(passes):
-        template = env.from_string(doc)
-        dictionary = json.loads(doc)
-        doc = template.render(dictionary)
+    template = env.from_string(doc)
+    dictionary = json.loads(doc)
+    doc = template.render(dictionary)
   
     metadata_rendered = json.loads(doc)
-    
-    # quick hack to speed up things
-    # reinsert resources in metadata
-    for k,v in metadata_rendered.items():
-        v['resources']=resources[k]
-    # end hack
-    
-    end = datetime.datetime.now()
-    #print('render: {}'.format(end-start))
-    #print_trace(5)
 
     return metadata_rendered
-
-
-def ensure_dir_exists(path, mode=0o777):
-    """ensure that a directory exists
-    If it doesn't exist, try to create it, protecting against a race condition
-    if another process is doing the same.
-    The default permissions are determined by the current umask.
-    """
-    try:
-        os.makedirs(path, mode=mode)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-    if not os.path.isdir(path):
-        raise IOError("%r exists but is not a directory" % path)
 
 
 def validate(metadata, schema_filename):
