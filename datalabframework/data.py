@@ -2,6 +2,7 @@ from . import params
 from . import project
 
 import os
+from copy import deepcopy
 
 def uri(resource):
     return params.resource_unique_name(resource, project.filename(False))

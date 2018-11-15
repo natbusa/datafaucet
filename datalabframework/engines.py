@@ -4,9 +4,13 @@ from datalabframework.spark.mapping import transform as mapping_transform
 from datalabframework.spark.filter import transform as filter_transform
 from datalabframework.spark.diff import dataframe_update
 
+from . import project
 from . import params
 from . import data
 from . import utils
+from . import spark as sparkfun
+
+from copy import deepcopy
 
 import elasticsearch.helpers
 
@@ -26,7 +30,6 @@ from . import logging
 engines = dict()
 
 import sys
-
 
 def func_name():
     # noinspection PyProtectedMember
@@ -62,8 +65,12 @@ class SparkEngine:
         print('PYSPARK_SUBMIT_ARGS: {}'.format(submit_args))
 
         conf = SparkConf()
-        if 'jobname' in config:
-            conf.setAppName(config.get('jobname'))
+
+        # jobname
+        default_jobname = project.profile()
+        default_jobname += utils.repo_data()['name'] if utils.repo_data()['name'] else ''
+        jobname = config.get('jobname', default_jobname)
+        conf.setAppName(jobname)
 
         rmd = params.metadata()['providers']
         for v in rmd.values():
@@ -86,30 +93,20 @@ class SparkEngine:
         sc.setLogLevel("ERROR")
 
         self._ctx = SQLContext(sc)
-        self.info = {'name': name, 'context': 'spark', 'config': config}
+        self.info = {'name': name, 'context': 'spark', 'metadata': config, 'conf': conf.getAll()}
+
+        self.logger = logging.getLogger()
+
 
     def context(self):
         return self._ctx
 
     def read(self, resource=None, path=None, provider=None, **kargs):
-        logger = logging.getLogger()
         md = data.metadata(resource, path, provider)
+
         if not md:
             logger.error("No metadata")
-            return
-
-        #### Read schema info
-        try:
-            schema_path = '{}/schema'.format(md['resource']['path'])
-            df_schema = self._read(data.metadata(path=schema_path, provider=md['resource']['provider']))
-            schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
-            resource_path = '{}/{}'.format(md['resource']['path'], schema_date_str)
-        except Exception as e:
-            resource_path = md['resource']['path']
-
-        # path - append schema date if available
-        md['resource']['path'] = resource_path
-        md['url'] = data._url(md)
+            return None
 
         obj = self._read(md, **kargs)
 
@@ -119,30 +116,130 @@ class SparkEngine:
             'service': md['provider']['service'],
             'path': md['resource']['path'],
             'url': md['url']}
+
         logtype = {'dlf_type': '{}.{}'.format(self.__class__.__name__, func_name())}
-        logger.info(logdata, extra=logtype)
+        self.logger.info(logdata, extra=logtype)
         return obj
 
     def _read(self, md, **kargs):
+        obj = self.load_with_schema(md, **kargs)
+        obj = self._filter(obj, md, 'read')
+        obj = self._cache(obj, md, 'read')
+        obj = self._transform(obj, md, 'read')
+
+        reserved_cols = ['_updated', '_date', '_datetime', '_state']
+
+        return obj.drop(*reserved_cols) if obj else None
+
+    def _cache(self, obj, md, access):
+
+        pmd = md['provider']
+        rmd = md['resource']
+
+        repartition = utils.merge(pmd.get(access, {}).get('repartition', {}),
+                             rmd.get(access, {}).get('repartition',{}))
+
+        coalesce = utils.merge(pmd.get(access, {}).get('coalesce', {}),
+                             rmd.get(access, {}).get('coalesce',{}))
+
+        cache = utils.merge(pmd.get(access, {}).get('cache', {}),
+                             rmd.get(access, {}).get('cache',{}))
+
+        df = obj
+
+        df = df.repartition(repartition) if repartition else df
+        df = df.coalesce(coalesce) if coalesce else df
+        df = df.cache() if cache else df
+
+        return df
+
+    def _filter(self, obj, md, access):
+        pmd = md['provider']
+        rmd = md['resource']
+
+        params = dict()
+        params['read'] = utils.merge(pmd.get('read', {}), rmd.get('read', {}))
+        params['write'] = utils.merge(pmd.get('write', {}), rmd.get('write', {}))
+
+        df =filter_transform(obj, params, access) if params else obj
+        return df
+
+    def _transform(self, obj, md, access):
+
+        pmd = md['provider']
+        rmd = md['resource']
+
+        mapping = pmd.get(access, {}).get('mapping', None)
+        mapping = rmd.get(access, {}).get('mapping', mapping)
+
+        df = mapping_transform(obj, mapping) if mapping else obj
+
+        return df
+
+    def load_schema(self, md):
+
+        # schema table: id, datetime, json
+        schema_path = '{}/schema'.format(md['resource']['path'])
+        df_schema = self.load(data.metadata(path=schema_path, provider=md['resource']['provider']), _logging=False)
+
+        if df_schema:
+            return df_schema.sort(desc('ts')).limit(1).collect()[0].asDict()
+        else:
+            return dict()
+
+    def save_schema(self, obj, md, mode='append'):
+        # constants:
+        reserved_cols = ['_updated', '_date', '_datetime', '_state']
+
+        # object schema
+        cols = set(obj.columns).difference(set(reserved_cols))
+        ordered_colnames = [x for x in obj.columns if x in cols]
+        obj_schema = obj[ordered_colnames].schema.json()
+
+        # default is schema has changed
+        same_schema = False
+
+        if mode=='append':
+            #get last schema
+            schema = self.load_schema(md)
+
+            # has the schema changed since the last write?
+            same_schema = schema and obj_schema == schema.get('json','')
+
+        # append/write the new schema, if not the same schema
+        if not same_schema:
+            # default
+            now = datetime.now()
+
+            # Different schema, update schema table with new entry
+            schema_entry = (now.strftime('%Y%m%dT%H%M%S%f'), now, obj_schema)
+            df_schema = self.context().createDataFrame([schema_entry], ['id', 'ts', 'json'])
+
+            # write the schema to destination provider
+            schema_path = '{}/schema'.format(md['resource']['path'])
+            md = data.metadata(path=schema_path, provider=md['resource']['provider'])
+            self.save(df_schema, md, mode=mode)
+
+
+    def load_with_schema(self, md, **kargs):
+        schema = self.load_schema(md)
+
+        resource_path = md['resource']['path']
+        resource_path += f'/{schema["id"]}' if schema else ''
+
+        # path -updated with appended schema if available
+        resource_md = deepcopy(md)
+        resource_md['resource']['path'] = resource_path
+        resource_md['url'] = data._url(resource_md)
+
+        return self.load(resource_md, **kargs)
+
+    def load(self, md, _logging=True, **kargs):
 
         pmd = md['provider']
         rmd = md['resource']
 
         url = md['url']
-
-        cache = pmd.get('read', {}).get('cache', False)
-        cache = rmd.get('read', {}).get('cache', cache)
-
-        repartition = pmd.get('read', {}).get('repartition', None)
-        repartition = rmd.get('read', {}).get('repartition', repartition)
-
-        coalesce = pmd.get('read', {}).get('coalesce', None)
-        coalesce = rmd.get('read', {}).get('coalesce', coalesce)
-
-        mapping = pmd.get('read', {}).get('mapping', None)
-        mapping = rmd.get('read', {}).get('mapping', mapping)
-
-        filter_params = utils.merge(pmd.get('read', {}).get('filter', {}), rmd.get('read', {}).get('filter',{}))
 
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('read', {}).get('options', {}), rmd.get('read', {}).get('options', {}))
@@ -150,84 +247,83 @@ class SparkEngine:
 
         obj = None
 
-        if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if pmd['format'] == 'csv':
-                obj = self._ctx.read.csv(url, **options)
-            if pmd['format'] == 'json':
-                obj = self._ctx.read.option('multiLine', True).json(url, **options)
-            if pmd['format'] == 'jsonl':
-                obj = self._ctx.read.json(url, **options)
-            elif pmd['format'] == 'parquet':
-                obj = self._ctx.read.parquet(url, **options)
-        elif pmd['service'] == 'sqlite':
-            driver = "org.sqlite.JDBC"
-            obj = self._ctx.read \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .load(**options)
-        elif pmd['service'] == 'mysql':
-            driver = "com.mysql.cj.jdbc.Driver"
-            obj = self._ctx.read \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .option("user", pmd['username']) \
-                .option('password', pmd['password']) \
-                .load(**options)
-        elif pmd['service'] == 'postgres':
-            driver = "org.postgresql.Driver"
-            obj = self._ctx.read \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .option("user", pmd['username']) \
-                .option('password', pmd['password']) \
-                .load(**options)
-        elif pmd['service'] == 'mssql':
-            driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-            obj = self._ctx.read \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .option("user", pmd['username']) \
-                .option('password', pmd['password']) \
-                .load(**options)
-        elif pmd['service'] == 'oracle':
-            driver = "oracle.jdbc.driver.OracleDriver"
-            obj = self._ctx.read \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .load(**options)
-        elif pmd['service'] == 'elastic':
-            obj = self.elastic_read(url, options.get('query', {}))
-        else:
-            raise ValueError('downt know how to handle this')
+        try:
+            if pmd['service'] in ['local', 'hdfs', 'minio']:
+                if pmd['format'] == 'csv':
+                    obj = self._ctx.read.csv(url, **options)
+                if pmd['format'] == 'json':
+                    obj = self._ctx.read.option('multiLine', True).json(url, **options)
+                if pmd['format'] == 'jsonl':
+                    obj = self._ctx.read.json(url, **options)
+                elif pmd['format'] == 'parquet':
+                    obj = self._ctx.read.parquet(url, **options)
+            elif pmd['service'] == 'sqlite':
+                driver = "org.sqlite.JDBC"
+                obj = self._ctx.read \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .load(**options)
+            elif pmd['service'] == 'mysql':
+                driver = "com.mysql.cj.jdbc.Driver"
+                obj = self._ctx.read \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .option("user", pmd['username']) \
+                    .option('password', pmd['password']) \
+                    .load(**options)
+            elif pmd['service'] == 'postgres':
+                driver = "org.postgresql.Driver"
+                obj = self._ctx.read \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .option("user", pmd['username']) \
+                    .option('password', pmd['password']) \
+                    .load(**options)
+            elif pmd['service'] == 'mssql':
+                driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+                obj = self._ctx.read \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .option("user", pmd['username']) \
+                    .option('password', pmd['password']) \
+                    .load(**options)
+            elif pmd['service'] == 'oracle':
+                driver = "oracle.jdbc.driver.OracleDriver"
+                obj = self._ctx.read \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .load(**options)
+            elif pmd['service'] == 'elastic':
+                results = elastic_read(url, options.get('query', {}))
+                rows = [pyspark.sql.Row(**r) for r in results]
+                obj =  self.context().createDataFrame(rows)
 
-        if not obj:
+            else:
+                raise ValueError(f'Unknown service provider "{pmd["service"]}"')
+        except Exception as e:
+            if _logging:
+                self.logger.error('could not load')
+                print(e)
             return None
-
-        obj = mapping_transform(obj, mapping) if mapping else obj
-        obj = filter_transform(obj, filter_params) if filter_params else obj
-        obj = obj.repartition(repartition) if repartition else obj
-        obj = obj.coalesce(coalesce) if coalesce else obj
-        obj = obj.cache() if cache else obj
 
         return obj
 
-    def write(self, obj, resource=None, path=None, provider=None, **kargs):
-        logger = logging.getLogger()
 
+    def write(self, obj, resource=None, path=None, provider=None, **kargs):
         md = data.metadata(resource, path, provider)
         if not md:
             logger.exception("No metadata")
-            return
+            return None
 
         self._write(obj, md, **kargs)
 
@@ -236,238 +332,186 @@ class SparkEngine:
             'service': md['provider']['service'],
             'path': md['resource']['path'],
             'url': md['url']}
-        logtype = {'dlf_type': '{}.{}'.format(self.__class__.__name__, func_name())}
-        logger.info(logdata, extra=logtype)
 
-        return obj
+        logtype = {'dlf_type': '{}.{}'.format(self.__class__.__name__, func_name())}
+        self.logger.info(logdata, extra=logtype)
 
     def _write(self, obj, md, **kargs):
-        logger = logging.getLogger()
+        df = self._transform(obj, md, 'write')
+        df = self._filter(df, md, 'write')
+        df = self._cache(df, md, 'write')
 
+        # add reserved columns
+        pmd = md['provider']
+        rmd = md['resource']
+
+        # override options on provider with options on resource, with option on the read method
+        write_options = utils.merge(pmd.get('write', {}), rmd.get('write', {}))
+        df = sparkfun.filter.add_reserved_columns(df, write_options)
+
+        # define partition structure as _date / user_defined_partition / _updated
+        kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', []) + ['_updated']
+
+        self.save_with_schema(df, md, **kargs)
+
+    def save_with_schema(self, obj, md, schema_save_mode='append', **kargs):
+        self.save_schema(obj, md, mode=schema_save_mode)
+
+        schema = self.load_schema(md)
+        resource_path = md['resource']['path']
+        resource_path += f'/{schema["id"]}' if schema else ''
+
+        # path -updated with appended schema if available
+        resource_md = deepcopy(md)
+        resource_md['resource']['path'] = resource_path
+        resource_md['url'] = data._url(resource_md)
+
+        self.save(obj, resource_md, **kargs)
+
+    def save(self, obj, md, _logging=True, **kargs):
         pmd = md['provider']
         rmd = md['resource']
 
         url = md['url']
 
-        cache = pmd.get('write', {}).get('cache', False)
-        cache = rmd.get('write', {}).get('cache', cache)
-
-        repartition = pmd.get('write', {}).get('repartition', None)
-        repartition = rmd.get('write', {}).get('repartition', repartition)
-
-        coalesce = pmd.get('write', {}).get('coalesce', None)
-        coalesce = rmd.get('write', {}).get('coalesce', coalesce)
-
-        mapping = pmd.get('write', {}).get('mapping', None)
-        mapping = rmd.get('write', {}).get('mapping', mapping)
-
-        filter_params = utils.merge(pmd.get('write', {}).get('filter', {}), rmd.get('write', {}).get('filter',{}))
-
         # override options on provider with options on resource, with option on the read method
         options = utils.merge(pmd.get('write', {}).get('options', {}), rmd.get('write', {}).get('options', {}))
         options = utils.merge(options, kargs)
 
-        obj = obj.cache() if cache else obj
-        obj = obj.coalesce(coalesce) if coalesce else obj
-        obj = obj.repartition(repartition) if repartition else obj
-        obj = mapping_transform(obj, mapping) if mapping else obj
-        obj = filter_transform(obj, filter_params) if filter_params else obj
+        try:
+            if pmd['service'] in ['local', 'hdfs', 'minio']:
+                if pmd['format'] == 'csv':
+                    obj.write.csv(url, **options)
+                if pmd['format'] == 'json':
+                    obj.write.option('multiLine', True).json(url, **options)
+                if pmd['format'] == 'jsonl':
+                    obj.write.json(url, **options)
+                elif pmd['format'] == 'parquet':
+                    obj.write.parquet(url, **options)
+                else:
+                    logger.info('format unknown')
 
-        if pmd['service'] in ['local', 'hdfs', 'minio']:
-            if pmd['format'] == 'csv':
-                obj.write.csv(url, **options)
-            if pmd['format'] == 'json':
-                obj.write.option('multiLine', True).json(url, **options)
-            if pmd['format'] == 'jsonl':
-                obj.write.json(url, **options)
-            elif pmd['format'] == 'parquet':
-                obj.write.parquet(url, **options)
+            elif pmd['service'] == 'sqlite':
+                driver = "org.sqlite.JDBC"
+                obj.write \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .save(**kargs)
+
+            elif pmd['service'] == 'mysql':
+                driver = "com.mysql.cj.jdbc.Driver"
+                obj.write \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .option("user", pmd['username']) \
+                    .option('password', pmd['password']) \
+                    .save(**kargs)
+
+            elif pmd['service'] == 'postgres':
+                driver = "org.postgresql.Driver"
+                obj.write \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .option("user", pmd['username']) \
+                    .option('password', pmd['password']) \
+                    .save(**kargs)
+            elif pmd['service'] == 'oracle':
+                driver = "oracle.jdbc.driver.OracleDriver"
+                obj.write \
+                    .format('jdbc') \
+                    .option('url', url) \
+                    .option("dbtable", rmd['path']) \
+                    .option("driver", driver) \
+                    .save(**kargs)
+            elif pmd['service'] == 'elastic':
+                uri = 'http://{}:{}'.format(pmd["hostname"], pmd["port"])
+                mode = kargs.get("mode", None)
+                elastic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
             else:
-                logger.info('format unknown')
+                raise ValueError('downt know how to handle this')
+        except Exception as e:
+            if _logging:
+                self.logger.error('could not save')
+                print(e)
 
-        elif pmd['service'] == 'sqlite':
-            driver = "org.sqlite.JDBC"
-            obj.write \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .save(**kargs)
 
-        elif pmd['service'] == 'mysql':
-            driver = "com.mysql.cj.jdbc.Driver"
-            obj.write \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .option("user", pmd['username']) \
-                .option('password', pmd['password']) \
-                .save(**kargs)
+    def ingest(self,
+               src_resource=None, src_path=None, src_provider=None,
+               trg_resource=None, trg_path=None, trg_provider=None, **kargs):
 
-        elif pmd['service'] == 'postgres':
-            driver = "org.postgresql.Driver"
-            obj.write \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .option("user", pmd['username']) \
-                .option('password', pmd['password']) \
-                .save(**kargs)
-        elif pmd['service'] == 'oracle':
-            driver = "oracle.jdbc.driver.OracleDriver"
-            obj.write \
-                .format('jdbc') \
-                .option('url', url) \
-                .option("dbtable", rmd['path']) \
-                .option("driver", driver) \
-                .save(**kargs)
-        elif pmd['service'] == 'elastic':
-            uri = 'http://{}:{}'.format(pmd["hostname"], pmd["port"])
-            mode = kargs.get("mode", None)
-            elastic_write(obj, uri, mode, rmd["path"], options["settings"], options["mappings"])
-        else:
-            raise ValueError('downt know how to handle this')
-
-        return obj
-
-    def elastic_read(self, url, query):
-        results = elastic_read(url, query)
-        rows = [pyspark.sql.Row(**r) for r in results]
-        return self.context().createDataFrame(rows)
-
-    def ingest(self, src_resource=None, src_path=None, src_provider=None,
-               dest_resource=None, dest_path=None, dest_provider=None,
-               eventsourcing=False):
-
-        logger = logging.getLogger()
-
-        #### contants:
-        now = datetime.now()
-        reserved_cols = ['_ingested', '_date', '_state']
-
-        #### Source metadata:
+        # source metadata
         md_src = data.metadata(src_resource, src_path, src_provider)
-        if not md_src:
-            logger.error("No metadata")
-            return
+
+        # default path for destination is src path
+        if (not trg_resource) and (not trg_path) and trg_provider:
+            trg_path = md_src['resource']['path']
+
+        # default provider for destination is src provider
+        if (not trg_resource) and (not trg_provider) and trg_path and trg_path != src_path:
+            trg_provider = md_src['resource']['provider']
+
+        #### Metadata
+        md_trg = data.metadata(trg_resource, trg_path, trg_provider)
+
+        df_diff = self._ingest(md_src, md_trg, **kargs)
+
+        # some statistics
+        records_add = df_diff.filter("_state = 0").count()
+        records_del = df_diff.filter("_state = 1").count()
+
+        logdata = {
+            'src_url': md_src['url'],
+            'trg_url': md_trg['url'],
+            'upserts': records_add,
+            'deletes': records_del}
+
+        logtype = {'dlf_type': '{}.{}'.format(self.__class__.__name__, func_name())}
+        self.logger.info(logdata, extra=logtype)
+
+    def _ingest(self, md_src, md_trg, **kargs):
 
         # filter settings from src (provider and resource)
         filter_params = utils.merge(
             md_src['provider'].get('read', {}).get('filter', {}),
             md_src['resource'].get('read', {}).get('filter', {}))
-        
-        # get tzone:
-        tzone = filter_params.get('tzone', 'UTC')
 
-        #### Target metadata:
-
-        # default path for destination is src path
-        if (not dest_resource) and (not dest_path) and dest_provider:
-            dest_path = md_src['resource']['path']
-
-        md_dest = data.metadata(dest_resource, dest_path, dest_provider)
-        if not md_dest:
-            return
-
-        if 'read' not in md_dest['resource']:
-            md_dest['resource']['read'] = {}
+        #### Target match filter params:
+        if 'read' not in md_trg['resource']:
+            md_trg['resource']['read'] = {}
 
         # match filter with the one from source resource
-        md_dest['resource']['read']['filter'] = filter_params
+        md_trg['resource']['read']['filter'] = filter_params
 
-        #### Read source resource
-        try:
-            df_src = self._read(md_src)
-        except Exception as e:
-            logger.exception(e)
-            return
+        #### Read src/trg resources
+        df_src = self._read(md_src, _logging=False)
 
-        #### Read destination schema info
-        try:
-            schema_path = '{}/schema'.format(md_dest['resource']['path'])
-            md = data.metadata(path=schema_path, provider=dest_provider)
-            df_schema = self._read(md)
-            schema_date_str = df_schema.sort(desc("date")).limit(1).collect()[0]['id']
-        except Exception as e:
-            # logger.warning('source schema does not exist yet.'')
-            schema_date_str = now.strftime('%Y%m%dT%H%M%S')
+        #### Get target write options
+        # override options on provider with options on resource, with option on the ingest method
+        options = utils.merge(md_trg['provider'].get('write', {}).get('options', {}),
+                              md_trg['resource'].get('write', {}).get('options', {}))
+        options = utils.merge(options, kargs)
 
-        # destination path - append schema date
-        dest_path = '{}/{}'.format(md_dest['resource']['path'], schema_date_str)
-        md_dest['resource']['path'] = dest_path
-        md_dest['url'] = data._url(md_dest)
+        # compare if mode!=overwrite
+        df_trg = self._read(md_trg, _logging=False) if options.get('mode')!='overwrite' else None
 
-        # if schema not present or schema change detected
-        schema_changed = True
+        # compare
+        df_diff = dataframe_update(df_src, df_trg)
 
-        try:
-            df_dest = self._read(md_dest)
+        if df_diff.count():
+            # print('partitions:', partitions)
+            # df_diff.show() # todo remove
+            # print(md_trg)  # todo remove
+            self._write(df_diff, md_trg, _logging=True, **options)
 
-            # compare schemas
-            df_src_cols = [x for x in df_src.columns if x not in reserved_cols]
-            df_dest_cols = [x for x in df_dest.columns if x not in reserved_cols]
-            schema_changed = df_src[df_src_cols].schema.json() != df_dest[df_dest_cols].schema.json()
-        except Exception as e:
-            # logger.warning('schema does not exist yet.'')
-            df_dest = df_src.filter("False")
-
-        if schema_changed:
-            # Different schema, update schema table with new entry
-            schema_entry = (schema_date_str, now, df_src.schema.json())
-            df_schema = self.context().createDataFrame([schema_entry], ['id', 'date', 'schema'])
-
-            # write the schema to destination provider
-            md = data.metadata(path=schema_path, provider=md_dest['resource']['provider'])
-            self._write(df_schema, md, mode='append')
-
-        # partitions
-        partition_cols = ['_ingested']
-
-        #init df_diff to empty dest dataframe
-        df_diff = df_dest.filter("False")
-
-        if not eventsourcing:
-            if filter_params.get('policy') == 'date' and filter_params.get('column'):
-                df_diff = dataframe_update(df_src, df_dest, updated_col='_ingested', eventsourcing=eventsourcing)
-                partition_date = date_format(to_utc_timestamp(to_timestamp(filter_params['column']), tzone), 'yyyy-MM-dd')
-                df_diff = df_diff.withColumn('_date', partition_date)
-                partition_cols += ['_date']
-                ingest_mode = 'append'
-                options = {'mode': ingest_mode, 'partitionBy': partition_cols}
-            else:
-                df_diff = dataframe_update(df_src, df_dest.filter("False"), updated_col='_ingested',
-                                           eventsourcing=eventsourcing)
-                ingest_mode = 'overwrite'
-                options = {'mode': ingest_mode, 'partitionBy': partition_cols}
-        else:
-            # to do
-            logger.fatal('event sourcing not implemented yet')
-
-        records_add = df_diff.filter("_state = 0").count()
-        records_del = df_diff.filter("_state = 1").count()
-
-        if records_add or records_del or schema_changed:
-            md = data.metadata(path=dest_path, provider=md_dest['resource']['provider'])
-            self._write(df_diff, md, **options)
-
-        end = datetime.now()
-        time_diff = end - now
-
-        logdata = {
-            'src_url': md_src['url'],
-            'src_table': md_src['resource']['path'],
-            'source_option': filter_params,
-            'schema_change': schema_changed,
-            'target': dest_path,
-            'upserts': records_add,
-            'deletes': records_del,
-            'diff_time': time_diff.total_seconds()}
-
-        logtype = {'dlf_type': '{}.{}'.format(self.__class__.__name__, func_name())}
-        logger.info(logdata, extra=logtype)
-
+        # print("returned dataframe")
+        # df_diff.show()  # todo remove
+        return df_diff
 
 def elastic_read(url, query):
     """
@@ -594,8 +638,6 @@ def elastic_write(obj, uri, mode='append', index_name=None, settings=None, mappi
             #             total_fields:
             #                 limit: 1024
 
-        print(settings)
-        print(mappings["properties"])
 
         if not settings or not settings:
             raise ValueError("'settings' and 'mappings' are required for 'overwrite' mode!")
@@ -612,16 +654,6 @@ def elastic_write(obj, uri, mode='append', index_name=None, settings=None, mappi
         pass
     else:
         raise ValueError("Unsupported mode: " + mode)
-
-    # import pandas.core.frame
-    # import pyspark.sql.dataframe
-    # import numpy as np
-    # if isinstance(obj, pandas.core.frame.DataFrame):
-    #     obj = obj.replace({np.nan:None}).to_dict(orient='records')
-    # elif isinstance(obj, pyspark.sql.dataframe.DataFrame):
-    #     obj = obj.toPandas().replace({np.nan:None}).to_dict(orient='records')
-    # else: # python list of python dictionaries
-    #     pass
 
     if isinstance(obj, pyspark.sql.dataframe.DataFrame):
         obj = [row.asDict() for row in obj.collect()]

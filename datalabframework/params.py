@@ -37,59 +37,60 @@ def rename_resources(fullpath_filename, params):
     return r
 
 # metadata files are cached once read the first time
-_metadata_profiles = {}
-  
 def _metadata():
-    # reference global variable as 'profiles'
-    global _metadata_profiles
-    profiles =  _metadata_profiles
+    filenames = utils.get_project_files(
+        ext='metadata.yml',
+        rootpath=project.rootpath(),
+        ignore_dir_with_file='metadata.ignore.yml',
+        relative_path=False)
 
-    if not profiles:
-        filenames = utils.get_project_files(
-            ext='metadata.yml',
-            rootpath=project.rootpath(),
-            ignore_dir_with_file='metadata.ignore.yml',
-            relative_path=False)
+    profiles = {}
+    for filename in filenames:
+        f = open(filename, 'r')
+        docs = list(yaml.load_all(f))
+        for doc in docs:
+            profile = doc['profile'] if 'profile' in doc else 'default'
+            doc['resources'] = rename_resources(filename, doc)
+            profiles[profile] = utils.merge(profiles.get(profile, {}), doc)
 
-        for filename in filenames:
-            f = open(filename, 'r')
-            docs = list(yaml.load_all(f))
-            for doc in docs:
-                profile = doc['profile'] if 'profile' in doc else 'default'
-                doc['resources'] = rename_resources(filename, doc)
-                profiles[profile] = utils.merge(profiles.get(profile, {}), doc)
+    elements = ['resources', 'variables', 'providers', 'engines', 'loggers']
 
-        elements = ['resources', 'variables', 'providers', 'engines', 'loggers']
+    if 'default' not in profiles.keys():
+        profiles['default'] = {'profile': 'default'}
 
-        if 'default' not in profiles.keys():
-            profiles['default'] = {'profile': 'default'}
+    # empty list for default missing elements:
+    for k in elements:
+        if k not in profiles['default'].keys():
+            profiles['default'][k] = {}
 
-        # empty list for default missing elements:
+    #defaults to local spark and logging on stdout info
+    if not profiles['default']['engines']:
+        profiles['default']['engines'] = {'spark': {'context': 'spark'}}
+    if not profiles['default']['loggers']:
+        profiles['default']['loggers'] = {'stream': {'enable': True, 'severity': 'info'}}
+
+    # inherit from default if not vailable in the profile
+    for r in set(profiles.keys()).difference({'default'}):
         for k in elements:
-            if k not in profiles['default'].keys():
-                profiles['default'][k] = {}
+            profiles[r][k] = utils.merge(profiles['default'][k], profiles[r].get(k, {}))
 
-        #defaults to local spark and logging on stdout info
-        if not profiles['default']['engines']:
-            profiles['default']['engines'] = {'spark': {'context': 'spark'}}
-        if not profiles['default']['loggers']:
-            profiles['default']['loggers'] = {'stream': {'enable': True, 'severity': 'info'}}
-
-        # inherit from default if not vailable in the profile
-        for r in set(profiles.keys()).difference({'default'}):
+    # inherit from parent if not vailable in the profile
+    for r in set(profiles.keys()).difference({'default'}):
+        parent = profiles[r].get('inherit')
+        if parent:
             for k in elements:
-                profiles[r][k] = utils.merge(profiles['default'][k], profiles[r].get(k, {}))
+                profiles[r][k] = utils.merge(profiles[parent][k], profiles[r].get(k, {}))
 
-        # inherit from parent if not vailable in the profile
-        for r in set(profiles.keys()).difference({'default'}):
-            parent = profiles[r].get('inherit')
-            if parent:
-                for k in elements:
-                    profiles[r][k] = utils.merge(profiles[parent][k], profiles[r].get(k, {}))
+    return profiles
 
-    return _metadata_profiles
+_metadata_profiles = {}
 
 def metadata(profile=None):
+    # reference global variable as 'profiles'
+    global _metadata_profiles
+    if not _metadata_profiles:
+        _metadata_profiles =_metadata()
+
     # if nothing passed take the current profile
     profile = profile if profile else project.profile()
 

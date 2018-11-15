@@ -118,38 +118,79 @@ def test_get_project_files():
 def test_render():
     doc = '''
         ---
-        default:
-            run: default
-            resources:
-                input:
-                    path: datasets/extract/{{ default.run }}
-                    format: parquet
-                    provider: local-other
-        test:
-            run: test
-            resources:
-                oh : '{{ default.run }}'
-                data:
-                    path: datasets/extract/{{ test.resources.oh }}
-                    format: parquet-{{ test.resources.data.provider }}
-                    provider: local-{{ test.resources.data.path }}
+        profile: default
+        resources:
+            input:
+                path: datasets/extract/{{ profile }}
+                format: parquet
+                provider: local-other
         '''
 
-    ref = {'default': {
+    ref = {
         'resources': {
             'input': {
                 'format': 'parquet',
                 'path': 'datasets/extract/default',
                 'provider': 'local-other'}},
-        'run': 'default'},
-        'test': {
-            'resources': {
-                'data': {
-                    'format': 'parquet-local-datasets/extract/default',
-                    'path': 'datasets/extract/default',
-                    'provider': 'local-datasets/extract/default'},
-                'oh': 'default'},
-            'run': 'test'}}
+        'profile': 'default'}
+
+    metadata = yaml.load(dedent(doc))
+    res = utils.render(metadata)
+    assert (res == ref)
+
+def test_render_multipass():
+
+    # no multipass currently
+
+    doc = '''
+        ---
+        profile: test
+        resources:
+            oh : '{{ profile }}'
+            data:
+                path: datasets/extract/{{ resources.oh }}
+                format: parquet-{{ resources.oh }}
+                provider: local-{{ resources.oh }}
+        '''
+    ref = {
+        'resources': {
+            'data': {
+                'format': 'parquet-{{ profile }}',
+                'path': 'datasets/extract/{{ profile }}',
+                'provider': 'local-{{ profile }}'},
+            'oh': 'test'},
+        'profile': 'test'}
+
+    metadata = yaml.load(dedent(doc))
+    res = utils.render(metadata)
+    assert (res == ref)
+
+
+def test_render_env():
+    doc = '''
+        ---
+        profile: default
+        variables:
+            ref: default.variables.a0
+            a0: "{{ env('SHELL') }}"
+            c0: "{{ ''|env('SHELL')}}"
+        
+            a1: "{{ env('SHELL','default_value') }}"
+            c1: "{{ 'default_value'|env('SHELL')}}"
+            
+            a2: "{{ env('UNDEFINED_ENV', 'world') }}"
+            c2: "{{ 'world'|env('UNDEFINED_ENV')}}"
+        '''
+
+    ref = { 'profile': 'default',
+            'variables': {
+                'a0': '/bin/bash',
+                'a1': '/bin/bash',
+                'a2': 'world',
+                'c0': '/bin/bash',
+                'c1': '/bin/bash',
+                'c2': 'world',
+                'ref': 'default.variables.a0'}}
 
     metadata = yaml.load(dedent(doc))
     res = utils.render(metadata)

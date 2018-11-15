@@ -1,81 +1,64 @@
-from datetime import datetime
 import pyspark.sql.functions as F
+import pyspark.sql.types as T
 
+from datalabframework import spark as sparkfun
 
-def common_columns(df_a, df_b, exclude_cols=None):
-        if exclude_cols is None:
-            exclude_cols = []
-        colnames_a = set(df_a.columns)
-        colnames_b = set(df_a.columns)
-        colnames = colnames_a & colnames_b
+def common_columns(df_a=None, df_b=None, exclude_cols=[]):
+    colnames_a = set(df_a.columns if df_a else [])
+    colnames_b = set(df_b.columns if df_b else [])
+    colnames = colnames_a & colnames_b
 
-        c = colnames.difference(set(exclude_cols))
+    c = colnames.difference(set(exclude_cols))
 
-        #preserve original order of the columns
-        colnames_a = [x for x in df_a.columns if x in c]
-        colnames_b = [x for x in df_b.columns if x in c]
+    # prefer df_b column order
+    cols =  df_b.columns if df_b else df_a.columns
 
-        return colnames_a, colnames_b
+    return [x for x in cols if x in c]
 
-def dataframe_diff(df_a, df_b, exclude_cols=None):
+def schema_diff(df_a, df_b, exclude_cols=[]):
+    colnames = common_columns(df_a, df_b, exclude_cols)
+    return df_a[colnames].schema.json() != df_b[colnames].schema.json()
+
+def dataframe_diff(df_a, df_b=None, exclude_cols=[]):
     # This function will only produce DISTICT rows out!
     # Multiple exactly identical rows will be ingested only as one row
 
+    # df_b is None -> df_b is an empty dataframe
+    df_b = df_b if df_b else sparkfun.utils.empty_dataframe(df_a)
+
     # get columns
-    if exclude_cols is None:
-        exclude_cols = []
-    colnames_a, colnames_b = common_columns(df_a, df_b, exclude_cols)
+    colnames = common_columns(df_a, df_b, exclude_cols)
 
     # insert, modified
-    df_a_min_b = df_a.select(colnames_a).subtract(df_b.select(colnames_b))
+    df_a_min_b = df_a.select(colnames).subtract(df_b.select(colnames))
 
     # deleted
-    df_b_min_a = df_b.select(colnames_b).subtract(df_a.select(colnames_a))
+    df_b_min_a = df_b.select(colnames).subtract(df_a.select(colnames))
 
-    df_a_min_b = df_a_min_b.coalesce(4).cache()
-    df_b_min_a = df_b_min_a.coalesce(4).cache()
-    
     return df_a_min_b, df_b_min_a
 
-def dataframe_eventsource_view(df, state_col='_state', updated_col='_updated'):
+def dataframe_update(df_a, df_b=None, upsert=True, delete=False, exclude_cols=[], state_col='_state'):
+    # This function will only produce DISTICT rows out!
+    # Multiple exactly identical rows will be ingested only as one row
 
-    # calculate a view by :
-    #   - squashing the events for each entry record to the last one
-    #   - remove deleted record from the list
+    # df_b is None -> df_b is an empty dataframe
+    df_b = df_b if df_b else sparkfun.utils.empty_dataframe(df_a)
 
-    c = set(df.columns).difference({state_col, updated_col})
-    colnames = [x for x in df.columns if x in c]
+    #only compare common columns
+    colnames = common_columns(df_a, df_b, exclude_cols + [state_col])
 
-    row_groups = df.groupBy(colnames)
-    df_view = row_groups.agg(F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))),asc = False).getItem(0).alias('_last')).select(*colnames, '_last.*')
-    df = df_view.filter("{} = 0".format(state_col))
+    # df_diff is an empty dataframe
+    schema = df_a.select(colnames).schema
+    schema.add(state_col, T.IntegerType(), True)
 
-    return df
+    df_diff  = df_a.sql_ctx.createDataFrame([],schema=schema)
 
-def dataframe_update(df_a, df_b=None, eventsourcing=False, exclude_cols=None, state_col='_state', updated_col='_updated'):
+    if upsert:
+        df_upsert = df_a.select(colnames).subtract(df_b.select(colnames))
+        df_diff = df_diff.union(df_upsert.withColumn(state_col, F.lit(0)))
 
-    if exclude_cols is None:
-        exclude_cols = []
-    df_b = df_b if df_b else df_a.filter("False")
+    if delete:
+        df_delete = df_b.select(colnames).subtract(df_a.select(colnames))
+        df_diff = df_diff.union(df_delete.withColumn(state_col, F.lit(1)))
 
-    exclude_cols += [state_col, updated_col]
-    
-    df_a = df_a.coalesce(4).cache()
-    df_b = df_b.coalesce(4).cache()
-
-    if eventsourcing and (state_col in df_b.columns) and  (updated_col in df_b.columns) :
-        df_b = dataframe_eventsource_view(df_b, state_col=state_col, updated_col=updated_col)
-        df_upsert, df_delete = dataframe_diff(df_a, df_b, exclude_cols)
-    else:
-        df_upsert, df_delete = dataframe_diff(df_a, df_b, exclude_cols)
-        df_delete = df_delete.filter("False")
-
-    df_upsert = df_upsert.withColumn(state_col, F.lit(0))
-    df_delete = df_delete.withColumn(state_col, F.lit(1))
-    df_diff = df_upsert.union(df_delete).cache()
-
-    now = datetime.now()
-    df_diff = df_diff.withColumn(updated_col, F.lit(now.strftime('%Y%m%dT%H%M%S')))
-
-    # df_diff.show()
     return df_diff
