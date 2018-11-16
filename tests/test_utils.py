@@ -153,11 +153,11 @@ def test_render_multipass():
                 provider: local-{{ resources.oh }}
         '''
     ref = {
-        'resources': {
-            'data': {
-                'format': 'parquet-{{ profile }}',
-                'path': 'datasets/extract/{{ profile }}',
-                'provider': 'local-{{ profile }}'},
+         'resources': {
+             'data': {
+                 'format': 'parquet-test',
+                 'path': 'datasets/extract/test',
+                 'provider': 'local-test'},
             'oh': 'test'},
         'profile': 'test'}
 
@@ -167,16 +167,19 @@ def test_render_multipass():
 
 
 def test_render_env():
+
+    os.environ['MYENVVAR']='/bin/bash'
+    
     doc = '''
         ---
         profile: default
         variables:
             ref: default.variables.a0
-            a0: "{{ env('SHELL') }}"
-            c0: "{{ ''|env('SHELL')}}"
+            a0: "{{ env('MYENVVAR') }}"
+            c0: "{{ ''|env('MYENVVAR')}}"
         
-            a1: "{{ env('SHELL','default_value') }}"
-            c1: "{{ 'default_value'|env('SHELL')}}"
+            a1: "{{ env('MYENVVAR','default_value') }}"
+            c1: "{{ 'default_value'|env('MYENVVAR')}}"
             
             a2: "{{ env('UNDEFINED_ENV', 'world') }}"
             c2: "{{ 'world'|env('UNDEFINED_ENV')}}"
@@ -191,6 +194,30 @@ def test_render_env():
                 'c1': '/bin/bash',
                 'c2': 'world',
                 'ref': 'default.variables.a0'}}
+
+    metadata = yaml.load(dedent(doc))
+    res = utils.render(metadata)
+    assert (res == ref)
+
+def test_render_multipass_concat():
+    
+    os.environ['MYENVVAR']='/bin/bash'
+    doc = '''
+        ---
+        variables:
+            a: "hello-{{ env('NOTFOUND_DEFAULT_VALUE', 'world') }}"
+            b: "one-{{ env('MYENVVAR') }}"
+            c: "two-{{ variables.b }}"
+            d: "three-{{ variables.c }}"
+            e: "{{ variables.c + '-plus-' + variables.d }}"
+        '''
+
+    ref = { 'variables': {
+            'a': 'hello-world',
+            'b': 'one-/bin/bash',
+            'c': 'two-one-/bin/bash',
+            'd': 'three-two-one-/bin/bash',
+            'e': 'two-one-/bin/bash-plus-three-two-one-/bin/bash'}}
 
     metadata = yaml.load(dedent(doc))
     res = utils.render(metadata)

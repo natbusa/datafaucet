@@ -97,18 +97,24 @@ def pretty_print(metadata):
     yaml.dump(metadata, sys.stdout)
 
 
-def render(metadata_source):
+def render(metadata_source, max_passes=5):
     env = Environment()
     env.globals['env'] = lambda key, value=None: os.getenv(key, value)
     env.filters['env'] = lambda value, key: os.getenv(key, value)
 
     doc = json.dumps(metadata_source)
-    
-    template = env.from_string(doc)
-    dictionary = json.loads(doc)
-    doc = template.render(dictionary)
-  
-    metadata_rendered = json.loads(doc)
+
+    for i in range(max_passes):
+        dictionary = json.loads(doc)
+
+        #rendering with jinja
+        template = env.from_string(doc)
+        doc = template.render(dictionary)
+
+        # all done, or more rendering required?
+        metadata_rendered = json.loads(doc)
+        if dictionary == metadata_rendered:
+            break
 
     return metadata_rendered
 
