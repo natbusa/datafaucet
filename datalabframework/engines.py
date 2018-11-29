@@ -105,7 +105,7 @@ class SparkEngine:
         md = data.metadata(resource, path, provider)
 
         if not md:
-            logger.error("No metadata")
+            self.logger.error("No metadata")
             return None
 
         obj = self._read(md, **kargs)

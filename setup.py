@@ -45,8 +45,15 @@ install_requires = [
     'gitpython',
     'jsonschema',
     'python-dateutil',
-    'kafka-python'
+    'kafka-python',
+    'pandas',
+    'numpy'
 ]
+
+try:
+    import pyspark
+except:
+    install_requires += ['pyspark', 'pyarrow']
 
 setup_args['include_package_data'] = True
 
