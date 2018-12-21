@@ -1,5 +1,3 @@
-include datalabframework/templates/howto.zip
-include datalabframework/templates/titanic.zip
-include datalabframework/schema/top.yml
-include datalabframework/schema/loggers.yml
-include datalabframework/schema/providers.mysql.yml
+include datalabframework/metadata/schemas/top.yml
+include datalabframework/metadata/schemas/provider.yml
+include datalabframework/metadata/schemas/resource.yml

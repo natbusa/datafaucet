@@ -11,9 +11,9 @@ class DlfInitApp(DatalabframeworkApp):
     description = "Generating a data science project template"
 
     config_file = Unicode(u'', help="Load this config file").tag(config=True)
-    template = Unicode(u'titanic', help="Project template").tag(config=True)
+    template = Unicode(u'default', help="Project template").tag(config=True)
 
-    user_name = Unicode(u'natbusa', help="Project name")
+    user_name = Unicode(u'', help="Project name")
     project_name = Unicode(u'', help="Project name")
 
     aliases = Dict(
@@ -35,10 +35,9 @@ class DlfInitApp(DatalabframeworkApp):
 
     def start(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        dir_path = os.path.abspath(os.path.join(dir_path, '../templates'))
+        dir_path = os.path.abspath(os.path.join(dir_path, 'templates'))
 
         filename = '{}.zip'.format(os.path.join(dir_path, self.template))
-        print(filename)
 
         # Create project from the cookiecutter-pypackage/ template
         cookiecutter(filename, extra_context={'user_name': self.user_name, 'project_name': self.project_name})

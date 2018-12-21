@@ -2,14 +2,11 @@
     "full_name": "",
     "email": "",
     "user_name": "",
-    "project_name": "howto",
+    "project_name": "my-project",
     "project_short_description": "Project scaffolding for ETL and Data Science",
     "licence":"MIT",
     "_copy_without_render": [
         "*metadata.yml",
-        "*.volumes",
-        "*volumes",
-        "*assets",
         "*data"
     ]
 }

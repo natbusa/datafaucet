@@ -29,10 +29,10 @@ def transform(df, settings):
                 fillna: -1
             last_date:
                 name: date
-#                     type: timestamp
+#               type: timestamp
                 type: date
             year:
-#                     value: "quantity/2"
+#               value: "quantity/2"
                 value: "year(date)"
             month:
                 value: "month(date)"

@@ -148,7 +148,7 @@ When the datalabframework is imported, it starts by searching for a `__main__.py
 
 
 ```python
-dlf.project.rootpath()
+dlf.project.rootdir()
 ```
 
 
@@ -204,14 +204,14 @@ dlf.project.info()
 
     {'workrun': 'default',
      'filename': 'howto.ipynb',
-     'rootpath': '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto',
+     'rootdir': '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto',
      'workdir': '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto'}
 
 
 
 ### Modules: Params
 
-Configuration is declared in metadata. Metadata is accumulated starting from the rootpath, and metadata files in submodules are merged all up together.
+Configuration is declared in metadata. Metadata is accumulated starting from the rootdir, and metadata files in submodules are merged all up together.
 
 
 ```python
@@ -228,7 +228,7 @@ dlf.utils.pretty_print(metadata)
     loggers: {}
     providers:
       howto:
-        rootpath: data
+        rootdir: data
         service: fs
     resources:
       .ascombe:
@@ -260,7 +260,7 @@ dlf.utils.pretty_print(metadata['resources'])
 
 
 
-Data resources are relative to the `rootpath`. Next to the resources we can declare `providers` and `engines`. More about data binding in the next section.
+Data resources are relative to the `rootdir`. Next to the resources we can declare `providers` and `engines`. More about data binding in the next section.
 
 ### Modules: Data
 
@@ -295,7 +295,7 @@ dlf.data.path('ascombe')
 
 
 ```python
-#absolute alias from rootpath
+#absolute alias from rootdir
 dlf.data.path('.ascombe')
 ```
 
@@ -310,8 +310,8 @@ dlf.data.path('.ascombe')
 
 This submodules contains a set of utilies to extract info from notebooks. In particular, how to get the notebook name and the statistics about the cells being run.
 
-`dlf.notebook.filename()` provides the filename of the current notebook, and the path relative to the `rootpath`.   
-`dlf.notebook.list_all()` lists all notebooks under the given rootpath.
+`dlf.notebook.filename()` provides the filename of the current notebook, and the path relative to the `rootdir`.   
+`dlf.notebook.list_all()` lists all notebooks under the given rootdir.
 
 
 ```python
@@ -581,7 +581,7 @@ dlf.utils.pretty_print(metadata['providers'])
 ```
 
     howto:
-      rootpath: data
+      rootdir: data
       service: fs
 
 

@@ -11,7 +11,6 @@ All Datalabframework applications should inherit from this.
 import logging
 import os
 import sys
-from copy import deepcopy
 
 from shutil import which
 from traitlets import Unicode

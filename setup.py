@@ -35,6 +35,7 @@ setup_args = dict(
 )
 
 install_requires = [
+    'unidecode',
     'requests',
     'traitlets',
     'ipykernel',
@@ -47,7 +48,8 @@ install_requires = [
     'python-dateutil',
     'kafka-python',
     'pandas',
-    'numpy'
+    'numpy',
+    'python-dotenv'
 ]
 
 try:

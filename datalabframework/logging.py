@@ -9,18 +9,25 @@ import getpass
 import datetime
 import json
 
+import os
 import sys
 from numbers import Number
 
 # import a few help methods
-from . import project
-from . import params
+from datalabframework import paths
+from datalabframework import files
+from datalabframework import metadata
+
+from datalabframework._utils import repo_data
+
+def func_name():
+    # noinspection PyProtectedMember
+    return sys._getframe(1).f_code.co_name
 
 # logging object is a singleton
 _logger = None
 
-
-def getLogger():
+def get():
     global _logger
     if not _logger:
         init()
@@ -29,10 +36,10 @@ def getLogger():
 
 def extra_attributes():
     d = {
-        'dlf_session': project.repository()['hash'],
+        'dlf_session': repo_data()['hash'],
         'dlf_username': getpass.getuser(),
-        'dlf_filename': project.filename(),
-        'dlf_repo_name': project.repository()['name']
+        'dlf_filename': os.path.relpath(files.get_current_file(), paths.rootdir()),
+        'dlf_repo_name': repo_data()['name']
     }
     return d
 
@@ -134,17 +141,17 @@ loggingLevels = {
 }
 
 
-def init():
+def init(md=None):
     global _logger
 
-    md = params.metadata()
+    md = md if md else {}
 
     logger = logging.getLogger("dlf")
-    level = loggingLevels.get(md['loggers'].get('severity', 'info'))
+    level = loggingLevels.get(md.get('loggers', {}).get('severity', 'info'))
     logger.setLevel(level)
     logger.handlers = []
 
-    p = md['loggers'].get('kafka')
+    p = md.get('loggers', {}).get('kafka')
     if p and p['enable'] and KafkaProducer:
         level = loggingLevels.get(p.get('severity', 'info'))
         topic = p.get('topic', 'dlf')
@@ -160,7 +167,7 @@ def init():
         handlerKafka.setFormatter(formatterLogstash)
         logger.addHandler(handlerKafka)
 
-    p = md['loggers'].get('stream')
+    p = md.get('loggers', {}).get('stream')
     if p and p['enable']:
         level = loggingLevels.get(p.get('severity', 'info'))
 
@@ -173,3 +180,12 @@ def init():
         logger.addHandler(handler)
 
     _logger = LoggerAdapter(logger, extra_attributes())
+
+def info(*args, **kargs):
+    get().info(*args, **kargs)
+
+def warning(*args, **kargs):
+    get().warning(*args, **kargs)
+
+def error(*args, **kargs):
+    get().error(*args, **kargs)

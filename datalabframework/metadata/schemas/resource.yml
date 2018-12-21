@@ -1,0 +1,90 @@
+---
+type: object
+properties:
+  provider:
+    type: string
+  format:
+    type: string
+  path:
+    type: string
+  read:
+    type: object
+    properties:
+      filter:
+        type: object
+        properties:
+          type:
+            type: string
+          date_column:
+            type: string
+          date_start:
+            type: string
+          date_end:
+            type: string
+          date_window:
+            type: string
+          date_timezone:
+            type: string
+          query_sql:
+            type: string
+        additionalProperties: false
+      partition:
+        type: object
+        properties:
+          cache:
+            type: boolean
+          coalesce:
+            type: number
+          repartition:
+            type: number
+          hash_column:
+            type: string
+          date_column:
+            type: string
+      mapping:
+        type: object
+      options:
+        type: object
+    additionalProperties: false
+  write:
+    type: object
+    properties:
+      filter:
+        type: object
+        properties:
+          type:
+            type: string
+          date_column:
+            type: string
+          date_start:
+            type: string
+          date_end:
+            type: string
+          date_window:
+            type: string
+          date_timezone:
+            type: string
+          query_sql:
+            type: string
+        additionalProperties: false
+      partition:
+        type: object
+        properties:
+          cache:
+            type: boolean
+          coalesce:
+            type: number
+          repartition:
+            type: number
+          hash_column:
+            type: string
+          date_column:
+            type: string
+      mapping:
+        type: object
+      options:
+        type: object
+    additionalProperties: false
+required:
+  - provider
+additionalProperties: false
