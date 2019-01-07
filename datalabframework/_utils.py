@@ -90,20 +90,29 @@ class ImmutableDict(collections.Mapping):
 
 def merge(a, b):
     """
-    Hierarchical merge of dictionaries. In case of ambiguities, b overrides a
+    Hierarchical merge of dictionaries, lists, tuples and sets.
+    If b is falsy, it keeps a, otherwise it merges with a.
+    In case of ambiguities, b overrides a
     it returns is a deepcopy, not a reference of the original objects.
     """
+
     if isinstance(b, dict) and isinstance(a, dict):
         a_and_b = set(a.keys()) & set(b.keys())
         every_key = set(a.keys()) | set(b.keys())
         return {k: merge(a[k], b[k]) if k in a_and_b else deepcopy(a[k] if k in a else b[k]) for k in every_key}
     
-    #if b is None, inherit from a
-    if not b:
-        return deepcopy(a)
+    if isinstance(b, list) and isinstance(a, list):
+        return deepcopy(a) + deepcopy(b)
 
-    #if a and b are both not instances, keep b
-    return deepcopy(b)
+    if isinstance(b, tuple) and isinstance(a, tuple):
+        return deepcopy(a) + deepcopy(b)
+
+    if isinstance(b, set) and isinstance(a, set):
+        return deepcopy(a) | deepcopy(b)
+
+    #if b is None, inherit from a
+    return deepcopy(b if b else a)
+
 
 def repo_data(rootdir=None, search_parent_directories=True):
     """
