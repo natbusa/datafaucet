@@ -154,6 +154,6 @@ def validate(md):
     providers = md.get('providers', {}).keys()
     for resource_alias, r in md.get('resources',{}).items():
         resource_provider = r.get('provider')
-        if resource_provider not in providers:
+        if resource_provider and resource_provider not in providers:
             print(
                 f'resource {resource_alias}: given provider "{resource_provider}" does not match any metadata provider')
