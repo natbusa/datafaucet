@@ -17,26 +17,41 @@ from datalabframework._notebook import NotebookFinder
 
 class Config(metaclass=Singleton):
 
-    def __init__(self, filename=None, profile=None, wordir_path=None, dotenv_path=None):
+    def get_info(self):
+        return {
+                'version': __version__,
+                'python_version': '.'.join([str(x) for x in sys.version_info[0:3]]),
+                'profile': self._profile,
+                'filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
+                'rootdir': paths.rootdir(),
+                'workdir': paths.workdir(),
+                'username': getpass.getuser(),
+                'repository': repo_data(),
+                'files': {
+                    'notebooks': files.get_jupyter_notebook_files(paths.rootdir()),
+                    'python': files.get_python_files(paths.rootdir()),
+                    'metadata': files.get_metadata_files(paths.rootdir()),
+                    'dotenv': os.path.relpath(self._dotenv_path, paths.rootdir()) if self._dotenv_path else None,
+                },
+                'engine': self._engine.config().to_dict()
+        }
 
-        #object variablesF
-        self._initialized = False
-        self._profile = None
-        self._metadata = None
-        self._dotenv_path = None
-        self._info = None
-        self._engine = engine.NoEngine()
+    def __init__(self, filename=None):
 
         # set filename for future references
-        files.set_current_file(filename)
+        files.set_current_filename(filename)
 
-        # set workdir and load metadata
-        self.load(profile, wordir_path, dotenv_path)
+        #object variables
+        self._profile = None
+        self._metadata = reader.default_metadata
+        self._dotenv_path = None
+        self._engine = engine.NoEngine()
+        self._info = self.get_info()
 
-    def load(self, profile=None, wordir_path=None, dotenv_path=None):
+    def load(self, profile='default', rootdir_path=None, search_parent_dirs=True, dotenv_path=None):
 
         # init workdir and rootdir paths
-        paths.workdir(wordir_path)
+        paths.set_rootdir(rootdir_path, search_parent_dirs)
 
         # set dotenv default file
         if dotenv_path is None:
@@ -58,7 +73,7 @@ class Config(metaclass=Singleton):
         # validate metadata
         reader.validate(md)
 
-        # store metadata in project opbject
+        # store metadata in project object
         self._metadata = md
 
         # set profile, only if not set yet
@@ -83,38 +98,38 @@ class Config(metaclass=Singleton):
         self._engine = engine.get(jobname, self._metadata, paths.rootdir())
 
         # get all project info
-        self._info = {
-                'version': __version__,
-                'profile': self._profile,
-                'filename': os.path.relpath(files.get_current_file(), paths.rootdir()),
-                'rootdir': paths.rootdir(),
-                'workdir': paths.workdir(),
-                'username': getpass.getuser(),
-                'repository': repo_data(),
-                'files': {
-                    'notebooks': files.get_jupyter_notebook_files(paths.rootdir()),
-                    'python': files.get_python_files(paths.rootdir()),
-                    'metadata': files.get_metadata_files(paths.rootdir()),
-                    'dotenv': os.path.relpath(self._dotenv_path, paths.rootdir()) if self._dotenv_path else None,
-                },
-                'engine': self._engine.config().to_dict()
-        }
+        self._info = self.get_info()
 
         # initialize logging
         logging.init()
 
     def config(self):
+        if not self.profile:
+            self.load()
+
         return ImmutableDict(self._info)
 
     def profile(self):
+        if not self.profile:
+            self.load()
+
         return self._profile
 
     def metadata(self):
+        if not self.profile:
+            self.load()
+
         return ImmutableDict(self._metadata)
 
     def resource(self, path=None, provider=None, md=dict()):
+        if not self.profile:
+            self.load()
+
         md = resource.get_metadata(paths.rootdir(), self._metadata , path, provider, md)
         return ImmutableDict(md)
 
     def engine(self):
+        if not self.profile:
+            self.load()
+
         return self._engine

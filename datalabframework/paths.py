@@ -1,52 +1,40 @@
 import os
-from datalabframework._utils import Singleton
 
-class Paths(metaclass=Singleton):
+_rootdir = os.getcwd()
 
-    def get_rootdir(self, workdir, rootfiles):
-        for filename in rootfiles:
-            path = workdir
-            while True:
-                try:
-                    ls = os.listdir(path)
-                    if filename in ls:
-                        return os.path.abspath(path)
-                    else:
-                        path += '/..'
-                except:
-                    break
+def find_rootdir(wd):
+    assert(os.path.exists(wd))
 
-        # nothing found: using the current working dir
-        return workdir
+    pattern_filenames = ('__main__.py', 'main.ipynb')
+    for filename in pattern_filenames:
+        path = os.path.abspath(wd)
+        while True:
+            try:
+                ls = os.listdir(path)
+                if filename in ls:
+                    return os.path.abspath(path)
+                else:
+                    path += '/..'
+            except:
+                break
 
-    def set_paths(self, path):
-        try:
-            os.chdir(path)
-        except:
-            pass
-        finally:
-            self._workdir = os.getcwd()
-            self._rootdir = self.get_rootdir(self._workdir, self._rootfiles)
+    # nothing found: using the current working dir
+    return os.path.abspath(wd)
 
-    def __init__(self):
-            self._rootfiles = ['__main__.py']
-            self._workdir = None
-            self._rootdir = None
+def set_rootdir(path=None, search_parent_dirs=True):
+    global _rootdir
 
-            self.set_paths(os.getcwd())
+    try:
+        _rootdir = os.path.abspath(path)
+    except:
+        _rootdir = os.getcwd()
 
-    def workdir(self,path=None):
-        if path is not None:
-            self.set_paths(path)
-
-        return self._workdir
-
-    def rootdir(self):
-        return self._rootdir
+    if search_parent_dirs:
+        _rootdir = find_rootdir(_rootdir)
 
 def rootdir():
-    return Paths().rootdir()
+    return _rootdir
 
-def workdir(path=None):
-    return Paths().workdir(path)
+def workdir():
+    return os.getcwd()
 

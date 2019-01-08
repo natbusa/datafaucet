@@ -8,74 +8,65 @@ import requests
 import ipykernel
 from notebook.notebookapp import list_running_servers
 
-from datalabframework._utils import Singleton
+_filename = None
 
-class Filename(metaclass=Singleton):
-    def __init__(self):
-        self._filename = None
+def set_filename(f):
+    """
+    Return the full path of the jupyter notebook.
+    """
 
-    @staticmethod
-    def _set_filename(f):
-        """
-        Return the full path of the jupyter notebook.
-        """
+    # check provided filename (if exists)
+    try:
+        os.stat(f)
+        return os.path.abspath(f)
+    except:
+        pass
 
-        # check provided filename (if exists)
-        try:
-            os.stat(f)
-            return os.path.abspath(f)
-        except:
-            pass
+    # fallback 1: interactive shell (ipynb notebook)
+    try:
+        kernel_filename = ipykernel.connect.get_connection_file()
+        kernel_id = re.search('kernel-(.*).json', kernel_filename).group(1)
 
-        # fallback 1: interactive shell (ipynb notebook)
-        try:
-            kernel_filename = ipykernel.connect.get_connection_file()
-            kernel_id = re.search('kernel-(.*).json', kernel_filename).group(1)
+        for s in list_running_servers():
+            url = requests.compat.urljoin(s['url'], 'api/sessions')
+            params = {'token': s.get('token', '')}
+            response = requests.get(url, params)
+            for nn in json.loads(response.text):
+                if nn['kernel']['id'] == kernel_id:
+                    relative_path = nn['notebook']['path']
+                    f = os.path.join(s['notebook_dir'], relative_path)
+                    return os.path.abspath(f)
+    except:
+        pass
 
-            for s in list_running_servers():
-                url = requests.compat.urljoin(s['url'], 'api/sessions')
-                params = {'token': s.get('token', '')}
-                response = requests.get(url, params)
-                for nn in json.loads(response.text):
-                    if nn['kernel']['id'] == kernel_id:
-                        relative_path = nn['notebook']['path']
-                        f = os.path.join(s['notebook_dir'], relative_path)
-                        return os.path.abspath(f)
-        except:
-            pass
+    # fallback 2: main file name (python files)
+    filename = os.path.abspath(sys.argv[0]) if sys.argv[0] else None
+    if filename:
+        return filename
 
-        # fallback 2: main file name (python files)
-        filename = os.path.abspath(sys.argv[0]) if sys.argv[0] else None
-        if filename:
-            return filename
+    # check if running an interactive ipython sessions
+    try:
+        __IPYTHON__
+        return os.path.join(os.getcwd(), '<ipython-session>')
+    except NameError:
+        pass
 
-        # check if running an interactive ipython sessions
-        try:
-            __IPYTHON__
-            return os.path.join(os.getcwd(), '<ipython-session>')
-        except NameError:
-            pass
+    try:
+        __DATALABFRAMEWORK__
+        return os.path.join(os.getcwd(), '<datalabframework>')
+    except NameError:
+        pass
 
-        try:
-            __DATALABFRAMEWORK__
-            return os.path.join(os.getcwd(), '<datalabframework>')
-        except NameError:
-            pass
+    # nothing found. Use <unknown>
+    return os.path.join(os.getcwd(), '<unknown>')
 
-        # nothing found. Use <unknown>
-        return os.path.join(os.getcwd(), '<unknown>')
 
-    def get(self):
-        return self._filename
+def get_current_filename():
+    return _filename
 
-    def set(self, f=None):
-        self._filename = self._set_filename(f)
-
-def get_current_file():
-    return Filename().get()
-
-def set_current_file(f=None):
-    Filename().set(f)
+def set_current_filename(f=None):
+    global _filename
+    _filename = set_filename(f)
 
 def get_files(ext, rootdir, exclude_dirs=None, ignore_dir_with_file=''):
     if exclude_dirs is None:

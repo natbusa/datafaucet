@@ -208,7 +208,7 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, md=dict()):
     return d
 
 def _dict_formatting(d):
-    keys = [
+    keys = (
         'url',
         'service',
         'format',
@@ -221,50 +221,50 @@ def _dict_formatting(d):
         'resource_path',
         'provider_path',
         (
-            'read',[
+            'read',(
                 'cache',
                 'options',
                 (
-                    'filter', [
+                    'filter', (
                         'date_column',
                         'date_start',
                         'date_end',
                         'date_window',
                         'date_timezone',
-                    ]
+                    )
                 ),
                 (
-                    'partition', [
+                    'partition', (
                         'repartition',
                         'coalesce',
-                    ],
+                    ),
                 ),
                 'mapping',
-            ]
+            )
         ),
         (
-            'write',[
+            'write',(
                 'cache',
                 'options',
                 (
-                    'filter', [
+                    'filter', (
                         'date_column',
                         'date_start',
                         'date_end',
                         'date_window',
                         'date_timezone',
-                    ]
+                    )
                 ),
                 (
-                    'partition', [
+                    'partition', (
                         'repartition',
                         'coalesce',
-                    ],
+                    ),
                 ),
                 'mapping',
-            ]
+            )
         ),
-    ]
+    )
 
     return to_ordered_dict(d, keys)
 

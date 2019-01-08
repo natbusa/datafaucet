@@ -1,4 +1,5 @@
 import os
+import getpass
 
 from .application import DatalabframeworkApp
 from traitlets import Unicode, Dict
@@ -11,17 +12,18 @@ class DlfInitApp(DatalabframeworkApp):
     description = "Generating a data science project template"
 
     config_file = Unicode(u'', help="Load this config file").tag(config=True)
+
     template = Unicode(u'default', help="Project template").tag(config=True)
+    username = Unicode(getpass.getuser(), help="Author name").tag(config=True)
+    name = Unicode(u'datalab-project', help="Project name").tag(config=True)
 
-    user_name = Unicode(u'', help="Project name")
-    project_name = Unicode(u'', help="Project name")
+    aliases = Dict({
+        'template': 'DlfInitApp.template',
+        'username': 'DlfInitApp.username',
+        'name': 'DlfInitApp.name'
+    })
 
-    aliases = Dict(
-        dict(
-            template_name='DlfInitApp.template',
-            log_level='DlfInitApp.log_level'))
-
-    flags = Dict(dict(debug=({'DlfInitApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
+    flags = Dict()
 
     def initialize(self, argv=None):
         self.parse_command_line(argv)
@@ -29,18 +31,16 @@ class DlfInitApp(DatalabframeworkApp):
             self.load_config_file(self.config_file)
 
         if self.extra_args:
-            self.project_name = self.extra_args[0]
-        else:
-            self.project_name = self.template
+            self.name = self.extra_args[0]
 
     def start(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         dir_path = os.path.abspath(os.path.join(dir_path, 'templates'))
 
-        filename = '{}.zip'.format(os.path.join(dir_path, self.template))
+        filename = '{}'.format(os.path.join(dir_path, self.template))
 
         # Create project from the cookiecutter-pypackage/ template
-        cookiecutter(filename, extra_context={'user_name': self.user_name, 'project_name': self.project_name})
+        cookiecutter(filename, extra_context={'username': self.username, 'project_name': self.name})
 
 
 def main():

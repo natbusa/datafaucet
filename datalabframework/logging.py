@@ -38,7 +38,7 @@ def extra_attributes():
     d = {
         'dlf_session': repo_data()['hash'],
         'dlf_username': getpass.getuser(),
-        'dlf_filename': os.path.relpath(files.get_current_file(), paths.rootdir()),
+        'dlf_filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
         'dlf_repo_name': repo_data()['name']
     }
     return d

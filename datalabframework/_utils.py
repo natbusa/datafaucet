@@ -2,7 +2,7 @@ import os
 import git
 
 from copy import deepcopy
-import collections
+from collections import OrderedDict, Mapping
 from datalabframework.yaml import yaml
 
 
@@ -26,25 +26,25 @@ def to_ordered_dict(d, keys):
         for k in keys:
             if isinstance(k, tuple):
                 e = d.get(k[0], {})
-                yield (k[0], collections.OrderedDict(to_ordered_dict_generator(e, k[1])))
+                yield (k[0], OrderedDict(to_ordered_dict_generator(e, k[1])))
             else:
                 e = d.get(k)
                 yield (k, e)
 
-    return collections.OrderedDict(to_ordered_dict_generator(d, keys))
+    return OrderedDict(to_ordered_dict_generator(d, keys))
 
 def to_dict(d):
     simple_dict = {}
 
     for key, value in d.items():
-        if isinstance(value, collections.OrderedDict):
+        if isinstance(value, OrderedDict):
             simple_dict[key] = to_dict(value)
         else:
             simple_dict[key] = value
 
     return simple_dict
 
-class ImmutableDict(collections.Mapping):
+class ImmutableDict(Mapping):
     """
     A helper class which provides read-only access to the dictionary and
     representation in yaml formal, for enhanced readability
@@ -55,7 +55,7 @@ class ImmutableDict(collections.Mapping):
         return self._data
 
     def __init__(self, data):
-        self._data = collections.OrderedDict(data)
+        self._data = OrderedDict(data)
 
     def __getitem__(self, key):
         if isinstance(self._data[key], dict):

@@ -1,30 +1,29 @@
 from datalabframework._project import Config
 
-def load(profile=None, workdir=None, dotenv_path=None):
+def load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv_path=None):
+
     """
     Performs the following steps:
-      - set workdir and rootdir for the given project
+      - set rootdir for the given project
       - perform .env env variable exporting,
-      - Load the given profile from the metadata files,
+      - load the given `profile` from the metadata files,
 
-    Note that:
-     1 ) rootdir can search the upper directories of workdir,
-         rootdir is detected by the presence of a __main__.py file
-         in no __main__.py is detected, the current working dir is taken as root dir for the project
+     Note that:
+     1) Metadata files are merged up, so you can split the information in multiple files as long as they end with metadata.yml
+        metadata.yml, abc.metadata.yaml, abc_metadata.yml are all valid metadata file names.
 
-     2) metadata files are merged up, so you can split the information in multiple files as long as they end with metadata.yml
-        metadata.yml, abc.metadata.yaml, abc_'function' object is not subscriptablemetadata.yml or all valid metadata file names
-        all metadata files in all subdirectories from the project root directory are loaded
+     2) All metadata files in all subdirectories from the project root directory are loaded,
+        unless the directory contains a file `metadata.ignore.yml`
 
      3) all metadata profiles inherit the settings from profile 'default'
 
     :param profile: load the given metadata profile (default: 'default')
-    :param workdir: change to the given working directory (default: current working dir)
-    :param dotenv_path: load variable from a dotenv file (default: <rootdir>/.env)
-    :return:
+    :param rootdir_path: root directory for loaded project (default: current working directory)
+    :param search_parent_dirs: search parent dirs to detect rootdir by looking for a '__main__.py' or 'main.ipynb' file (default: True)
+    :param dotenv_path: load variable from a dotenv file, if the file exists and it's readable (default: <rootdir>/.env)
+    :return: config project object
     """
-    c = Config()
-    c.load(profile, workdir, dotenv_path)
+    Config().load(profile, rootdir_path, search_parent_dirs, dotenv_path)
 
 def config():
     """

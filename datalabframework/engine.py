@@ -120,14 +120,12 @@ class SparkEngine(Engine):
         os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args
 
     def set_context_args(self, conf):
-        context_md = self._metadata.get('engine', {}).get('context', {})
-
         # jobname
-        app_name = context_md.get('appName', self._name)
+        app_name = self._metadata.get('engine', {}).get('jobname', self._name)
         conf.setAppName(app_name)
 
         # set master
-        conf.setMaster(context_md.get('master', 'local[*]'))
+        conf.setMaster(self._metadata.get('engine', {}).get('master', 'local[*]'))
 
     def set_conf_kv(self, conf):
         conf_md = self._metadata.get('engine', {}).get('conf', {})
@@ -202,6 +200,7 @@ class SparkEngine(Engine):
                     obj = self._ctx.createDataFrame(pd.read_json(md['url'], lines=True, **kargs))
                 elif md['format'] == 'parquet':
                     obj = self._ctx.createDataFrame(pd.read_parquet(md['url'], **kargs))
+
             elif md['service'] in ['hdfs', 's3', 'minio']:
                 if md['format'] == 'csv':
                     obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
@@ -211,6 +210,7 @@ class SparkEngine(Engine):
                     obj = self._ctx.read.options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
                     obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
+
             elif md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
 
                 obj = self._ctx.read \
@@ -284,6 +284,7 @@ class SparkEngine(Engine):
                     obj.toPandas().to_json(md['url'], lines=True, **kargs)
                 elif md['format'] == 'parquet':
                     obj.toPandas().to_parquet(md['url'], **kargs)
+
             elif md['service'] in ['hdfs', 's3', 'minio']:
                 if md['format'] == 'csv':
                     obj.write.options(**options).csv(md['url'], **kargs)
@@ -306,6 +307,7 @@ class SparkEngine(Engine):
                     .option('password', md['password']) \
                     .options(**options) \
                     .save(**kargs)
+
             elif md['service'] == 'elastic':
                 mode = kargs.get("mode", None)
                 obj = [row.asDict() for row in obj.collect()]
@@ -322,5 +324,8 @@ def get(name, md, rootdir):
 
     if md.get('engine', {}).get('type') == 'spark':
          engine = SparkEngine(name, md, rootdir)
+
+    # if md.get('engine', {}).get('type') == 'pandas':
+    #      engine = PandasEngine(name, md, rootdir)
 
     return engine

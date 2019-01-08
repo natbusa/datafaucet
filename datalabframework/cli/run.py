@@ -38,24 +38,33 @@ class DlfRunApp(DatalabframeworkApp):
     name = Unicode(u'datalabframework-run')
     description = "Executing a datalabframework notebook"
 
+    # classes
     classes = List([ExecutePreprocessor])
 
-    config_file = Unicode(u'',
-                          help="Load this config file").tag(config=True)
+    # config
+    config_file = Unicode(u'',help="Load this config file").tag(config=True)
 
+    # app settings
     profile = Unicode(u'default', help="Execute a specific metadata profile").tag(config=True)
+    dotenv = Unicode(os.path.join(os.getcwd(),'.env'), help="environment dot file").tag(config=True)
+    rootdir = Unicode(os.getcwd(), help="project root directory").tag(config=True)
 
-    notebooks = List([], help="""List of notebooks to convert.
-                     Wildcards are supported.
-                     Filenames passed positionally will be added to the list.
-                     """
-                     ).tag(config=True)
+    notebooks = List([], help="""
+        List of notebooks to convert. Wildcards are supported.
+        Filenames passed positionally will be added to the list.
+        """).tag(config=True)
 
-    aliases = Dict(dict(profile='DlfRunApp.profile',
-                        timeout='ExecutePreprocessor.timeout',
-                        log_level='DlfRunApp.log_level'))
+    # aliases
+    aliases = Dict({
+        'profile': 'DlfRunApp.profile',
+        'dotenv': 'DlfRunApp.dotenv',
+        'rootdir': 'DlfRunApp.rootdir',
+        'timeout': 'ExecutePreprocessor.timeout',
+        #'log_level': 'DlfRunApp.log_level'
+        'notebooks': 'DlfRunApp.notebooks'})
 
-    flags = Dict(dict(debug=({'DlfRunApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
+    #flags
+    flags = Dict() # Dict(dict(debug=({'DlfRunApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
 
     def init_preprocessor(self):
         self.ep = ExecutePreprocessor(config=self.config)
@@ -122,11 +131,12 @@ class DlfRunApp(DatalabframeworkApp):
 
         fullpath_filename = os.path.join(os.getcwd(), *filename_tuple)
         cwd = os.path.dirname(fullpath_filename)
-        init_str = dedent("""
+        init_str = dedent(f"""
             # added by dlf-run
             import datalabframework as dlf
-            dlf.project.Config('{}', '{}', '{}')
-            """.format(cwd, fullpath_filename, self.profile))
+            dlf.project.Config('{fullpath_filename}')
+            dlf.project.load(profile='{self.profile}', rootdir='{self.rootdir}', dotenv_path='{self.dotenv}')
+            """)
 
         nc = nbformat.v4.new_code_cell(init_str)
         nb['cells'].insert(0, nc)

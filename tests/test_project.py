@@ -6,6 +6,7 @@ from testfixtures import TempDirectory
 from datalabframework import _project
 from datalabframework import project
 from datalabframework._utils import Singleton
+from datalabframework import paths
 
 
 @pytest.fixture()
@@ -17,6 +18,9 @@ def tempdir():
         # clear all Singletons at the beginning of the test
         Singleton._instances = {}
 
+        # set rootdir
+        paths.set_rootdir(d.path)
+
         yield d
         os.chdir(original_dir)
 
@@ -25,7 +29,7 @@ class Test_init(object):
     def test_init(self, tempdir):
         tempdir.write('__main__.py', b'')
         keys = list(project.config().keys())
-        assert ( keys == ['version', 'profile', 'filename', 'rootdir', 'workdir', 'username', 'repository', 'files', 'engine'])
+        assert ( keys == ['version', 'python_version', 'profile', 'filename', 'rootdir', 'workdir', 'username', 'repository', 'files', 'engine'])
         assert (project.config()['rootdir'] == tempdir.path)
 
     # noinspection PyProtectedMember,PyProtectedMember,PyProtectedMember
@@ -37,7 +41,7 @@ class Test_init(object):
 
         p = _project.Config(filename='abc/test.ipynb')
 
-        assert (p.profile() == 'default')
+        assert (p.profile() is None)
         assert (p.config()['filename'] == 'abc/test.ipynb')
         assert (p.config()['rootdir'] == tempdir.path)
 

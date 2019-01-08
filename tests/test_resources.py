@@ -15,9 +15,6 @@ def tempdir():
 
         d.write('main.ipynb', b'')
 
-        s = paths.Paths()
-        s._instance = None
-
         yield d
         os.chdir(original_dir)
 

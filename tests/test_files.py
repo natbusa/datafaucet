@@ -18,7 +18,6 @@ def tempdir():
         Singleton._instances = {}
 
         dir.write('main.ipynb', b'')
-        p = paths.Paths()
 
         yield dir
         os.chdir(original_dir)

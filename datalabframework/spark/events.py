@@ -1,3 +1,6 @@
+import pyspark.sql.functions as F
+import pyspark.sql.types as T
+
 def dataframe_view(df, state_col='_state', updated_col='_updated'):
 
     # calculate a view by :

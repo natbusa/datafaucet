@@ -46,7 +46,7 @@ def filter_by_date(df, date_column=None, date_start=None, date_end=None, date_wi
 
     return df
 
-def columns(df_a, df_b=None, exclude_cols=[]):
+def common_columns(df_a, df_b=None, exclude_cols=[]):
     """
     Common columns given two dataframes, preserve the order of the  second dataframe
 
@@ -70,3 +70,23 @@ def columns(df_a, df_b=None, exclude_cols=[]):
     # return a common column list in the same order
     # as provided by df_b or df_a column method
     return [x for x in cols if x in c]
+
+def diff(df_a, df_b, exclude_cols=[]):
+    """
+    Returns all columns of a which are not in b.
+    Column ordering as provided by the second dataframe
+
+    :param df_a: first dataframe
+    :param df_b: second dataframe
+    :param exclude_cols: columns to be excluded
+    :return: a diff dataframe
+    """
+
+    assert isinstance(df_a, pyspark.sql.dataframe.DataFrame)
+    assert isinstance(df_b, pyspark.sql.dataframe.DataFrame)
+
+    # get columns
+    colnames = common_columns(df_a, df_b, exclude_cols)
+
+    # return diff
+    return df_a.select(colnames).subtract(df_b.select(colnames))

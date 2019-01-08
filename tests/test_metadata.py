@@ -25,7 +25,6 @@ def tempdir():
 
         # init Paths here
         dir.write('main.ipynb', b'')
-        p = paths.Paths()
 
         yield dir
         os.chdir(original_dir)
@@ -37,7 +36,7 @@ class Test_rootdir(object):
     def test_empty(self, tempdir):
         yml = ''
         tempdir.write('loader.yml', dedent(yml).encode())
-        md = { 'profile':'default'}
+        md = { 'profile':'default', 'engine': {}, 'loggers': {}, 'providers': {}, 'resources': {}, 'variables': {}}
         assert(reader.load('default')== md)
 
     def test_minimal(self, tempdir):

@@ -10,6 +10,15 @@ import jsonschema
 from dotenv import load_dotenv
 from jinja2 import Environment
 
+default_metadata = {
+    'profile': 'default',
+    'variables': {},
+    'engine': {},
+    'providers': {},
+    'resources': {},
+    'loggers': {}
+}
+
 # metadata files are cached once read the first time
 def read(file_paths=None):
     """
@@ -49,6 +58,10 @@ def inherit(profiles):
     :param profiles: input dict of profiles
     :return: profile
     """
+
+    # default metadata values if no or incomplete default profile is provided
+    profiles['default'] = merge(default_metadata, profiles.get('default', {}))
+
     # inherit from default for all other profiles
     for k in profiles.get('default', {}).keys():
         for p in profiles.keys() - 'default':
@@ -93,12 +106,11 @@ def render(metadata, dotenv_path=None, max_passes=5):
 
     return rendered
 
-def load(profile=None, file_paths=None, dotenv_path=None, env_variable=None):
+def load(profile=None, file_paths=None, dotenv_path=None):
     """
     Load the profile, given a list of yml files and a .env filename
     profiles inherit from the defaul profile, a profile not found will contain the same elements as the default profile
 
-    :param env_variable:
     :param profile:
     :param file_paths:
     :param dotenv_path:
