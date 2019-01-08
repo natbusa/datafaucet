@@ -12,14 +12,10 @@ properties:
                 type: string
             conf:
                 type: object
-            context:
-                type: object
-                properties:
-                    master:
-                        type: string
-                    appName:
-                        type: string
-                additionalProperties: false
+            master:
+                type: string
+            jobname:
+                type: string
             submit:
                 type: object
                 properties:

@@ -139,7 +139,7 @@ def repo_data(rootdir=None, search_parent_directories=True):
         }
 
     try:
-        repo = git.Repo(rootdir, search_parent_directories)
+        repo = git.Repo(rootdir, search_parent_directories=search_parent_directories)
         (commit, branch) = repo.head.object.name_rev.split(' ')
         msg['type'] = 'git'
         msg['committer'] = repo.head.object.committer.name
