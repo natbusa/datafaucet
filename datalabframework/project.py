@@ -1,4 +1,4 @@
-from datalabframework._project import Config
+from datalabframework._project import Project
 
 def load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv_path=None):
 
@@ -23,14 +23,14 @@ def load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv_p
     :param dotenv_path: load variable from a dotenv file, if the file exists and it's readable (default: <rootdir>/.env)
     :return: config project object
     """
-    Config().load(profile, rootdir_path, search_parent_dirs, dotenv_path)
+    return Project().load(profile, rootdir_path, search_parent_dirs, dotenv_path)
 
 def config():
     """
     Returns the current project configuration
     :return: a dictionary with project configuration data
     """
-    return Config().config()
+    return Project().config()
 
 def engine():
     """
@@ -38,7 +38,7 @@ def engine():
     :param name: the alias of the engine as defined in the metadata configuration profile
     :return:
     """
-    return Config().engine()
+    return Project().engine()
 
 def metadata():
     """
@@ -47,7 +47,7 @@ def metadata():
 
     :return: a Metadata object
     """
-    return Config().metadata()
+    return Project().metadata()
 
 def resource(path=None, provider=None, md=dict()):
     """
@@ -59,4 +59,4 @@ def resource(path=None, provider=None, md=dict()):
     :param md: dictionary override
     :return: a Resouce Object
     """
-    return Config().resource(path, provider, md)
+    return Project().resource(path, provider, md)

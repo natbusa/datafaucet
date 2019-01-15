@@ -16,6 +16,10 @@ properties:
                 type: string
             jobname:
                 type: string
+            timezone:
+                type: [ "string", "null" ] 
+            timestamps:
+                type: string
             submit:
                 type: object
                 properties:
@@ -40,30 +44,39 @@ properties:
     loggers:
         type: object
         properties:
-            severity:
-                type: string
-            stream:
+            root:
                 type: object
                 properties:
                     severity:
                         type: string
-                    enable:
-                        type: boolean
                 additionalProperties: false
-            kafka:
+            datalabframework:
                 type: object
                 properties:
-                    severity:
+                    name:
                         type: string
-                    enable:
-                        type: boolean
-                    hosts:
-                        type: string
-                    topic:
-                        type: string
+                    stream:
+                        type: object
+                        properties:
+                            severity:
+                                type: string
+                            enable:
+                                type: boolean
+                        additionalProperties: false
+                    kafka:
+                        type: object
+                        properties:
+                            severity:
+                                type: string
+                            enable:
+                                type: boolean
+                            hosts:
+                                type: string
+                            topic:
+                                type: string
+                        additionalProperties: false
+                        required:
+                            - hosts
                 additionalProperties: false
-                required:
-                    - hosts
         additionalProperties: false
-
 additionalProperties: false

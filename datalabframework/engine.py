@@ -27,6 +27,8 @@ class Engine:
         self._ctx = None
         self._type = None
         self._version = None
+        self._timezone = md.get('engine', {}).get('timezone')
+        self._timestamps = md.get('engine', {}).get('timestamps')
 
     def config(self):
         keys = [
@@ -36,6 +38,7 @@ class Engine:
             'conf',
             'env',
             'rootdir'
+            'timezone'
         ]
         d = {
             'type': self._type,
@@ -43,7 +46,9 @@ class Engine:
             'version': self._version,
             'conf': self._conf,
             'env': self._env,
-            'rootdir': self._rootdir
+            'rootdir': self._rootdir,
+            'timezone': self._timezone,
+            'timestamps': self._timestamps
         }
         return ImmutableDict(to_ordered_dict(d,keys))
 
@@ -54,6 +59,9 @@ class Engine:
         raise NotImplementedError
 
     def save(self, obj, path=None, provider=None, **kargs):
+        raise NotImplementedError
+    
+    def copy(self, md_src, md_trg, mode='append'):
         raise NotImplementedError
 
     def stop(self):
@@ -70,6 +78,9 @@ class NoEngine(Engine):
         raise ValueError('No engine loaded.')
 
     def save(self, obj, path=None, provider=None, **kargs):
+        raise ValueError('No engine loaded.')
+
+    def copy(self, md_src, md_trg, mode='append'):
         raise ValueError('No engine loaded.')
 
     def stop(self):
@@ -140,6 +151,20 @@ class SparkEngine(Engine):
                     .set("spark.hadoop.fs.s3a.path.style.access", True)
                 break
 
+        # if timezone is not set, engine treats timestamps as 'naive' 
+        if self._timestamps == 'naive':
+            conf.set('spark.sql.session.timeZone','UTC')
+            conf.set('spark.driver.extraJavaOptions','-Duser.timezone=UTC')
+            conf.set('spark.executor.extraJavaOptions','-Duser.timezone=UTC')
+        elif self._timezone:
+            timezone = self._timezone
+            conf.set('spark.sql.session.timeZone',timezone)
+            conf.set('spark.driver.extraJavaOptions',f'-Duser.timezone={timezone}')
+            conf.set('spark.executor.extraJavaOptions',f'-Duser.timezone={timezone}')
+        else:
+            # use spark and system defaults
+            pass
+            
         for k,v in conf_md.items():
             if isinstance(v, (bool, int, float, str)):
                 conf.set(k,v)
@@ -188,7 +213,7 @@ class SparkEngine(Engine):
         elif isinstance(path, dict):
             md = path
 
-        options = md['read']['options']
+        options = md['options']
 
         try:
             if md['service'] in ['local', 'file']:
@@ -235,18 +260,16 @@ class SparkEngine(Engine):
             logging.error('could not load')
             print(e)
             return None
-
+        
+        date_column = '_date' if md['date_partition'] else md['date_column']
         obj = dataframe.filter_by_date(
                 obj,
-                md['read']['filter']['date_column'],
-                md['read']['filter']['date_start'],
-                md['read']['filter']['date_end'],
-                md['read']['filter']['date_window'],
-                md['read']['filter']['date_timezone'])
+                date_column,
+                md['date_start'],
+                md['date_end'],
+                md['date_window'])
 
-        obj = dataframe.repartition(obj, md['read']['partition']['repartition'])
-        obj = dataframe.coalesce(obj, md['read']['partition']['coalesce'])
-        obj = dataframe.cache(obj, md['read']['cache'])
+        obj = dataframe.cache(obj, md['cache'])
 
         return obj
 
@@ -259,20 +282,25 @@ class SparkEngine(Engine):
         elif isinstance(path, dict):
             md = path
 
-        options = md['write']['options']
+        options = md['options']
+                                 
+        if md['date_partition'] and md['date_column']:
+            tzone = 'UTC' if self._timestamps=='naive' else self._timezone
+            obj = dataframe.add_datetime_columns(obj, column=md['date_column'], tzone=tzone)
+            kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', options.get('partitionBy', []))
+        
+        if md['update_column']:
+            obj = dataframe.add_update_column(obj, tzone=self._timezone)
 
+        date_column = '_date' if md['date_partition'] else md['date_column']
         obj = dataframe.filter_by_date(
                 obj,
-                md['write']['filter']['date_column'],
-                md['write']['filter']['date_start'],
-                md['write']['filter']['date_end'],
-                md['write']['filter']['date_window'],
-                md['write']['filter']['date_timezone'])
+                date_column,
+                md['date_start'],
+                md['date_end'],
+                md['date_window'])
 
-        obj = dataframe.repartition(obj, md['write']['partition']['repartition'])
-        obj = dataframe.coalesce(obj, md['write']['partition']['coalesce'])
-
-        obj = dataframe.cache(obj, md['write']['cache'])
+        obj = dataframe.cache(obj, md['cache'])
 
         try:
             if md['service'] in ['local', 'file']:
@@ -318,7 +346,29 @@ class SparkEngine(Engine):
             logging.error('could not save')
             print(e)
 
+    def copy(self, md_src, md_trg, mode='append'):
 
+        # src dataframe
+        df_src = self.load(md_src)
+        if not df_src:
+            return
+
+        if mode=='overwrite':
+            df_src = df_src.coalesce(1)
+            self.save(df_src, md_trg, mode=mode)
+            return
+
+        # trg dataframe
+        df_trg =  self.load(md_trg) or dataframe.empty(df_src)
+
+        # de-dup (exclude the _updated column)
+        df = dataframe.diff(df_src,df_trg,['_date', '_datetime', '_updated'])
+
+        # save diff
+        if df.count():
+            df = df.coalesce(1)
+            self.save(df, md_trg, mode=mode)
+                                 
 def get(name, md, rootdir):
     engine = NoEngine()
 

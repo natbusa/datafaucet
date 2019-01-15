@@ -40,10 +40,7 @@ def _port(service_name):
     }
     return ports.get(service_name)
 
-def _format(d, pmd={}):
-
-    if pmd.get('format'):
-        return pmd.get('format')
+def _format(d):
 
     # get the provider format
     if d.get('service') in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
@@ -62,9 +59,9 @@ def _format(d, pmd={}):
 
     # default format is parquet
     if d.get('service') in ['file','hdfs','s3', 'minio']:
-        return pmd.get('format','parquet')
+        return d.get('format','parquet')
 
-def _driver(pmd):
+def _driver(d):
     drivers = {
         'sqlite': 'org.sqlite.JDBC',
         'mysql': 'com.mysql.cj.jdbc.Driver',
@@ -72,7 +69,7 @@ def _driver(pmd):
         'mssql': 'com.microsoft.sqlserver.jdbc.SQLServerDriver',
         'oracle':'oracle.jdbc.driver.OracleDriver'
     }
-    return drivers.get(pmd.get('service'))
+    return drivers.get(d.get('service'))
 
 
 def _get_resource_metadata(metadata=dict(), resource=None, provider=None):
@@ -86,6 +83,8 @@ def _get_resource_metadata(metadata=dict(), resource=None, provider=None):
         rmd['alias'] = resource
         if provider:
             rmd['provider'] = provider
+        if not rmd.get('path'):
+            rmd['path'] = resource
 
     # match resource not as alias but as a path in any of the available resources,
     # using the given provider name and provider name
@@ -136,7 +135,7 @@ def _get_provider_metadata(metadata=dict(), rmd=None):
             pmd['alias'] = provider
         else:
             # if no valid provider alias at this point, use provider as a path
-            pmd = { 'path':provider, 'alias': None}
+            pmd = {'path':provider, 'alias': None}
 
     return pmd
 
@@ -144,13 +143,18 @@ def _override_metadata(access, param, pmd=dict(), rmd=dict()):
     d = merge(pmd.get(access, {}).get(param, {}), rmd.get(access, {}).get(param, {}))
     return d
 
-def _build_resource_metadata(rootdir, pmd={}, rmd={}, md=dict()):
+def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
 
-    d = dict()
-
-    d['service'] = pmd.get('service')
+    d = merge(pmd, rmd)
+    
     d['provider_path'] = pmd.get('path', '')
     d['resource_path'] = rmd.get('path', '')
+    d['provider_alias'] = pmd.get('alias')
+    d['resource_alias'] = rmd.get('alias')
+    d.pop('alias', None)
+    d.pop('path', None)
+    
+    d['rootdir'] = rootdir
 
     if not d['service']:
         parts = d['provider_path'].split('://')
@@ -172,38 +176,26 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, md=dict()):
     if d['service'] in ['file', 'sqlite'] and \
             not os.path.isabs(d['provider_path']) and \
             not os.path.isabs(d['resource_path']):
-        d['provider_path'] = os.path.realpath(os.path.join(rootdir, d['provider_path']))
+        d['provider_path'] = os.path.realpath(os.path.join(d['rootdir'], d['provider_path']))
 
-    d['format'] = _format(d, pmd)
-    d['driver'] = _driver(pmd)
-
-    d['username'] = pmd.get('username')
-    d['password'] = pmd.get('password')
-
-    d['provider_alias'] = pmd.get('alias')
-    d['resource_alias'] = rmd.get('alias')
+    d['format'] = _format(d)
+    d['driver'] = _driver(d)
 
     #default hostname is localhost
-    d['hostname'] = pmd.get('hostname', '127.0.0.1')
+    d['hostname'] = d.get('hostname', '127.0.0.1')
 
     # provider path can be use as database name
-    d['database'] = pmd.get('database')
-    if not d['database'] and d['format'] in ['jdbc', 'nosql']:
-        d['database'] =pmd.get('path')
+    if not d.get('database') and d.get('format') in ['jdbc', 'nosql']:
+        d['database'] = d.get('path')
 
-    d['port'] = pmd.get('port', _port(d['service']))
+    d['port'] = d.get('port', _port(d['service']))
     d['url'] = _url(d)
 
-    # override provider metadata with resource metadata
-    for access in ['read', 'write']:
-        d[access] = dict()
-        for param in ['options', 'filter', 'mapping', 'partition']:
-            d[access][param] =  _override_metadata(access, param, pmd, rmd)
-
-        d[access]['cache'] = pmd.get(access, {}).get('cache', rmd.get(access, {}).get('cache', False))
-
+    d['options'] = d['options'] if d.get('options') else {}
+    d['mapping'] = d['mapping'] if d.get('mapping') else {}
+    
     # override with function provided metadata
-    d = merge(d, md)
+    d = merge(d, user_md)
 
     return d
 
@@ -212,58 +204,30 @@ def _dict_formatting(d):
         'url',
         'service',
         'format',
+        
+        'hostname',
+        'port',
+
         'driver',
         'database',
         'username',
         'password',
-        'provider_alias',
-        'resource_alias',
         'resource_path',
         'provider_path',
-        (
-            'read',(
-                'cache',
-                'options',
-                (
-                    'filter', (
-                        'date_column',
-                        'date_start',
-                        'date_end',
-                        'date_window',
-                        'date_timezone',
-                    )
-                ),
-                (
-                    'partition', (
-                        'repartition',
-                        'coalesce',
-                    ),
-                ),
-                'mapping',
-            )
-        ),
-        (
-            'write',(
-                'cache',
-                'options',
-                (
-                    'filter', (
-                        'date_column',
-                        'date_start',
-                        'date_end',
-                        'date_window',
-                        'date_timezone',
-                    )
-                ),
-                (
-                    'partition', (
-                        'repartition',
-                        'coalesce',
-                    ),
-                ),
-                'mapping',
-            )
-        ),
+        
+        'provider_alias',
+        'resource_alias',
+        
+        'cache',
+        'date_column',  
+        'date_start',
+        'date_end',
+        'date_window',
+        'date_partition',
+        'update_column',
+
+        'options',
+        'mapping',
     )
 
     return to_ordered_dict(d, keys)
@@ -275,64 +239,7 @@ def get_metadata(rootdir=None, metadata=dict(), path=None, provider=None, md=dic
     :param path: name of the resource alias or resource path
     :param provider:  name of the provider alias
     :param md: dictionary of metadata, overrides provider and resource metadata
-    :return: None or a dictionary with the following elements:
-                {
-                    'url': '<resource-url>',
-                    'driver': '<driver class>',
-                    'service': '<service-name>',
-                    'format':  '<storage-format>',
-                    'provider_alias': '<provider-alias>',
-                    'resource_alias': '<resource-alias>',
-                    'resource_path': '<resource-path>,
-                    'provider_path':'<resource-path>,
-                    'read': {
-                        'options': {
-                            '<dict with read specific options>':'...'
-                        },
-                        'filter': {
-                            type: [date],
-                            date_column:
-                            date_start:
-                            date_end:
-                            date_window:
-                            date_timezone:
-                        },
-                        'mapping': {
-                           '<mapping options>': '...',
-                        },
-                        'partition': {
-                            'repartition': Int
-                            'coalesce': Int
-                            'date_column': String
-                            'hash_column': String
-                        },
-                        'cache': [True, False]
-                    },
-                    'write': {
-                        'options': {
-                            '<dict with read specific options>':'...'
-                        },
-                        'filter': {
-                            type: [date],
-                            date_column:
-                            date_start:
-                            date_end:
-                            date_window:
-                            date_timezone:
-                        },
-                        'mapping': {
-                           '<mapping options>': '...',
-                        },
-                        'partition': {
-                            'repartition': Int
-                            'coalesce': Int
-                            'date_column': String
-                            'hash_column': String
-                        },
-                        'cache': [True, False]
-                    }
-                }
-
+    :return: None or a dictionary with the resource propertiees:
     """
     rootdir = rootdir if rootdir else os.getcwd()
 

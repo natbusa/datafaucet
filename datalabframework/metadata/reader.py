@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+import pytz
 
 from datalabframework import logging
 from datalabframework.yaml import yaml
@@ -86,8 +88,8 @@ def render(metadata, dotenv_path=None, max_passes=5):
 
     env = Environment()
     env.globals['env'] = lambda key, value=None: os.getenv(key, value)
-    env.filters['env'] = lambda value, key: os.getenv(key, value)
-
+    env.globals['now'] = lambda tz=None: datetime.strftime(datetime.now(pytz.timezone(tz if tz else 'UTC')), '%Y-%m-%d %H:%M:%S')
+    
     doc = json.dumps(metadata)
 
     rendered = metadata

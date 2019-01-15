@@ -15,7 +15,7 @@ from datalabframework.metadata import resource
 from datalabframework._utils import Singleton, ImmutableDict, repo_data
 from datalabframework._notebook import NotebookFinder
 
-class Config(metaclass=Singleton):
+class Project(metaclass=Singleton):
 
     def get_info(self):
         return {
@@ -37,10 +37,6 @@ class Config(metaclass=Singleton):
         }
 
     def __init__(self, filename=None):
-
-        # set filename for future references
-        files.set_current_filename(filename)
-
         #object variables
         self._profile = None
         self._metadata = reader.default_metadata
@@ -102,6 +98,8 @@ class Config(metaclass=Singleton):
 
         # initialize logging
         logging.init()
+        
+        return self
 
     def config(self):
         if not self.profile:
@@ -126,7 +124,7 @@ class Config(metaclass=Singleton):
             self.load()
 
         md = resource.get_metadata(paths.rootdir(), self._metadata , path, provider, md)
-        return ImmutableDict(md)
+        return md
 
     def engine(self):
         if not self.profile:

@@ -1,11 +1,12 @@
 import pyspark
 import pyspark.sql.functions as F
-
-import pandas as pd
+import pyspark.sql.types as T
 
 from datetime import datetime
-import dateutil.parser as dp
+import pytz
 
+import pandas as pd
+import dateutil.parser as dp
 
 def repartition(df, repartition=None):
     assert isinstance(df, pyspark.sql.dataframe.DataFrame)
@@ -20,16 +21,16 @@ def cache(df, cached=False):
     return df.cache() if cached else df
 
 
-def filter_by_date(df, date_column=None, date_start=None, date_end=None, date_window=None, date_timezone=None):
+def filter_by_date(df, column=None, start=None, end=None, window=None):
     assert isinstance(df, pyspark.sql.dataframe.DataFrame)
-
-    if not date_column:
+    
+    if not column:
         return df
-
+    
     #to datetime and datedelta
-    date_window = pd.to_timedelta(date_window) if date_window else None
-    date_end = dp.isoparse(date_end) if date_end else None
-    date_start = dp.isoparse(date_start) if date_start else None
+    date_window = pd.to_timedelta(window) if window else None
+    date_end = dp.isoparse(end) if end else None
+    date_start = dp.isoparse(start) if start else None
 
     # calculate begin and end
     if date_start and date_window and not date_end:
@@ -38,11 +39,11 @@ def filter_by_date(df, date_column=None, date_start=None, date_end=None, date_wi
     if date_end and date_window and not date_start:
         date_start = date_end - date_window
 
-    date_timezone = date_timezone if date_timezone else 'GMT'
-
-    if date_column in df.columns:
-        df = df.filter(F.col(date_column) < date_end) if date_end else df
-        df = df.filter(F.col(date_column) >= date_start) if date_start else df
+    if column in df.columns:
+        df = df.filter(F.col(column) < date_end) if date_end else df
+        df = df.filter(F.col(column) >= date_start) if date_start else df
+    
+    print(column, date_start, date_end, df.count())
 
     return df
 
@@ -90,3 +91,30 @@ def diff(df_a, df_b, exclude_cols=[]):
 
     # return diff
     return df_a.select(colnames).subtract(df_b.select(colnames))
+
+def to_timestamp(obj, column, tzone='UTC'):
+    f = F.col(column)
+    datecol_type = obj.select(column).dtypes[0][1]
+
+    if datecol_type not in ['timestamp', 'date']:
+        f = F.to_timestamp(f)
+
+    if tzone != 'UTC':
+        f = F.to_utc_timestamp(f, tzone)
+
+    return f
+
+def add_datetime_columns(obj, column=None, date_col = '_date', datetime_col = '_datetime', tzone='UTC'):
+    if column in obj.columns:
+        obj = obj.withColumn(datetime_col, to_timestamp(obj, column, tzone))
+        obj = obj.withColumn(date_col, F.to_date(datetime_col))
+    return obj
+
+def add_update_column(obj, updated_colname = '_updated', tzone='UTC'):
+    # add the _updated timestamp
+    ts = datetime.strftime(datetime.now(pytz.timezone(tzone if tzone else 'UTC')), '%Y-%m-%d %H:%M:%S')
+    obj = obj.withColumn(updated_colname, F.lit(ts).cast(T.TimestampType()))
+    return obj
+
+def empty(df):
+    return df.sql_ctx.createDataFrame([],df.schema)

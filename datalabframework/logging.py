@@ -27,7 +27,7 @@ def func_name():
 # logging object is a singleton
 _logger = None
 
-def get():
+def getLogger():
     global _logger
     if not _logger:
         init()
@@ -146,8 +146,13 @@ def init(md=None):
 
     md = md if md else {}
 
+    level = loggingLevels.get(md.get('loggers', {}).get('root', {}).get('severity', 'info'))
+    
+    # root logger
+    logging.basicConfig(level=level)
+    
+    # dlf logger
     logger = logging.getLogger("dlf")
-    level = loggingLevels.get(md.get('loggers', {}).get('severity', 'info'))
     logger.setLevel(level)
     logger.handlers = []
 
@@ -182,10 +187,10 @@ def init(md=None):
     _logger = LoggerAdapter(logger, extra_attributes())
 
 def info(*args, **kargs):
-    get().info(*args, **kargs)
+    getLogger().info(*args, **kargs)
 
 def warning(*args, **kargs):
-    get().warning(*args, **kargs)
+    getLogger().warning(*args, **kargs)
 
 def error(*args, **kargs):
-    get().error(*args, **kargs)
+    getLogger().error(*args, **kargs)

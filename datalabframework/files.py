@@ -61,12 +61,15 @@ def set_filename(f):
     return os.path.join(os.getcwd(), '<unknown>')
 
 
-def get_current_filename():
-    return _filename
-
 def set_current_filename(f=None):
     global _filename
     _filename = set_filename(f)
+
+def get_current_filename():
+    if _filename is None:
+        set_current_filename()
+        
+    return _filename
 
 def get_files(ext, rootdir, exclude_dirs=None, ignore_dir_with_file=''):
     if exclude_dirs is None:
