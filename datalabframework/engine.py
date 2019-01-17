@@ -301,6 +301,7 @@ class SparkEngine(Engine):
                 md['date_window'])
 
         obj = dataframe.cache(obj, md['cache'])
+        obj = obj.repartition(1,*kargs['partitionBy']) if kargs['partitionBy'] else obj.coalesce(1)
 
         try:
             if md['service'] in ['local', 'file']:
@@ -354,7 +355,6 @@ class SparkEngine(Engine):
             return
 
         if mode=='overwrite':
-            df_src = df_src.coalesce(1)
             self.save(df_src, md_trg, mode=mode)
             return
 
@@ -366,7 +366,6 @@ class SparkEngine(Engine):
 
         # save diff
         if df.count():
-            df = df.coalesce(1)
             self.save(df, md_trg, mode=mode)
                                  
 def get(name, md, rootdir):
