@@ -22,7 +22,7 @@ class Engine:
         self._name = name
         self._metadata = md
         self._rootdir = rootdir
-        self._conf = None
+        self._config = None
         self._env = None
         self._ctx = None
         self._type = None
@@ -191,7 +191,7 @@ class SparkEngine(Engine):
         sc.setLogLevel("ERROR")
 
         # record the data in the engine object for debug and future references
-        self._conf = dict(sc._conf.getAll())
+        self._config = dict(sc._conf.getAll())
         self._env = {'PYSPARK_SUBMIT_ARGS': os.environ['PYSPARK_SUBMIT_ARGS']}
 
         self._type = 'spark'
