@@ -35,7 +35,7 @@ class Engine:
             'type',
             'name',
             'version',
-            'conf',
+            'config',
             'env',
             'rootdir'
             'timezone'
@@ -44,7 +44,7 @@ class Engine:
             'type': self._type,
             'name': self._name,
             'version': self._version,
-            'conf': self._conf,
+            'config': self._config,
             'env': self._env,
             'rootdir': self._rootdir,
             'timezone': self._timezone,
@@ -139,7 +139,7 @@ class SparkEngine(Engine):
         conf.setMaster(self._metadata.get('engine', {}).get('master', 'local[*]'))
 
     def set_conf_kv(self, conf):
-        conf_md = self._metadata.get('engine', {}).get('conf', {})
+        conf_md = self._metadata.get('engine', {}).get('config', {})
 
         # setting for minio
         for v in self._metadata.get('providers', {}).values():
@@ -218,21 +218,34 @@ class SparkEngine(Engine):
         try:
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':
-                    obj = self._ctx.createDataFrame(pd.read_csv(md['url'], **kargs))
+                    try:
+                        obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
+                    except:
+                        obj = self._ctx.createDataFrame(pd.read_csv(md['url'], **kargs))
+
                 if md['format'] == 'json':
-                    obj = self._ctx.createDataFrame(pd.read_json(md['url'], **kargs))
+                    try:
+                        obj = self._ctx.read.options(**options).json(md['url'], **kargs)
+                    except:
+                        obj = self._ctx.createDataFrame(pd.read_json(md['url'], **kargs))
                 if md['format'] == 'jsonl':
-                    obj = self._ctx.createDataFrame(pd.read_json(md['url'], lines=True, **kargs))
+                    try:
+                        obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
+                    except:
+                        obj = self._ctx.createDataFrame(pd.read_json(md['url'], lines=True, **kargs))
                 elif md['format'] == 'parquet':
-                    obj = self._ctx.createDataFrame(pd.read_parquet(md['url'], **kargs))
+                    try:
+                        obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
+                    except:
+                        obj = self._ctx.createDataFrame(pd.read_parquet(md['url'], **kargs))
 
             elif md['service'] in ['hdfs', 's3', 'minio']:
                 if md['format'] == 'csv':
                     obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
                 if md['format'] == 'json':
-                    obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
-                if md['format'] == 'jsonl':
                     obj = self._ctx.read.options(**options).json(md['url'], **kargs)
+                if md['format'] == 'jsonl':
+                    obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
                     obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
 
