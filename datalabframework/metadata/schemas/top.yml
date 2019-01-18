@@ -10,7 +10,7 @@ properties:
         properties:
             type:
                 type: string
-            conf:
+            config:
                 type: object
             master:
                 type: string
