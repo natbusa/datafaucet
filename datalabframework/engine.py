@@ -301,7 +301,7 @@ class SparkEngine(Engine):
                 md['date_window'])
 
         obj = dataframe.cache(obj, md['cache'])
-        obj = obj.repartition(1,*kargs['partitionBy']) if kargs['partitionBy'] else obj.coalesce(1)
+        obj = obj.repartition(1,*kargs['partitionBy']) if kargs.get('partitionBy') else obj.coalesce(1)
 
         try:
             if md['service'] in ['local', 'file']:

@@ -57,9 +57,8 @@ def _format(d):
     if len(path)>1 and path[-1] in ['csv', 'json', 'jsonl']:
         return path[-1]
 
-    # default format is parquet
-    if d.get('service') in ['file','hdfs','s3', 'minio']:
-        return d.get('format','parquet')
+    # default is parquet
+    return d.get('format', 'parquet')
 
 def _driver(d):
     drivers = {
