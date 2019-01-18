@@ -37,7 +37,7 @@ class Engine:
             'version',
             'config',
             'env',
-            'rootdir'
+            'rootdir',
             'timezone'
         ]
         d = {
