@@ -97,7 +97,7 @@ class Project(metaclass=Singleton):
         self._info = self.get_info()
 
         # initialize logging
-        logging.init()
+        logging.init(md)
         
         return self
 

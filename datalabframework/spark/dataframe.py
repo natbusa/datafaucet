@@ -43,7 +43,7 @@ def filter_by_date(df, column=None, start=None, end=None, window=None):
         df = df.filter(F.col(column) < date_end) if date_end else df
         df = df.filter(F.col(column) >= date_start) if date_start else df
     
-    print(column, date_start, date_end, df.count())
+    # print(column, date_start, date_end, df.count())
 
     return df
 
@@ -114,6 +114,14 @@ def add_update_column(obj, updated_colname = '_updated', tzone='UTC'):
     # add the _updated timestamp
     ts = datetime.strftime(datetime.now(pytz.timezone(tzone if tzone else 'UTC')), '%Y-%m-%d %H:%M:%S')
     obj = obj.withColumn(updated_colname, F.lit(ts).cast(T.TimestampType()))
+    return obj
+
+def add_hash_column(obj, cols, hash_colname = '_hash'):
+    # add the _updated timestamp
+    if isinstance(cols, bool) and cols:
+        cols = obj.columns
+        
+    obj = obj.withColumn(hash_colname, F.hash(*cols))
     return obj
 
 def empty(df):

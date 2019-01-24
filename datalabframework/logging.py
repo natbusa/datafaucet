@@ -1,5 +1,9 @@
 import logging
 
+# extend logging with custom level 'NOTICE'
+NOTICE_LEVELV_NUM = 25 
+logging.addLevelName(NOTICE_LEVELV_NUM, "NOTICE")
+
 try:
     from kafka import KafkaProducer
 except:
@@ -20,9 +24,17 @@ from datalabframework import metadata
 
 from datalabframework._utils import repo_data
 
-def func_name():
+def func_name(level=1):
     # noinspection PyProtectedMember
-    return sys._getframe(1).f_code.co_name
+    try:
+        #print(','.join([sys._getframe(x).f_code.co_name for x in range(level)]))
+        name = sys._getframe(level).f_code.co_name
+        if name=='<module>':
+            name = sys._getframe(level+1).f_code.co_name
+            
+        return name 
+    except:
+        return '?'
 
 # logging object is a singleton
 _logger = None
@@ -33,26 +45,40 @@ def getLogger():
         init()
     return _logger
 
-
-def extra_attributes():
-    d = {
-        'dlf_session': repo_data()['hash'],
-        'dlf_username': getpass.getuser(),
-        'dlf_filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
-        'dlf_repo_name': repo_data()['name']
-    }
-    return d
-
+extra_attributes = {
+    'dlf_session': repo_data()['hash'],
+    'dlf_username': getpass.getuser(),
+    'dlf_filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
+    'dlf_repo_name': repo_data()['name'],
+}
 
 class LoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
-        super().__init__(logger, extra)
+        """
+        Initialize the adapter with a logger and a dict-like object which
+        provides contextual information. This constructor signature allows
+        easy stacking of LoggerAdapters, if so desired.
+        You can effectively pass keyword arguments as shown in the
+        following example:
+        adapter = LoggerAdapter(someLogger, dict(p1=v1, p2="v2"))
+        """
+        self.logger = logger
+        self.extra = extra
 
     def process(self, msg, kwargs):
-        kw = {'dlf_type': 'message'}
-        kw.update(self.extra)
-        kw.update(kwargs.get('extra', {}))
-        kwargs['extra'] = kw
+        """
+        Process the logging message and keyword arguments passed in to
+        a logging call to insert contextual information. You can either
+        manipulate the message itself, the keyword args or both. Return
+        the message and kwargs modified (or not) to suit your needs.
+        Normally, you'll only need to override this one method in a
+        LoggerAdapter subclass for your specific needs.
+        """
+        d = self.extra
+        d.update({'dlf_func': func_name(5)})
+        d.update(kwargs.get('extra', {}))
+        
+        kwargs["extra"] = d
         return msg, kwargs
 
 
@@ -104,13 +130,12 @@ class LogstashFormatter(logging.Formatter):
             '@timestamp': timestamp,
             'username': logr.dlf_username,
             'filename': logr.dlf_filename,
-            'msg': msg,
-            'type': logr.dlf_type
+            'func': logr.dlf_func,
+            'data': msg,
         }
 
         return json.dumps(log_record, default=_json_default)
-
-
+    
 class KafkaLoggingHandler(logging.Handler):
 
     def __init__(self, topic, bootstrap_servers):
@@ -132,65 +157,95 @@ class KafkaLoggingHandler(logging.Handler):
         logging.Handler.close(self)
 
 
-loggingLevels = {
+levels = {
     'debug': logging.DEBUG,
     'info': logging.INFO,
+    'notice': NOTICE_LEVELV_NUM,
     'warning': logging.WARNING,
     'error': logging.ERROR,
     'fatal': logging.FATAL
 }
 
+class DlfFilter(logging.Filter):
+    """
+    This is a filter which injects contextual information into the log.
+    """
 
+    def filter(self, record):
+        record.dlf_func = func_name()
+        return True
+    
 def init(md=None):
     global _logger
 
     md = md if md else {}
 
-    level = loggingLevels.get(md.get('loggers', {}).get('root', {}).get('severity', 'info'))
+    level = levels.get(md.get('loggers', {}).get('root', {}).get('severity', 'info'))
     
     # root logger
     logging.basicConfig(level=level)
     
     # dlf logger
-    logger = logging.getLogger("dlf")
+    logger_name = md.get('loggers', {}).get('datalabframework',{}).get('name', 'dlf')
+    logger = logging.getLogger(logger_name)
     logger.setLevel(level)
     logger.handlers = []
-
-    p = md.get('loggers', {}).get('kafka')
+    
+    p = md.get('loggers', {}).get('datalabframework',{}).get('kafka')
     if p and p['enable'] and KafkaProducer:
-        level = loggingLevels.get(p.get('severity', 'info'))
+        level = levels.get(p.get('severity', 'info'))
         topic = p.get('topic', 'dlf')
         hosts = p.get('hosts')
 
-        # disable logging for 'kafka.KafkaProducer'
+        # disable logging for 'kafka.KafkaProducer', kafka.client, kafka.conn
         # to avoid infinite logging recursion on kafka
-        logging.getLogger('kafka.KafkaProducer').addHandler(logging.NullHandler())
-
+        for i in ['kafka.KafkaProducer','kafka.client', 'kafka.conn']:
+            kafka_logger = logging.getLogger(i)
+            kafka_logger.propagate = False
+            kafka_logger.handlers = []
+            
         formatterLogstash = LogstashFormatter()
         handlerKafka = KafkaLoggingHandler(topic, hosts)
         handlerKafka.setLevel(level)
         handlerKafka.setFormatter(formatterLogstash)
         logger.addHandler(handlerKafka)
 
-    p = md.get('loggers', {}).get('stream')
+    p = md.get('loggers', {}).get('datalabframework',{}).get('stream')
     if p and p['enable']:
-        level = loggingLevels.get(p.get('severity', 'info'))
+        level = levels.get(p.get('severity', 'info'))
 
         # create console handler and set level to debug
         formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s')
+            '%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_func)s - %(message)s')
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-    _logger = LoggerAdapter(logger, extra_attributes())
+        # stream replaces higher handlers, setting propagate to false
+        logger.propagate = False
+    
+    adapter = LoggerAdapter(logger, extra_attributes)
+    
+    #set global _logger
+    _logger = adapter
 
-def info(*args, **kargs):
-    getLogger().info(*args, **kargs)
+def _notice(msg, *args, **kwargs):
+    logger = getLogger()
+    if logger.isEnabledFor(NOTICE_LEVELV_NUM):
+        logger.log(NOTICE_LEVELV_NUM, msg, *args, **kwargs) 
 
-def warning(*args, **kargs):
-    getLogger().warning(*args, **kargs)
+def notice(msg, *args, **kwargs):     
+    _notice(msg, *args, **kwargs)
+    
+def info(msg, *args, **kwargs):
+    getLogger().info(msg, *args, **kwargs)
 
-def error(*args, **kargs):
-    getLogger().error(*args, **kargs)
+def warning(msg, *args, **kwargs):
+    getLogger().warning(msg, *args, **kwargs)
+
+def error(msg, *args, **kwargs):
+    getLogger().error(msg, *args, **kwargs)
+
+def fatal(msg, *args, **kwargs):
+    getLogger().fatal(msg, *args, **kwargs)

@@ -9,6 +9,8 @@ from datalabframework._utils import ImmutableDict, to_ordered_dict
 import pandas as pd
 from datalabframework.spark import dataframe
 
+from timeit import default_timer as timer
+
 # purpose of engines
 # abstract engine init, data read and data write
 # and move this information to metadata
@@ -203,9 +205,8 @@ class SparkEngine(Engine):
     def stop(self):
         pyspark.SparkContext.getOrCreate().stop()
 
-    def load(self, path=None, provider=None, **kargs):
-        obj = None
-
+        
+    def load(self, path=None, provider=None, catch_exception=True, **kargs):
         if isinstance(path, ImmutableDict):
             md = path.to_dict()
         elif isinstance(path, str):
@@ -213,6 +214,42 @@ class SparkEngine(Engine):
         elif isinstance(path, dict):
             md = path
 
+        core_start = timer()
+        obj = self.load_dataframe(md, catch_exception, **kargs)
+        core_end = timer()
+        if obj is None:
+            return obj
+            
+        prep_start = timer()
+        date_column = '_date' if md['date_partition'] else md['date_column']
+        obj = dataframe.filter_by_date(
+                obj,
+                date_column,
+                md['date_start'],
+                md['date_end'],
+                md['date_window'])
+
+        obj = dataframe.cache(obj, md['cache'])
+
+        num_rows = obj.count()
+        num_cols = len(obj.columns)
+        prep_end = timer()
+
+        logging.info({
+            'md': dict(md), 
+            'mode': kargs.get('mode', md.get('options', {}).get('mode')),
+            'result': 'success', 
+            'records': num_rows, 
+            'columns': num_cols, 
+            'time': prep_end - core_start, 
+            'time_core': core_end-core_start, 
+            'time_prep': prep_end - prep_start
+        })
+        
+        return obj
+
+    def load_dataframe(self, md, catch_exception=True, **kargs):
+        obj = None
         options = md['options']
 
         try:
@@ -270,23 +307,16 @@ class SparkEngine(Engine):
             else:
                 raise ValueError(f'Unknown service "{md["service"]}"')
         except Exception as e:
-            logging.error('could not load')
-            print(e)
-            return None
+            if catch_exception:
+                logging.error('could not load')
+                print(e)
+                return None
+            else:
+                raise e
         
-        date_column = '_date' if md['date_partition'] else md['date_column']
-        obj = dataframe.filter_by_date(
-                obj,
-                date_column,
-                md['date_start'],
-                md['date_end'],
-                md['date_window'])
-
-        obj = dataframe.cache(obj, md['cache'])
-
         return obj
 
-    def save(self, obj, path=None, provider=None, **kargs):
+    def save(self, obj, path=None, provider=None, catch_exception=True, **kargs):
 
         if isinstance(path, ImmutableDict):
             md = path.to_dict()
@@ -295,15 +325,17 @@ class SparkEngine(Engine):
         elif isinstance(path, dict):
             md = path
 
-        options = md['options']
-                                 
+        prep_start = timer()
         if md['date_partition'] and md['date_column']:
             tzone = 'UTC' if self._timestamps=='naive' else self._timezone
             obj = dataframe.add_datetime_columns(obj, column=md['date_column'], tzone=tzone)
-            kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', options.get('partitionBy', []))
+            kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', md.get('options', {}).get('partitionBy', []))
         
         if md['update_column']:
             obj = dataframe.add_update_column(obj, tzone=self._timezone)
+
+        if md['hash_column']:
+            obj = dataframe.add_hash_column(obj, cols=md['hash_column'])
 
         date_column = '_date' if md['date_partition'] else md['date_column']
         obj = dataframe.filter_by_date(
@@ -316,6 +348,30 @@ class SparkEngine(Engine):
         obj = dataframe.cache(obj, md['cache'])
         obj = obj.repartition(1,*kargs['partitionBy']) if kargs.get('partitionBy') else obj.coalesce(1)
 
+        num_rows = obj.count()
+        num_cols = len(obj.columns)
+        prep_end = timer()
+                                 
+        core_start = timer()
+        self.save_dataframe(obj, md, catch_exception, **kargs)
+        core_end = timer()
+                                 
+        logging.info({
+            'md': dict(md), 
+            'mode': kargs.get('mode', md.get('options', {}).get('mode')),
+            'result': 'success', 
+            'records': num_rows, 
+            'columns': num_cols, 
+            'time':core_end - prep_start,
+            'time_core':core_end-core_start, 
+            'time_prep': prep_end - prep_start
+        })
+                                 
+                                 
+    def save_dataframe(self, obj, md, catch_exception=True, **kargs):
+
+        options = md.get('options', {})
+                                 
         try:
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':
@@ -357,29 +413,58 @@ class SparkEngine(Engine):
             else:
                 raise ValueError('don\'t know how to handle this')
         except Exception as e:
-            logging.error('could not save')
-            print(e)
+            if catch_exception:
+                logging.error({'md': md, 'result': 'error'})
+                print(e)
+            else:
+                raise e
 
     def copy(self, md_src, md_trg, mode='append'):
-
+        # timer
+        timer_start = timer()
+                                 
         # src dataframe
         df_src = self.load(md_src)
-        if not df_src:
+                                 
+        if df_src is None:
             return
-
+                                 
         if mode=='overwrite':
             self.save(df_src, md_trg, mode=mode)
+            num_rows = df_src.count()
+            num_cols = len(df_src.columns)
+
+            logging.notice({
+                'mode': mode, 
+                'records': num_rows, 
+                'columns': num_cols,
+                'time': timer() - timer_start
+            })
             return
 
-        # trg dataframe
-        df_trg =  self.load(md_trg) or dataframe.empty(df_src)
-
+        # trg dataframe (if exists)
+        try:
+            df_trg = self.load(md_trg, catch_exception=False)
+        except:
+            df_trg = dataframe.empty(df_src)
+                                 
         # de-dup (exclude the _updated column)
-        df = dataframe.diff(df_src,df_trg,['_date', '_datetime', '_updated'])
-
+        df = dataframe.diff(df_src,df_trg,['_date', '_datetime', '_updated', '_hash'])
+                                 
+        num_rows = df.count()
+        num_cols = len(df.columns)
+                                 
         # save diff
-        if df.count():
+        if num_rows:
             self.save(df, md_trg, mode=mode)
+        
+        logging.notice({
+            'mode': mode, 
+            'records': num_rows, 
+            'columns': num_cols,
+            'time': timer() - timer_start
+        })
+            
                                  
 def get(name, md, rootdir):
     engine = NoEngine()

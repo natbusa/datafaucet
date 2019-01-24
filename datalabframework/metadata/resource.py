@@ -224,6 +224,7 @@ def _dict_formatting(d):
         'date_window',
         'date_partition',
         'update_column',
+        'hash_column',
 
         'options',
         'mapping',
