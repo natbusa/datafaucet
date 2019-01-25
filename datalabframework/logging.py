@@ -45,13 +45,6 @@ def getLogger():
         init()
     return _logger
 
-extra_attributes = {
-    'dlf_session': repo_data()['hash'],
-    'dlf_username': getpass.getuser(),
-    'dlf_filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
-    'dlf_repo_name': repo_data()['name'],
-}
-
 class LoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
         """
@@ -63,7 +56,15 @@ class LoggerAdapter(logging.LoggerAdapter):
         adapter = LoggerAdapter(someLogger, dict(p1=v1, p2="v2"))
         """
         self.logger = logger
-        self.extra = extra
+        self.extra = {
+            'dlf_session': repo_data()['hash'],
+            'dlf_username': getpass.getuser(),
+            'dlf_filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
+            'dlf_repo_name': repo_data()['name'],
+        }
+        
+        self.extra.update(extra)
+
 
     def process(self, msg, kwargs):
         """
@@ -225,7 +226,7 @@ def init(md=None):
         # stream replaces higher handlers, setting propagate to false
         logger.propagate = False
     
-    adapter = LoggerAdapter(logger, extra_attributes)
+    adapter = LoggerAdapter(logger, {})
     
     #set global _logger
     _logger = adapter

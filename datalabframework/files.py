@@ -10,7 +10,7 @@ from notebook.notebookapp import list_running_servers
 
 _filename = None
 
-def set_filename(f):
+def extract_filename(f):
     """
     Return the full path of the jupyter notebook.
     """
@@ -63,7 +63,7 @@ def set_filename(f):
 
 def set_current_filename(f=None):
     global _filename
-    _filename = set_filename(f)
+    _filename = extract_filename(f)
 
 def get_current_filename():
     if _filename is None:
