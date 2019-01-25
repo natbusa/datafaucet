@@ -11,6 +11,8 @@ from datalabframework.spark import dataframe
 
 from timeit import default_timer as timer
 
+import pyspark.sql.functions as F
+
 # purpose of engines
 # abstract engine init, data read and data write
 # and move this information to metadata
@@ -229,6 +231,12 @@ class SparkEngine(Engine):
                 md['date_end'],
                 md['date_window'])
 
+        if date_column:
+            obj = obj.repartition(date_column)
+
+        if '_updated' in obj.columns:
+            obj = obj.sortWithinPartitions(F.desc('_updated'))
+            
         obj = dataframe.cache(obj, md['cache'])
 
         num_rows = obj.count()
@@ -308,7 +316,7 @@ class SparkEngine(Engine):
                 raise ValueError(f'Unknown service "{md["service"]}"')
         except Exception as e:
             if catch_exception:
-                logging.error('could not load')
+                logging.error({'md': md, 'result': 'error'})
                 print(e)
                 return None
             else:
@@ -326,6 +334,7 @@ class SparkEngine(Engine):
             md = path
 
         prep_start = timer()
+                                 
         if md['date_partition'] and md['date_column']:
             tzone = 'UTC' if self._timestamps=='naive' else self._timezone
             obj = dataframe.add_datetime_columns(obj, column=md['date_column'], tzone=tzone)
@@ -335,7 +344,7 @@ class SparkEngine(Engine):
             obj = dataframe.add_update_column(obj, tzone=self._timezone)
 
         if md['hash_column']:
-            obj = dataframe.add_hash_column(obj, cols=md['hash_column'])
+            obj = dataframe.add_hash_column(obj, cols=md['hash_column'], exclude_cols=['_date', '_datetime', '_updated', '_hash'])
 
         date_column = '_date' if md['date_partition'] else md['date_column']
         obj = dataframe.filter_by_date(
@@ -435,7 +444,10 @@ class SparkEngine(Engine):
             num_cols = len(df_src.columns)
 
             logging.notice({
+                'src': md_src['hash'],
+                'trg': md_trg['hash'],
                 'mode': mode, 
+                'updated': num_rows,
                 'records': num_rows, 
                 'columns': num_cols,
                 'time': timer() - timer_start
@@ -449,17 +461,21 @@ class SparkEngine(Engine):
             df_trg = dataframe.empty(df_src)
                                  
         # de-dup (exclude the _updated column)
-        df = dataframe.diff(df_src,df_trg,['_date', '_datetime', '_updated', '_hash'])
+        df = dataframe.diff(df_src,df_trg, ['_date', '_datetime', '_updated', '_hash'])
                                  
-        num_rows = df.count()
+        updated = df.count()
         num_cols = len(df.columns)
+        num_rows = max(df_src.count(), df_trg.count())
                                  
         # save diff
-        if num_rows:
+        if updated:
             self.save(df, md_trg, mode=mode)
         
         logging.notice({
+            'src': md_src['hash'],
+            'trg': md_trg['hash'],
             'mode': mode, 
+            'updated': updated,
             'records': num_rows, 
             'columns': num_cols,
             'time': timer() - timer_start

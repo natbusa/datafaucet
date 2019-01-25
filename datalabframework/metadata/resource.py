@@ -195,11 +195,14 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
     
     # override with function provided metadata
     d = merge(d, user_md)
+    
+    d['hash'] = hash(d['url']) ^ hash(d['format']) ^ hash(d['resource_path'])
 
     return d
 
 def _dict_formatting(d):
     keys = (
+        'hash',
         'url',
         'service',
         'format',

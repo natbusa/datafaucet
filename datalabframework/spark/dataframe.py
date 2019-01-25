@@ -88,10 +88,13 @@ def diff(df_a, df_b, exclude_cols=[]):
 
     # get columns
     colnames = common_columns(df_a, df_b, exclude_cols)
-
+    
     # return diff
-    return df_a.select(colnames).subtract(df_b.select(colnames))
-
+    if df_b.count():
+        return df_a.select(colnames).subtract(df_b.select(colnames))
+    else:
+        return df_a.select(colnames)
+    
 def to_timestamp(obj, column, tzone='UTC'):
     f = F.col(column)
     datecol_type = obj.select(column).dtypes[0][1]
@@ -116,13 +119,85 @@ def add_update_column(obj, updated_colname = '_updated', tzone='UTC'):
     obj = obj.withColumn(updated_colname, F.lit(ts).cast(T.TimestampType()))
     return obj
 
-def add_hash_column(obj, cols, hash_colname = '_hash'):
+def add_hash_column(obj, cols, hash_colname = '_hash', exclude_cols=[]):
     # add the _updated timestamp
     if isinstance(cols, bool) and cols:
-        cols = obj.columns
+        cols =obj.columns
         
+    colnames = (set(obj.columns) & set(cols)) - set(exclude_cols)
+    cols = [x for x in cols if x in colnames]
+    
     obj = obj.withColumn(hash_colname, F.hash(*cols))
     return obj
 
 def empty(df):
     return df.sql_ctx.createDataFrame([],df.schema)
+
+def summary(df):
+        spark = df.sql_ctx
+
+        types = {x.name:x.dataType for x in list(df.schema)}
+        res = pd.DataFrame.from_dict(types, orient='index')
+        res.columns = ['datatype']
+        
+        d= df.select([F.approx_count_distinct(c).alias(c) for c in df.columns]).toPandas().T
+        d.columns = ['approx_distinct']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        d= df.select([F.count(c).alias(c) for c in df.columns]).toPandas().T
+        d.columns = ['count']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        sel = []
+        for c,v in types.items():
+            if isinstance(v, (T.NumericType)):
+                sel += [F.count(F.when(F.isnan(c), c)).alias(c)]
+            else:
+                sel += [F.lit(None).alias(c)]
+        d = df.select(sel).toPandas().T
+        d.columns = ['mean']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        d= df.select([F.min(c).alias(c) for c in df.columns]).toPandas().T
+        d.columns = ['min']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        d= df.select([F.max(c).alias(c) for c in df.columns]).toPandas().T
+        d.columns = ['max']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        d= df.select([F.count(F.when(F.isnull(c), c)).alias(c) for c in df.columns]).toPandas().T
+        d.columns = ['null']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        sel = []
+        for c,v in types.items():
+            if isinstance(v, (T.NumericType)):
+                sel += [F.count(F.when(F.isnan(c), c)).alias(c)]
+            else:
+                sel += [F.lit(0).alias(c)]
+        d = df.select(sel).toPandas().T
+        d.columns = ['nan']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        sel = []
+        for c,v in types.items():
+            if isinstance(v, (T.StringType)):
+                sel += [F.count(F.when(F.col(c).isin(''), c)).alias(c)]
+            else:
+                sel += [F.lit(0).alias(c)]
+        d = df.select(sel).toPandas().T
+        d.columns = ['empty']
+        d.index.name = 'index'
+        res = res.join(d)
+
+        return res
+
+
