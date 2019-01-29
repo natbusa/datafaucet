@@ -202,12 +202,11 @@ def init(md=None, session_id=0):
         topic = p.get('topic', 'dlf')
         hosts = p.get('hosts')
 
-        # disable logging for 'kafka.KafkaProducer', kafka.client, kafka.conn
-        # to avoid infinite logging recursion on kafka
-#         for i in ['kafka.KafkaProducer','kafka.client', 'kafka.conn']:
-#             kafka_logger = logging.getLogger(i)
-#             kafka_logger.propagate = False
-#             kafka_logger.handlers = []
+        # disable logging for 'kafka.KafkaProducer', kafka.conn
+        for i in ['kafka.KafkaProducer','kafka.conn']:
+            kafka_logger = logging.getLogger(i)
+            kafka_logger.propagate = False
+            kafka_logger.handlers = []
             
         formatterLogstash = LogstashFormatter()
         handlerKafka = KafkaLoggingHandler(topic, hosts)
@@ -240,11 +239,11 @@ def _notice(msg, *args, **kwargs):
     if logger.isEnabledFor(NOTICE_LEVELV_NUM):
         logger.log(NOTICE_LEVELV_NUM, msg, *args, **kwargs) 
 
-def notice(msg, *args, **kwargs):     
-    _notice(msg, *args, **kwargs)
-    
 def info(msg, *args, **kwargs):
     getLogger().info(msg, *args, **kwargs)
+
+def notice(msg, *args, **kwargs):     
+    _notice(msg, *args, **kwargs)
 
 def warning(msg, *args, **kwargs):
     getLogger().warning(msg, *args, **kwargs)

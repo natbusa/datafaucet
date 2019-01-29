@@ -157,19 +157,19 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
     
     d['rootdir'] = rootdir
 
-    if not d['service']:
+    if not d.get('service'):
         parts = d['provider_path'].split('://')
         if len(parts)>1:
             d['service'] = parts[0]
             d['provider_path'] = parts[1]
 
-    if not d['service']:
+    if not d.get('service'):
         parts = d['resource_path'].split('://')
         if len(parts)>1:
             d['service'] = parts[0]
             d['resource_path'] = parts[1]
 
-    if not d['service']:
+    if not d.get('service'):
         d['service'] = 'file'
 
     # if service is local or sqlite,
@@ -231,6 +231,7 @@ def _dict_formatting(d):
         'date_partition',
         'update_column',
         'hash_column',
+        'state_column',
 
         'options',
         'mapping',
