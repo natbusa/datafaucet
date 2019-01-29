@@ -128,11 +128,11 @@ class LogstashFormatter(logging.Formatter):
             msg = {'message': logr.msg}
 
         log_record = {
+            '@timestamp': timestamp,
             'severity': logr.levelname,
             'session_id': logr.dlf_session_id,
             'repo_hash': logr.dlf_repo_hash,
             'repo_name': logr.dlf_repo_name,
-            '@timestamp': timestamp,
             'username': logr.dlf_username,
             'filename': logr.dlf_filename,
             'func': logr.dlf_func,
@@ -204,10 +204,10 @@ def init(md=None, session_id=0):
 
         # disable logging for 'kafka.KafkaProducer', kafka.client, kafka.conn
         # to avoid infinite logging recursion on kafka
-        for i in ['kafka.KafkaProducer','kafka.client', 'kafka.conn']:
-            kafka_logger = logging.getLogger(i)
-            kafka_logger.propagate = False
-            kafka_logger.handlers = []
+#         for i in ['kafka.KafkaProducer','kafka.client', 'kafka.conn']:
+#             kafka_logger = logging.getLogger(i)
+#             kafka_logger.propagate = False
+#             kafka_logger.handlers = []
             
         formatterLogstash = LogstashFormatter()
         handlerKafka = KafkaLoggingHandler(topic, hosts)
