@@ -120,7 +120,7 @@ class LogstashFormatter(logging.Formatter):
         """
 
         logr = record
-        timestamp = datetime.datetime.fromtimestamp(logr.created).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        timestamp = datetime.datetime.fromtimestamp(logr.created).strftime('%Y-%m-%dT%H:%M:%S.%f')
 
         if type(logr.msg) is dict:
             msg = logr.msg
