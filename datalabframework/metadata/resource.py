@@ -1,4 +1,6 @@
 import os
+import ctypes
+
 from datalabframework._utils import merge, to_ordered_dict
 
 def _url(d):
@@ -197,6 +199,7 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
     d = merge(d, user_md)
     
     d['hash'] = hash(d['url']) ^ hash(d['format']) ^ hash(d['resource_path'])
+    d['hash'] = hex(ctypes.c_size_t(d['hash']).value)
 
     return d
 

@@ -15,12 +15,15 @@ from datalabframework.metadata import resource
 from datalabframework._utils import Singleton, ImmutableDict, repo_data
 from datalabframework._notebook import NotebookFinder
 
+import uuid
+
 class Project(metaclass=Singleton):
 
     def get_info(self):
         return {
-                'version': __version__,
+                'dlf_version': __version__,
                 'python_version': '.'.join([str(x) for x in sys.version_info[0:3]]),
+                'session_id': hex(uuid.uuid1().int>>64),
                 'profile': self._profile,
                 'filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
                 'rootdir': paths.rootdir(),
@@ -97,7 +100,7 @@ class Project(metaclass=Singleton):
         self._info = self.get_info()
 
         # initialize logging
-        logging.init(md)
+        logging.init(md, self._info['session_id'])
         
         return self
 

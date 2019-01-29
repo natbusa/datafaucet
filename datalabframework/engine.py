@@ -436,12 +436,33 @@ class SparkEngine(Engine):
         df_src = self.load(md_src)
                                  
         if df_src is None:
+            logging.error({ 
+                'src': md_src['hash'], 
+                'trg': md_trg['hash'],
+                'mode': mode, 
+                'result': 'error', 
+                'reason':'read failed',
+                'time': timer() - timer_start
+            })
             return
                                  
+        num_rows = df_src.count()
+        num_cols = len(df_src.columns)
+                                 
+        if num_rows==0 and mode=='append':
+            logging.notice({
+                'src': md_src['hash'],
+                'trg': md_trg['hash'],
+                'mode': mode, 
+                'updated': 0,
+                'records': num_rows, 
+                'columns': num_cols,
+                'time': timer() - timer_start
+            })
+            return
+
         if mode=='overwrite':
             self.save(df_src, md_trg, mode=mode)
-            num_rows = df_src.count()
-            num_cols = len(df_src.columns)
 
             logging.notice({
                 'src': md_src['hash'],
@@ -459,6 +480,14 @@ class SparkEngine(Engine):
             df_trg = self.load(md_trg, catch_exception=False)
         except:
             df_trg = dataframe.empty(df_src)
+            logging.notice({ 
+                'src': md_src['hash'], 
+                'trg': md_trg['hash'],
+                'mode': mode, 
+                'result': 'error', 
+                'reason':'read trg failed',
+                'time': timer() - timer_start
+            })
                                  
         # de-dup (exclude the _updated column)
         df = dataframe.diff(df_src,df_trg, ['_date', '_datetime', '_updated', '_hash'])

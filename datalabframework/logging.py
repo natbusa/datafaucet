@@ -17,6 +17,8 @@ import os
 import sys
 from numbers import Number
 
+import uuid
+
 # import a few help methods
 from datalabframework import paths
 from datalabframework import files
@@ -57,10 +59,10 @@ class LoggerAdapter(logging.LoggerAdapter):
         """
         self.logger = logger
         self.extra = {
-            'dlf_session': repo_data()['hash'],
             'dlf_username': getpass.getuser(),
             'dlf_filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),
             'dlf_repo_name': repo_data()['name'],
+            'dlf_repo_hash': repo_data()['hash']
         }
         
         self.extra.update(extra)
@@ -127,7 +129,9 @@ class LogstashFormatter(logging.Formatter):
 
         log_record = {
             'severity': logr.levelname,
-            'session': logr.dlf_session,
+            'session_id': logr.dlf_session_id,
+            'repo_hash': logr.dlf_repo_hash,
+            'repo_name': logr.dlf_repo_name,
             '@timestamp': timestamp,
             'username': logr.dlf_username,
             'filename': logr.dlf_filename,
@@ -176,7 +180,7 @@ class DlfFilter(logging.Filter):
         record.dlf_func = func_name()
         return True
     
-def init(md=None):
+def init(md=None, session_id=0):
     global _logger
 
     md = md if md else {}
@@ -217,7 +221,7 @@ def init(md=None):
 
         # create console handler and set level to debug
         formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_func)s - %(message)s')
+            '%(asctime)s - %(levelname)s - %(dlf_session_id)s - %(dlf_repo_hash)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_func)s - %(message)s')
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
         handler.setFormatter(formatter)
@@ -226,7 +230,7 @@ def init(md=None):
         # stream replaces higher handlers, setting propagate to false
         logger.propagate = False
     
-    adapter = LoggerAdapter(logger, {})
+    adapter = LoggerAdapter(logger, {'dlf_session_id':session_id})
     
     #set global _logger
     _logger = adapter

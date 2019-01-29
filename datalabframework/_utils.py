@@ -5,7 +5,6 @@ from copy import deepcopy
 from collections import OrderedDict, Mapping
 from datalabframework.yaml import yaml
 
-
 import traceback
 
 def print_trace(limit=None): 
