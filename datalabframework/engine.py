@@ -543,7 +543,7 @@ class SparkEngine(Engine):
             df_del = dataframe.diff(df_trg,df_src, ['_date', '_datetime', '_updated', '_hash', '_state'])
             rows_del = df_del.count()
                                  
-        updated = rows_add or rows_del
+        updated = (rows_add + rows_del) > 0
                                  
         num_cols = len(df_add.columns)
         num_rows = max(df_src.count(), df_trg.count())
