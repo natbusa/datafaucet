@@ -391,25 +391,24 @@ class SparkEngine(Engine):
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':
                     try:
-                        obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
+                        obj.write.options(**options).csv(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_csv(md['url'], **kargs))
-
+                        obj.toPandas().to_csv(md['url'], **kargs)
                 if md['format'] == 'json':
                     try:
-                        obj = self._ctx.read.options(**options).json(md['url'], **kargs)
+                        obj.write.options(**options).json(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_json(md['url'], **kargs))
+                        obj.toPandas().to_json(md['url'], **kargs)
                 if md['format'] == 'jsonl':
                     try:
-                        obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
+                        obj.write.options(**options).option('multiLine', True).json(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_json(md['url'], lines=True, **kargs))
+                        obj.toPandas().to_json(md['url'], orient='records', lines=True, **kargs)
                 elif md['format'] == 'parquet':
                     try:
-                        obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
+                        obj.write.options(**options).parquet(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_parquet(md['url'], **kargs))
+                        obj.toPandas().to_parquet(md['url'], orient='records', lines=True, **kargs)
                 else:
                     return False
 
@@ -417,9 +416,9 @@ class SparkEngine(Engine):
                 if md['format'] == 'csv':
                     obj.write.options(**options).csv(md['url'], **kargs)
                 if md['format'] == 'json':
-                    obj.write.options(**options).option('multiLine', True).json(md['url'], **kargs)
-                if md['format'] == 'jsonl':
                     obj.write.options(**options).json(md['url'], **kargs)
+                if md['format'] == 'jsonl':
+                    obj.write.options(**options).option('multiLine', True).json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
                     obj.write.options(**options).parquet(md['url'], **kargs)
                 else:
@@ -575,6 +574,7 @@ class SparkEngine(Engine):
             'columns': num_cols,
             'time': timer() - timer_start
         }
+
         logging.notice(data) if result else logging.error(data)
             
                                  
