@@ -268,12 +268,12 @@ class SparkEngine(Engine):
                     except:
                         obj = self._ctx.createDataFrame(pd.read_csv(md['url'], **kargs))
 
-                if md['format'] == 'json':
+                elif md['format'] == 'json':
                     try:
                         obj = self._ctx.read.options(**options).json(md['url'], **kargs)
                     except:
                         obj = self._ctx.createDataFrame(pd.read_json(md['url'], **kargs))
-                if md['format'] == 'jsonl':
+                elif md['format'] == 'jsonl':
                     try:
                         obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
                     except:
@@ -283,16 +283,22 @@ class SparkEngine(Engine):
                         obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
                     except:
                         obj = self._ctx.createDataFrame(pd.read_parquet(md['url'], **kargs))
+                else:
+                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
+                    return None
 
             elif md['service'] in ['hdfs', 's3', 'minio']:
                 if md['format'] == 'csv':
                     obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
-                if md['format'] == 'json':
+                elif md['format'] == 'json':
                     obj = self._ctx.read.options(**options).json(md['url'], **kargs)
-                if md['format'] == 'jsonl':
+                elif md['format'] == 'jsonl':
                     obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
                     obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
+                else:
+                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
+                    return None
 
             elif md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
 
@@ -324,7 +330,7 @@ class SparkEngine(Engine):
         
         return obj
 
-    def save(self, obj, path=None, provider=None, catch_exception=True, **kargs):
+    def save(self, obj, path=None, provider=None, **kargs):
 
         if isinstance(path, ImmutableDict):
             md = path.to_dict()
@@ -366,24 +372,25 @@ class SparkEngine(Engine):
         prep_end = timer()
                                  
         core_start = timer()
-        result = self.save_dataframe(obj, md, catch_exception, **kargs)
+        result = self.save_dataframe(obj, md, **kargs)
         core_end = timer()
                                  
-        logging.info({
-            'md': dict(md), 
+        d = {
+            'md': dict(md),
             'mode': kargs.get('mode', md.get('options', {}).get('mode')),
-            'success': result, 
-            'records': num_rows, 
-            'columns': num_cols, 
+            'records': num_rows,
+            'columns': num_cols,
             'time':core_end - prep_start,
-            'time_core':core_end-core_start, 
+            'time_core':core_end-core_start,
             'time_prep': prep_end - prep_start
-        })
+        }
+
+        logging.info(d) if result else logging.error(d)
                                  
         return result
                                  
                                  
-    def save_dataframe(self, obj, md, catch_exception=True, **kargs):
+    def save_dataframe(self, obj, md, **kargs):
 
         options = md.get('options', {})
                                  
@@ -394,12 +401,12 @@ class SparkEngine(Engine):
                         obj.write.options(**options).csv(md['url'], **kargs)
                     except:
                         obj.toPandas().to_csv(md['url'], **kargs)
-                if md['format'] == 'json':
+                elif md['format'] == 'json':
                     try:
                         obj.write.options(**options).json(md['url'], **kargs)
                     except:
                         obj.toPandas().to_json(md['url'], **kargs)
-                if md['format'] == 'jsonl':
+                elif md['format'] == 'jsonl':
                     try:
                         obj.write.options(**options).option('multiLine', True).json(md['url'], **kargs)
                     except:
@@ -410,19 +417,20 @@ class SparkEngine(Engine):
                     except:
                         obj.toPandas().to_parquet(md['url'], orient='records', lines=True, **kargs)
                 else:
+                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
                     return False
 
             elif md['service'] in ['hdfs', 's3', 'minio']:
                 if md['format'] == 'csv':
                     obj.write.options(**options).csv(md['url'], **kargs)
-                if md['format'] == 'json':
+                elif md['format'] == 'json':
                     obj.write.options(**options).json(md['url'], **kargs)
-                if md['format'] == 'jsonl':
+                elif md['format'] == 'jsonl':
                     obj.write.options(**options).option('multiLine', True).json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
                     obj.write.options(**options).parquet(md['url'], **kargs)
                 else:
-                    logging.info('format unknown')
+                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
                     return False
 
             elif md['service'] in ['sqlite', 'mysql', 'postgres', 'oracle']:
@@ -441,18 +449,11 @@ class SparkEngine(Engine):
                 obj = [row.asDict() for row in obj.collect()]
                 elastic.write(obj, md['url'], mode, md['resource_path'], options['settings'], options['mappings'])
             else:
-                 if catch_exception:
-                    logging.error({'md': md, 'result': 'error'})
-                    return False
-                 else:
-                    raise ValueError(f'Unknown service for writing {md["service"]}')
-        except Exception as e:
-            if catch_exception:
-                logging.error({'md': md, 'result': 'error'})
-                print(e)
+                logging.error({'md': md, 'result': f'Unknown service "{md["service"]}"'})
                 return False
-            else:
-                raise e
+        except Exception as e:
+            logging.error({'md': md, 'result': 'error'})
+            raise e
                                  
         return True
 
