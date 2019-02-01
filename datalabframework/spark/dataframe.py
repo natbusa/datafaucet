@@ -72,6 +72,22 @@ def common_columns(df_a, df_b=None, exclude_cols=[]):
     # as provided by df_b or df_a column method
     return [x for x in cols if x in c]
 
+def view(df, colnames=None, state_col='_state', updated_col='_updated'):
+    """
+    Calculate a view from a log of events by performing the following actions:
+        - squashing the events for each entry record to the last one
+        - remove deleted record from the list
+    """
+
+    c = set(df.columns).difference({state_col, updated_col})
+    colnames = [x for x in df.columns if x in c] if colnames is None else colnames
+
+    row_groups = df.groupBy(colnames)
+    df_view = row_groups.agg(F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))),asc = False).getItem(0).alias('_last')).select(*colnames, '_last.*')
+    df = df_view.filter("{} = 0".format(state_col))
+
+    return df
+
 def diff(df_a, df_b, exclude_cols=[]):
     """
     Returns all columns of a which are not in b.

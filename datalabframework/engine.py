@@ -518,6 +518,9 @@ class SparkEngine(Engine):
 
         # de-dup (exclude the _updated column)
 
+        # create a view from the extracted log
+        df_trg = dataframe.view(df_trg)
+                               
         # capture added records
         df_add = dataframe.diff(df_src, df_trg, ['_date', '_datetime', '_updated', '_hash', '_state'])
         rows_add = df_add.count()
