@@ -1,0 +1,69 @@
+---
+profile: default
+variables:
+  date_end: "{{ env('DATE_END', now('GMT') ) }}"
+  date_window: "{{ env('DATE_WINDOW','31 days') }}"
+
+providers:
+  source:
+    host: 
+    port: 
+    path: 
+    service: 
+    format: 
+    username: 
+    password: 
+
+    date_window: "{{ variables.date_window }}"
+    date_end: "{{ variables.date_end }}"
+
+
+  target:
+    host: 
+    port: 
+    path: 
+    service: 
+    format: 
+    username: 
+    password: 
+
+    date_window: "{{ variables.date_window }}"
+    date_end: "{{ variables.date_end }}"
+    
+    date_partition: True
+    update_column: True
+    state_column: True
+    hash_column: True
+    
+engine:
+    type: spark
+    master: 
+    timezone: GMT
+    timestamps: naive
+    config:
+        spark.sql.shuffle.partitions: 8
+        spark.default.parallelism: 8
+        
+loggers:
+  root:
+    severity: info
+    
+  datalabframework:
+      name: dlf
+      stream:
+        enable: true
+        severity: notice
+      kafka:
+        enable: true
+        severity: info
+        hosts:  
+        topic: dlf
+
+---
+profile: prod
+    
+---
+profile: test
+providers:
+  target:
+    path: 

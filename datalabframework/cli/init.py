@@ -9,7 +9,7 @@ from cookiecutter.main import cookiecutter
 
 class DlfInitApp(DatalabframeworkApp):
     name = Unicode(u'datalabframework-init')
-    description = "Generating a data science project template"
+    description = "Generating a BI/ML project template"
 
     config_file = Unicode(u'', help="Load this config file").tag(config=True)
 
