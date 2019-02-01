@@ -13,19 +13,19 @@ def _url(d):
     elif service == 'sqlite':
         url = 'jdbc:sqlite:{}'.format(os.path.realpath(fullpath))
     elif service == 'hdfs':
-        url = 'hdfs://{}:{}{}'.format(d['hostname'], d['port'], fullpath)
+        url = 'hdfs://{}:{}{}'.format(d['host'], d['port'], fullpath)
     elif service == 's3':
         url = 's3a://{}'.format(fullpath)
     elif service == 'mysql':
-        url = 'jdbc:mysql://{}:{}/{}'.format(d['hostname'],d['port'], d['database'])
+        url = 'jdbc:mysql://{}:{}/{}'.format(d['host'],d['port'], d['database'])
     elif service == 'postgres':
-        url = 'jdbc:postgresql://{}:{}/{}'.format(d['hostname'], d['port'], d['database'])
+        url = 'jdbc:postgresql://{}:{}/{}'.format(d['host'], d['port'], d['database'])
     elif service == 'mssql':
-        url = 'jdbc:sqlserver://{}:{};databaseName={}'.format(d['hostname'], d['port'], d['database'])
+        url = 'jdbc:sqlserver://{}:{};databaseName={}'.format(d['host'], d['port'], d['database'])
     elif service == 'oracle':
-        url = 'jdbc:oracle:thin://{}:{}/{}'.format(d['hostname'], d['port'], d['database'])
+        url = 'jdbc:oracle:thin://{}:{}/{}'.format(d['host'], d['port'], d['database'])
     elif service == 'elastic':
-        url = 'http://{}:{}/{}'.format(d['hostname'], d['port'], d['database'])
+        url = 'http://{}:{}/{}'.format(d['host'], d['port'], d['database'])
     else:
         url = None
 
@@ -183,7 +183,7 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
     d['driver'] = _driver(d)
 
     #default hostname is localhost
-    d['hostname'] = d.get('hostname', '127.0.0.1')
+    d['host'] = d.get('hostname', d.get('host','127.0.0.1'))
 
     # provider path can be use as database name
     if not d.get('database') and d.get('format') in ['jdbc', 'nosql']:
@@ -210,7 +210,7 @@ def _dict_formatting(d):
         'service',
         'format',
         
-        'hostname',
+        'host',
         'port',
 
         'driver',
