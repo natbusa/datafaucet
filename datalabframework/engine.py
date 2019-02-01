@@ -21,6 +21,7 @@ import pyspark.sql.functions as F
 
 import pyspark
 
+
 class Engine:
     def __init__(self, name, md, rootdir):
         self._name = name
@@ -54,7 +55,7 @@ class Engine:
             'timezone': self._timezone,
             'timestamps': self._timestamps
         }
-        return ImmutableDict(to_ordered_dict(d,keys))
+        return ImmutableDict(to_ordered_dict(d, keys))
 
     def context(self):
         return self._ctx
@@ -64,12 +65,13 @@ class Engine:
 
     def save(self, obj, path=None, provider=None, **kargs):
         raise NotImplementedError
-    
+
     def copy(self, md_src, md_trg, mode='append'):
         raise NotImplementedError
 
     def stop(self):
         raise NotImplementedError
+
 
 class NoEngine(Engine):
     def __init__(self):
@@ -89,6 +91,7 @@ class NoEngine(Engine):
 
     def stop(self):
         pass
+
 
 class SparkEngine(Engine):
     def set_submit_args(self):
@@ -157,21 +160,21 @@ class SparkEngine(Engine):
 
         # if timezone is not set, engine treats timestamps as 'naive' 
         if self._timestamps == 'naive':
-            conf.set('spark.sql.session.timeZone','UTC')
-            conf.set('spark.driver.extraJavaOptions','-Duser.timezone=UTC')
-            conf.set('spark.executor.extraJavaOptions','-Duser.timezone=UTC')
+            conf.set('spark.sql.session.timeZone', 'UTC')
+            conf.set('spark.driver.extraJavaOptions', '-Duser.timezone=UTC')
+            conf.set('spark.executor.extraJavaOptions', '-Duser.timezone=UTC')
         elif self._timezone:
             timezone = self._timezone
-            conf.set('spark.sql.session.timeZone',timezone)
-            conf.set('spark.driver.extraJavaOptions',f'-Duser.timezone={timezone}')
-            conf.set('spark.executor.extraJavaOptions',f'-Duser.timezone={timezone}')
+            conf.set('spark.sql.session.timeZone', timezone)
+            conf.set('spark.driver.extraJavaOptions', f'-Duser.timezone={timezone}')
+            conf.set('spark.executor.extraJavaOptions', f'-Duser.timezone={timezone}')
         else:
             # use spark and system defaults
             pass
-            
-        for k,v in conf_md.items():
+
+        for k, v in conf_md.items():
             if isinstance(v, (bool, int, float, str)):
-                conf.set(k,v)
+                conf.set(k, v)
 
     def __init__(self, name, md, rootdir):
         super().__init__(name, md, rootdir)
@@ -207,7 +210,6 @@ class SparkEngine(Engine):
     def stop(self):
         pyspark.SparkContext.getOrCreate().stop()
 
-        
     def load(self, path=None, provider=None, catch_exception=True, **kargs):
         if isinstance(path, ImmutableDict):
             md = path.to_dict()
@@ -221,39 +223,39 @@ class SparkEngine(Engine):
         core_end = timer()
         if obj is None:
             return obj
-            
+
         prep_start = timer()
         date_column = '_date' if md['date_partition'] else md['date_column']
         obj = dataframe.filter_by_date(
-                obj,
-                date_column,
-                md['date_start'],
-                md['date_end'],
-                md['date_window'])
+            obj,
+            date_column,
+            md['date_start'],
+            md['date_end'],
+            md['date_window'])
 
         if date_column and date_column in obj.columns:
             obj = obj.repartition(date_column)
 
         if '_updated' in obj.columns:
             obj = obj.sortWithinPartitions(F.desc('_updated'))
-            
+
         obj = dataframe.cache(obj, md['cache'])
 
         num_rows = obj.count()
         num_cols = len(obj.columns)
         prep_end = timer()
 
-        logging.info({
-            'md': dict(md), 
+        log_data = {
+            'md': dict(md),
             'mode': kargs.get('mode', md.get('options', {}).get('mode')),
-            'result': 'success', 
-            'records': num_rows, 
-            'columns': num_cols, 
-            'time': prep_end - core_start, 
-            'time_core': core_end-core_start, 
+            'records': num_rows,
+            'columns': num_cols,
+            'time': prep_end - core_start,
+            'time_core': core_end - core_start,
             'time_prep': prep_end - prep_start
-        })
-        
+        }
+        logging.info(log_data) if obj is not None else logging.error(log_data)
+
         return obj
 
     def load_dataframe(self, md, catch_exception=True, **kargs):
@@ -284,7 +286,7 @@ class SparkEngine(Engine):
                     except:
                         obj = self._ctx.createDataFrame(pd.read_parquet(md['url'], **kargs))
                 else:
-                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
+                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return None
 
             elif md['service'] in ['hdfs', 's3', 'minio']:
@@ -297,7 +299,7 @@ class SparkEngine(Engine):
                 elif md['format'] == 'parquet':
                     obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
                 else:
-                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
+                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return None
 
             elif md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
@@ -311,23 +313,22 @@ class SparkEngine(Engine):
                     .option('password', md['password']) \
                     .options(**options)
 
-                #load the data from jdbc
+                # load the data from jdbc
                 obj = obj.load(**kargs)
 
             elif md['service'] == 'elastic':
                 results = elastic.read(md['url'], options.get('query', {}))
                 rows = [pyspark.sql.Row(**r) for r in results]
-                obj =  self.context().createDataFrame(rows)
+                obj = self.context().createDataFrame(rows)
             else:
-                raise ValueError(f'Unknown service "{md["service"]}"')
+                logging.error({'md': md, 'error_msg': f'Unknown service "{md["service"]}"'})
         except Exception as e:
             if catch_exception:
-                logging.error({'md': md, 'result': 'error'})
-                print(e)
+                logging.error({'md': md, 'error': str(e)})
                 return None
             else:
                 raise e
-        
+
         return obj
 
     def save(self, obj, path=None, provider=None, **kargs):
@@ -340,60 +341,60 @@ class SparkEngine(Engine):
             md = path
 
         prep_start = timer()
-                                 
+
         if md['date_partition'] and md['date_column']:
-            tzone = 'UTC' if self._timestamps=='naive' else self._timezone
+            tzone = 'UTC' if self._timestamps == 'naive' else self._timezone
             obj = dataframe.add_datetime_columns(obj, column=md['date_column'], tzone=tzone)
             kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', md.get('options', {}).get('partitionBy', []))
-        
+
         if md['update_column']:
             obj = dataframe.add_update_column(obj, tzone=self._timezone)
 
         if md['hash_column']:
-            obj = dataframe.add_hash_column(obj, cols=md['hash_column'], exclude_cols=['_date', '_datetime', '_updated', '_hash', '_state'])
+            obj = dataframe.add_hash_column(obj, cols=md['hash_column'],
+                                            exclude_cols=['_date', '_datetime', '_updated', '_hash', '_state'])
 
         date_column = '_date' if md['date_partition'] else md['date_column']
         obj = dataframe.filter_by_date(
-                obj,
-                date_column,
-                md['date_start'],
-                md['date_end'],
-                md['date_window'])
+            obj,
+            date_column,
+            md['date_start'],
+            md['date_end'],
+            md['date_window'])
 
         obj = dataframe.cache(obj, md['cache'])
-                                 
+
         num_rows = obj.count()
         num_cols = len(obj.columns)
 
         # force 1 file per partition, just before saving
-        obj = obj.repartition(1,*kargs['partitionBy']) if kargs.get('partitionBy') else obj.repartition(1)
-        #obj = obj.coalesce(1)
-                         
+        obj = obj.repartition(1, *kargs['partitionBy']) if kargs.get('partitionBy') else obj.repartition(1)
+        # obj = obj.coalesce(1)
+
         prep_end = timer()
-                                 
+
         core_start = timer()
         result = self.save_dataframe(obj, md, **kargs)
         core_end = timer()
-                                 
-        d = {
+
+        log_data = {
             'md': dict(md),
             'mode': kargs.get('mode', md.get('options', {}).get('mode')),
             'records': num_rows,
             'columns': num_cols,
-            'time':core_end - prep_start,
-            'time_core':core_end-core_start,
+            'time': core_end - prep_start,
+            'time_core': core_end - core_start,
             'time_prep': prep_end - prep_start
         }
 
-        logging.info(d) if result else logging.error(d)
-                                 
+        logging.info(log_data) if result else logging.error(log_data)
+
         return result
-                                 
-                                 
+
     def save_dataframe(self, obj, md, **kargs):
 
         options = md.get('options', {})
-                                 
+
         try:
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':
@@ -417,7 +418,7 @@ class SparkEngine(Engine):
                     except:
                         obj.toPandas().to_parquet(md['url'], orient='records', lines=True, **kargs)
                 else:
-                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
+                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return False
 
             elif md['service'] in ['hdfs', 's3', 'minio']:
@@ -430,7 +431,7 @@ class SparkEngine(Engine):
                 elif md['format'] == 'parquet':
                     obj.write.options(**options).parquet(md['url'], **kargs)
                 else:
-                    logging.error({'md': md, 'result': f'Unknown format "{md["format"]}"'})
+                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return False
 
             elif md['service'] in ['sqlite', 'mysql', 'postgres', 'oracle']:
@@ -449,141 +450,120 @@ class SparkEngine(Engine):
                 obj = [row.asDict() for row in obj.collect()]
                 elastic.write(obj, md['url'], mode, md['resource_path'], options['settings'], options['mappings'])
             else:
-                logging.error({'md': md, 'result': f'Unknown service "{md["service"]}"'})
+                logging.error({'md': md, 'error_msg': f'Unknown service "{md["service"]}"'})
                 return False
         except Exception as e:
-            logging.error({'md': md, 'result': 'error'})
+            logging.error({'md': md, 'error_msg': str(e)})
             raise e
-                                 
+
         return True
 
     def copy(self, md_src, md_trg, mode='append'):
-        
+
         # timer
         timer_start = timer()
-                                 
+
         # src dataframe
         df_src = self.load(md_src)
-                                 
+
+        # logging
+        log_data = {
+            'src_hash': md_src['hash'],
+            'src_path': md_src['resource_path'],
+            'trg_hash': md_trg['hash'],
+            'trg_path': md_trg['resource_path'],
+            'mode': mode,
+            'updated': False,
+            'records_read': 0,
+            'records_add': 0,
+            'records_del': 0,
+            'columns': 0,
+            'time': timer() - timer_start
+        }
+
         # could not read source, log error and return
         if df_src is None:
-            logging.error({
-                'src_hash': md_src['hash'],
-                'src_path': md_src['resource_path'],
-                'trg_hash': md_trg['hash'],
-                'trg_path': md_trg['resource_path'],
-                'mode': mode, 
-                'updated': False,
-                'records_read': 0, 
-                'records_add': 0, 
-                'records_del': 0, 
-                'columns': 0,
-                'time': timer() - timer_start
-            })
-            return
-                                 
-        num_rows = df_src.count()
-        num_cols = len(df_src.columns)
-                                 
-        #empty source, log notice and return
-        if num_rows==0 and mode=='append':
-            logging.notice({
-                'src_hash': md_src['hash'],
-                'src_path': md_src['resource_path'],
-                'trg_hash': md_trg['hash'],
-                'trg_path': md_trg['resource_path'],
-                'mode': mode, 
-                'updated': False,
-                'records_read': num_rows, 
-                'records_add': 0, 
-                'records_del': 0, 
-                'columns': num_cols,
-                'time': timer() - timer_start
-            })
+            logging.error()
             return
 
-        #overwrite target, save, log notice/error and return
-        if mode=='overwrite':
+        num_rows = df_src.count()
+        num_cols = len(df_src.columns)
+
+        # empty source, log notice and return
+        if num_rows == 0 and mode == 'append':
+            log_data['time'] = timer() - timer_start
+            logging.notice(log_data)
+            return
+
+        # overwrite target, save, log notice/error and return
+        if mode == 'overwrite':
             if md_trg['state_column']:
                 df_src = df_src.withColumn('_state', F.lit(0))
 
             result = self.save(df_src, md_trg, mode=mode)
-            
-            data = {
-                'src_hash': md_src['hash'],
-                'src_path': md_src['resource_path'],
-                'trg_hash': md_trg['hash'],
-                'trg_path': md_trg['resource_path'],
-                'mode': mode, 
-                'updated': True,
-                'records_read': num_rows, 
-                'records_add': num_rows, 
-                'records_del': 0, 
-                'columns': num_cols,
-                'time': timer() - timer_start
-            }
-            logging.notice(data) if result else logging.error(data)
+
+            log_data['time'] = timer() - timer_start
+            log_data['records_read'] = num_rows
+            log_data['records_add'] = num_rows
+            log_data['columns'] = num_cols
+
+            logging.notice(log_data) if result else logging.error(log_data)
             return
 
         # trg dataframe (if exists)
         try:
-            df_trg = self.load(md_trg, catch_exception=False) 
+            df_trg = self.load(md_trg, catch_exception=False)
         except:
             df_trg = dataframe.empty(df_src)
-                                 
+
         # de-dup (exclude the _updated column)
-        
+
         # capture added records
-        df_add = dataframe.diff(df_src,df_trg, ['_date', '_datetime', '_updated', '_hash', '_state'])
+        df_add = dataframe.diff(df_src, df_trg, ['_date', '_datetime', '_updated', '_hash', '_state'])
         rows_add = df_add.count()
-        
+
         # capture deleted records
         rows_del = 0
         if md_trg['state_column']:
-            df_del = dataframe.diff(df_trg,df_src, ['_date', '_datetime', '_updated', '_hash', '_state'])
+            df_del = dataframe.diff(df_trg, df_src, ['_date', '_datetime', '_updated', '_hash', '_state'])
             rows_del = df_del.count()
-                                 
+
         updated = (rows_add + rows_del) > 0
-                                 
+
         num_cols = len(df_add.columns)
         num_rows = max(df_src.count(), df_trg.count())
-                                 
+
         # save diff
         if updated:
             if md_trg['state_column']:
                 df_add = df_add.withColumn('_state', F.lit(0))
                 df_del = df_del.withColumn('_state', F.lit(1))
-                
+
                 df = df_add.union(df_del)
             else:
                 df = df_add
-                                     
+
             result = self.save(df, md_trg, mode=mode)
         else:
             result = True
-                                     
-        data = {
-            'src_hash': md_src['hash'],
-            'src_path': md_src['resource_path'],
-            'trg_hash': md_trg['hash'],
-            'trg_path': md_trg['resource_path'],
-            'mode': mode, 
+
+        log_data.update({
             'updated': updated,
-            'records_read': num_rows, 
-            'records_add': rows_add, 
-            'records_del': rows_del, 
+            'records_read': num_rows,
+            'records_add': rows_add,
+            'records_del': rows_del,
             'columns': num_cols,
             'time': timer() - timer_start
-        }
+        })
 
-        logging.notice(data) if result else logging.error(data)
-            
-                                 
+        logging.notice(log_data) if result else logging.error(log_data)
+
+
 def get(name, md, rootdir):
     engine = NoEngine()
 
     if md.get('engine', {}).get('type') == 'spark':
-         engine = SparkEngine(name, md, rootdir)
+        engine = SparkEngine(name, md, rootdir)
 
     # if md.get('engine', {}).get('type') == 'pandas':
     #      engine = PandasEngine(name, md, rootdir)
