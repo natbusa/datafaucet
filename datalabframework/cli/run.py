@@ -4,7 +4,7 @@ import glob
 from textwrap import dedent
 
 import nbformat
-from nbconvert.preprocessors import ExecutePreprocessor
+from nbconvert.preprocessors import ExecutePreprocessor, CellExecutionError
 
 from .application import DatalabframeworkApp
 
