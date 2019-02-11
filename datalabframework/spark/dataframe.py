@@ -82,6 +82,12 @@ def view(df, colnames=None, state_col='_state', updated_col='_updated'):
     c = set(df.columns).difference({state_col, updated_col})
     colnames = [x for x in df.columns if x in c] if colnames is None else colnames
 
+    if updated_col not in colnames:
+        return df
+    
+    if state_col not in colnames:
+        return df
+    
     row_groups = df.groupBy(colnames)
     df_view = row_groups.agg(F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))),asc = False).getItem(0).alias('_last')).select(*colnames, '_last.*')
     df = df_view.filter("{} = 0".format(state_col))
