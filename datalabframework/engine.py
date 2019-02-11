@@ -483,7 +483,7 @@ class SparkEngine(Engine):
 
         # could not read source, log error and return
         if df_src is None:
-            logging.error()
+            logging.error(log_data)
             return
 
         num_rows = df_src.count()
