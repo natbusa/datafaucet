@@ -72,15 +72,15 @@ def common_columns(df_a, df_b=None, exclude_cols=[]):
     # as provided by df_b or df_a column method
     return [x for x in cols if x in c]
 
-def view(df, colnames=None, state_col='_state', updated_col='_updated'):
+def view(df, state_col='_state', updated_col='_updated', hash_col='_hash'):
     """
     Calculate a view from a log of events by performing the following actions:
         - squashing the events for each entry record to the last one
         - remove deleted record from the list
     """
 
-    c = set(df.columns).difference({state_col, updated_col})
-    colnames = [x for x in df.columns if x in c] if colnames is None else colnames
+    c = set(df.columns).difference({state_col, updated_col, hash_col})
+    colnames = [x for x in df.columns if x in c] 
 
     if updated_col not in df.columns:
         return df
@@ -88,8 +88,17 @@ def view(df, colnames=None, state_col='_state', updated_col='_updated'):
     if state_col not in df.columns:
         return df
     
-    row_groups = df.groupBy(colnames)
-    df_view = row_groups.agg(F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))),asc = False).getItem(0).alias('_last')).select(*colnames, '_last.*')
+    selected_columns = colnames + ['_last.*']
+    groupby_columns = colnames
+    
+    # groupby hash_col first if available
+    if hash_col in df.columns:
+        selected_columns = selected_columns + [hash_col]
+        groupby_columns = [hash_col] + groupby_columns
+    
+    row_groups = df.groupBy(groupby_columns)
+    get_sorted_array = F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))),asc = False)
+    df_view = row_groups.agg(get_sorted_array.getItem(0).alias('_last')).select(*selected_columns)
     df_view = df_view.filter("{} = 0".format(state_col))
 
     return df_view
@@ -141,7 +150,7 @@ def add_update_column(obj, updated_colname = '_updated', tzone='UTC'):
     obj = obj.withColumn(updated_colname, F.lit(ts).cast(T.TimestampType()))
     return obj
 
-def add_hash_column(obj, cols, hash_colname = '_hash', exclude_cols=[]):
+def add_hash_column(obj, cols=True, hash_colname = '_hash', exclude_cols=[]):
     # add the _updated timestamp
     if isinstance(cols, bool) and cols:
         cols =obj.columns
@@ -155,29 +164,33 @@ def add_hash_column(obj, cols, hash_colname = '_hash', exclude_cols=[]):
 def empty(df):
     return df.sql_ctx.createDataFrame([],df.schema)
 
-def summary(df):
+def summary(df, datatypes=None):
         spark = df.sql_ctx
-
         types = {x.name:x.dataType for x in list(df.schema)}
+        
+        #filter datatypes
+        if datatypes is not None:
+            types  = {k:v for k,v in types.items() if any([x in datatypes for x in [v, str(v), v.simpleString()]]) }
+        
         res = pd.DataFrame.from_dict(types, orient='index')
         res.columns = ['datatype']
         
+        count  = df.count()
+        res['count'] = count
+
         d= df.select([F.approx_count_distinct(c).alias(c) for c in df.columns]).toPandas().T
         d.columns = ['approx_distinct']
         d.index.name = 'index'
         res = res.join(d)
-
-        d= df.select([F.count(c).alias(c) for c in df.columns]).toPandas().T
-        d.columns = ['count']
-        d.index.name = 'index'
-        res = res.join(d)
-
+        
+        res['unique_ratio'] = res['approx_distinct']/count
+        
         sel = []
         for c,v in types.items():
             if isinstance(v, (T.NumericType)):
-                sel += [F.count(F.when(F.isnan(c), c)).alias(c)]
+                sel += [F.mean(c).alias(c)]
             else:
-                sel += [F.lit(None).alias(c)]
+                sel += [F.min(F.lit(None)).alias(c)]
         d = df.select(sel).toPandas().T
         d.columns = ['mean']
         d.index.name = 'index'
@@ -203,7 +216,7 @@ def summary(df):
             if isinstance(v, (T.NumericType)):
                 sel += [F.count(F.when(F.isnan(c), c)).alias(c)]
             else:
-                sel += [F.lit(0).alias(c)]
+                sel += [F.min(F.lit(0)).alias(c)]
         d = df.select(sel).toPandas().T
         d.columns = ['nan']
         d.index.name = 'index'
@@ -214,7 +227,7 @@ def summary(df):
             if isinstance(v, (T.StringType)):
                 sel += [F.count(F.when(F.col(c).isin(''), c)).alias(c)]
             else:
-                sel += [F.lit(0).alias(c)]
+                sel += [F.min(F.lit(0)).alias(c)]
         d = df.select(sel).toPandas().T
         d.columns = ['empty']
         d.index.name = 'index'
@@ -222,4 +235,40 @@ def summary(df):
 
         return res
 
+def columns_rename(df, mapping=None):
+    if not mapping:
+        return df
+    
+    select = [F.col(x).alias(mapping[x]) if x in mapping.keys() else F.col(x) for x in df.columns]
+    
+    return df.select(*select)
+
+def columns_format(df, prefix='', postfix='', sep='_'):
+    if not prefix and not postfix:
+        return df
+    
+    select = [F.col(x).alias(sep.join([prefix,x,postfix])) for x in df.columns]
+    return df.select(*select)
+
+def columns_apply(df, f, cols=None, inplace=True):
+    if not cols:
+        return df
+    
+    cols = set(df.columns) & set(cols)
+    for col in cols:
+        df = df.withColumn(col, f(col))
+    
+    return df
+
+def columns(df, datatypes=None):
+    types = {x.name:x.dataType for x in list(df.schema)}
+        
+    #filter datatypes
+    if datatypes is not None:
+        return [k for k,v in types.items() if any([x in datatypes for x in [v, str(v), v.simpleString()]]) ]
+    else:
+        return list(df.columns)
+
+def one(df):
+    return df.head(1)[0].asDict()
 

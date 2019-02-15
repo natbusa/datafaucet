@@ -1,4 +1,4 @@
-import os
+import os, time
 
 from datalabframework import logging
 from datalabframework import elastic
@@ -160,11 +160,15 @@ class SparkEngine(Engine):
 
         # if timezone is not set, engine treats timestamps as 'naive' 
         if self._timestamps == 'naive':
+            os.environ['TZ'] = 'UTC'
+            time.tzset()
             conf.set('spark.sql.session.timeZone', 'UTC')
             conf.set('spark.driver.extraJavaOptions', '-Duser.timezone=UTC')
             conf.set('spark.executor.extraJavaOptions', '-Duser.timezone=UTC')
         elif self._timezone:
             timezone = self._timezone
+            os.environ['TZ'] = timezone
+            time.tzset()
             conf.set('spark.sql.session.timeZone', timezone)
             conf.set('spark.driver.extraJavaOptions', f'-Duser.timezone={timezone}')
             conf.set('spark.executor.extraJavaOptions', f'-Duser.timezone={timezone}')
