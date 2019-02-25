@@ -5,8 +5,5 @@ import unidecode as ud
 
 @F.pandas_udf(T.StringType(), F.PandasUDFType.SCALAR)
 def unidecode(series):
-    return series.apply(lambda s: ud.unidecode(s))
-
-def empty_dataframe(df):
-    return df.sql_ctx.createDataFrame([],df.schema)
+    return series.apply(lambda s: s if not s else ud.unidecode(s))
 

@@ -2,6 +2,8 @@ import pyspark
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 
+import re
+
 from datetime import datetime
 import pytz
 
@@ -235,12 +237,8 @@ def summary(df, datatypes=None):
 
         return res
 
-def columns_rename(df, mapping=None):
-    if not mapping:
-        return df
-    
-    select = [F.col(x).alias(mapping[x]) if x in mapping.keys() else F.col(x) for x in df.columns]
-    
+def select(df, mapping):
+    select = [F.col(x).alias(mapping[x]) for x in df.columns if x in mapping.keys()]
     return df.select(*select)
 
 def columns_format(df, prefix='', postfix='', sep='_'):
@@ -250,24 +248,37 @@ def columns_format(df, prefix='', postfix='', sep='_'):
     select = [F.col(x).alias(sep.join([prefix,x,postfix])) for x in df.columns]
     return df.select(*select)
 
-def columns_apply(df, f, cols=None, inplace=True):
-    if not cols:
-        return df
+def apply(df, f, cols=None):
     
-    cols = set(df.columns) & set(cols)
+    #select column where to apply the function f
+    cols = df.columns if cols is None else cols
+    cols = [x for x in df.columns if x in cols]
+    
     for col in cols:
         df = df.withColumn(col, f(col))
     
     return df
 
-def columns(df, datatypes=None):
-    types = {x.name:x.dataType for x in list(df.schema)}
+def columns(df, filter_by_type=None, filter_by_regex=None, filter_by_function=None):
+    cols = {x.name:x.dataType for x in list(df.schema)}
         
     #filter datatypes
-    if datatypes is not None:
-        return [k for k,v in types.items() if any([x in datatypes for x in [v, str(v), v.simpleString()]]) ]
-    else:
-        return list(df.columns)
+    if filter_by_type is not None:
+        d= {}
+        for k,v in cols.items():
+            if any([x in filter_by_type for x in [str(v), v.simpleString()]] +
+                [isinstance(v,type(x)) for x in filter_by_type if isinstance(x, T.AtomicType) ] ):
+                d.update({k:v})
+        cols = d
+
+    if filter_by_regex is not None:
+        regex = re.compile(filter_by_regex)
+        cols = {k:v for k,v in cols.items() if regex.search(k)}
+
+    if filter_by_function is not None:
+        cols = {k:v for k,v in cols.items() if filter_by_function(k)}
+
+    return list(cols.keys())
 
 def one(df):
     return df.head(1)[0].asDict()

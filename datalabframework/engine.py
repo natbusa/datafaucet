@@ -237,16 +237,18 @@ class SparkEngine(Engine):
             md['date_end'],
             md['date_window'])
 
+        # partition and sorting (hmmm, needed?)
         if date_column and date_column in obj.columns:
             obj = obj.repartition(date_column)
 
         if '_updated' in obj.columns:
             obj = obj.sortWithinPartitions(F.desc('_updated'))
 
-        obj = dataframe.cache(obj, md['cache'])
-
         num_rows = obj.count()
         num_cols = len(obj.columns)
+
+        obj = dataframe.cache(obj, md['cache'])
+
         prep_end = timer()
 
         log_data = {
