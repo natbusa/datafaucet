@@ -15,10 +15,29 @@ from jinja2 import Environment
 default_metadata = {
     'profile': 'default',
     'variables': {},
-    'engine': {},
+    'engine': {
+        'type': 'spark',
+        'master': 'local[*]'
+    },
     'providers': {},
     'resources': {},
-    'loggers': {}
+    'loggers': {
+        'root': {
+            'severity':'info'
+        }, 
+        'datalabframework': {
+            'name':'dlf',
+            'stream': {
+                'enable': True,
+                'severity': 'notice'
+            },
+            'kafka': {
+                'enable': False,
+                'severity': 'info'
+                
+            }
+        }
+    }
 }
 
 # metadata files are cached once read the first time
@@ -51,8 +70,6 @@ def read(file_paths=None):
                         profiles[doc['profile']] = merge(profiles.get(doc['profile'],{}), doc)
 
     return profiles
-
-
 
 def inherit(profiles):
     """
