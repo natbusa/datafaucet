@@ -14,7 +14,7 @@ def _url(d):
         url = 'jdbc:sqlite:{}'.format(os.path.realpath(fullpath))
     elif service == 'hdfs':
         url = 'hdfs://{}:{}{}'.format(d['host'], d['port'], fullpath)
-    elif service == 's3':
+    elif service == 'minio':
         url = 's3a://{}'.format(fullpath)
     elif service == 'mysql':
         url = 'jdbc:mysql://{}:{}/{}'.format(d['host'],d['port'], d['database'])
@@ -38,7 +38,8 @@ def _port(service_name):
         'postgres': 5432,
         'mssql': 1433,
         'oracle': 1521,
-        'elastic': 9200
+        'elastic': 9200,
+        'minio':9000
     }
     return ports.get(service_name)
 
