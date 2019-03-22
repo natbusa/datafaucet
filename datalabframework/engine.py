@@ -295,7 +295,7 @@ class SparkEngine(Engine):
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return None
 
-            elif md['service'] in ['hdfs', 's3', 'minio']:
+            elif md['service'] in ['hdfs', 'minio']:
                 if md['format'] == 'csv':
                     obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
                 elif md['format'] == 'json':
@@ -427,7 +427,7 @@ class SparkEngine(Engine):
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return False
 
-            elif md['service'] in ['hdfs', 's3', 'minio']:
+            elif md['service'] in ['hdfs', 'minio']:
                 if md['format'] == 'csv':
                     obj.write.options(**options).csv(md['url'], **kargs)
                 elif md['format'] == 'json':
