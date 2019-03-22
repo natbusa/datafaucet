@@ -12,7 +12,7 @@ from datalabframework import logging
 from datalabframework.metadata import reader
 from datalabframework.metadata import resource
 
-from datalabframework._utils import Singleton, ImmutableDict, repo_data
+from datalabframework._utils import Singleton, YamlDict, repo_data
 from datalabframework._notebook import NotebookFinder
 
 import uuid
@@ -105,32 +105,20 @@ class Project(metaclass=Singleton):
         return self
 
     def config(self):
-        if not self.profile:
-            self.load()
-
-        return ImmutableDict(self._info)
+        return YamlDict(self._info)
 
     def profile(self):
-        if not self.profile:
-            self.load()
-
         return self._profile
 
     def metadata(self):
-        if not self.profile:
-            self.load()
-
-        return ImmutableDict(self._metadata)
+        return YamlDict(self._metadata)
 
     def resource(self, path=None, provider=None, md=dict()):
         if not self.profile:
-            self.load()
+            raise ValueError("No project profile loaded. Try first: datalabframework.project.load(...)") 
 
         md = resource.get_metadata(paths.rootdir(), self._metadata , path, provider, md)
         return md
 
     def engine(self):
-        if not self.profile:
-            self.load()
-
         return self._engine

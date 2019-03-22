@@ -4,7 +4,7 @@ from datalabframework import logging
 from datalabframework import elastic
 
 from datalabframework.metadata.resource import get_metadata
-from datalabframework._utils import ImmutableDict, to_ordered_dict
+from datalabframework._utils import YamlDict, to_ordered_dict
 
 import pandas as pd
 from datalabframework.spark import dataframe
@@ -55,7 +55,7 @@ class Engine:
             'timezone': self._timezone,
             'timestamps': self._timestamps
         }
-        return ImmutableDict(to_ordered_dict(d, keys))
+        return YamlDict(to_ordered_dict(d, keys))
 
     def context(self):
         return self._ctx
@@ -215,7 +215,7 @@ class SparkEngine(Engine):
         pyspark.SparkContext.getOrCreate().stop()
 
     def load(self, path=None, provider=None, catch_exception=True, **kargs):
-        if isinstance(path, ImmutableDict):
+        if isinstance(path, YamlDict):
             md = path.to_dict()
         elif isinstance(path, str):
             md = get_metadata(self._rootdir, self._metadata, path, provider)
@@ -339,7 +339,7 @@ class SparkEngine(Engine):
 
     def save(self, obj, path=None, provider=None, **kargs):
 
-        if isinstance(path, ImmutableDict):
+        if isinstance(path, YamlDict):
             md = path.to_dict()
         elif isinstance(path, str):
             md = get_metadata(self._rootdir, self._metadata, path, provider)

@@ -2,7 +2,7 @@ import os
 import git
 
 from copy import deepcopy
-from collections import OrderedDict, Mapping
+from collections import Mapping
 from datalabframework.yaml import yaml
 
 import traceback
@@ -25,42 +25,27 @@ def to_ordered_dict(d, keys):
         for k in keys:
             if isinstance(k, tuple):
                 e = d.get(k[0], {})
-                yield (k[0], OrderedDict(to_ordered_dict_generator(e, k[1])))
+                yield (k[0], dict(to_ordered_dict_generator(e, k[1])))
             else:
                 e = d.get(k)
                 yield (k, e)
 
-    return OrderedDict(to_ordered_dict_generator(d, keys))
+    return dict(to_ordered_dict_generator(d, keys))
 
-def to_dict(d):
-    simple_dict = {}
-
-    for key, value in d.items():
-        if isinstance(value, OrderedDict):
-            simple_dict[key] = to_dict(value)
-        else:
-            simple_dict[key] = value
-
-    return simple_dict
-
-class ImmutableDict(Mapping):
+class YamlDict(Mapping):
     """
     A helper class which provides read-only access to the dictionary and
     representation in yaml formal, for enhanced readability
     the to_dict() method return the underlying dictionary
     """
-
-    def to_dict(self):
-        return self._data
-
-    def __init__(self, data):
-        self._data = OrderedDict(data)
-
-    def __getitem__(self, key):
-        if isinstance(self._data[key], dict):
-            return ImmutableDict(self._data[key])
+    def __init__(self, m=None, **kwargs):
+        if isinstance(m,str):
+            self._data = yaml.load(m)
         else:
-            return self._data[key]
+            self._data = dict(m,**kwargs) if m is not None else dict(**kwargs)
+            
+    def __getitem__(self, key):
+        return self._data[key]
 
     def __len__(self):
         return len(self._data)
@@ -69,23 +54,13 @@ class ImmutableDict(Mapping):
         return iter(self._data)
 
     def __repr__(self):
-        return yaml.dump(to_dict(self._data))
+        return yaml.dump(self._data)
 
     def __dict__(self):
         return self._data
-
-    def __readonly__(self, *args, **kwargs):
-        raise RuntimeError("Cannot modify: read-only dict")
-
-    __setitem__ = __readonly__
-    __delitem__ = __readonly__
-    pop = __readonly__
-    popitem = __readonly__
-    clear = __readonly__
-    update = __readonly__
-    setdefault = __readonly__
-    del __readonly__
-
+    
+    def to_dict(self):
+        return self._data
 
 def merge(a, b):
     """
