@@ -7,6 +7,7 @@ def load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv_p
       - set rootdir for the given project
       - perform .env env variable exporting,
       - load the given `profile` from the metadata files,
+      - setup and start the data engine
 
      Note that:
      1) Metadata files are merged up, so you can split the information in multiple files as long as they end with metadata.yml
@@ -20,10 +21,11 @@ def load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv_p
     :param profile: load the given metadata profile (default: 'default')
     :param rootdir_path: root directory for loaded project (default: current working directory)
     :param search_parent_dirs: search parent dirs to detect rootdir by looking for a '__main__.py' or 'main.ipynb' file (default: True)
-    :param dotenv_path: load variable from a dotenv file, if the file exists and it's readable (default: <rootdir>/.env)
-    :return: config project object
+    :param dotenv_path: load variable from a dotenv file, if the file exists and readable (default: <rootdir>/.env)
+    :return: None
     """
-    return Project().load(profile, rootdir_path, search_parent_dirs, dotenv_path)
+    Project().load(profile, rootdir_path, search_parent_dirs, dotenv_path)
+    return
 
 def config():
     """
@@ -34,17 +36,14 @@ def config():
 
 def engine():
     """
-    Start up a session according to the engine settings in the loaded metadata profile
-    :param name: the alias of the engine as defined in the metadata configuration profile
-    :return:
+    Get the engine defined in the loaded metadata profile
+    :return: the Engine object
     """
     return Project().engine()
 
 def metadata():
     """
     return a metadata object which provides just one method:
-    config() : provides the current loaded metadata profile information
-
     :return: a Metadata object
     """
     return Project().metadata()
