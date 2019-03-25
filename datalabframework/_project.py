@@ -42,23 +42,23 @@ class Project(metaclass=Singleton):
     def __init__(self, filename=None):
         #object variables
         self._profile = None
-        self._metadata = reader.default_metadata
+        self._metadata = {}
         self._dotenv_path = None
         self._engine = engine.NoEngine()
         self._info = self.get_info()
 
-    def load(self, profile='default', rootdir_path=None, search_parent_dirs=True, dotenv_path=None):
+    def load(self, profile='default', rootdir_path=None, search_parent_dirs=True, dotenv=True, factory_defaults=True):
 
         # init workdir and rootdir paths
         paths.set_rootdir(rootdir_path, search_parent_dirs)
 
         # set dotenv default file
-        if dotenv_path is None:
-            dotenv_path = os.path.join(paths.rootdir(), '.env')
-
-        # if file is valid and exists, store in the object context.
-        if os.path.isfile(dotenv_path):
-            self._dotenv_path = os.path.abspath(dotenv_path)
+        if dotenv is True:
+            self._dotenv_path = os.path.join(paths.rootdir(), '.env')
+        elif isinstance(dotenv, string) and os.path.isfile(dotenv):
+            self._dotenv_path = os.path.abspath(dotenv)
+        else:
+            self._dotenv_path = None
 
         # metadata files
         metadata_files = files.get_metadata_files(paths.rootdir())
@@ -66,7 +66,7 @@ class Project(metaclass=Singleton):
         # load metadata
         try:
             md_files = [ os.path.join(paths.rootdir(), x) for x in metadata_files]
-            self._metadata = reader.load(profile,md_files,self._dotenv_path)
+            self._metadata = reader.load(profile,md_files,self._dotenv_path, factory_defaults)
         except ValueError as e:
             print(e)
             self._metadata = {}
@@ -75,7 +75,7 @@ class Project(metaclass=Singleton):
         if not self._metadata:
             raise ValueError('No valid metadata to load.')
             
-        # set profile, only if not set yet
+        # set profile from metadata
         self._profile = self._metadata['profile']
 
         # add roothpath to the list of python sys paths

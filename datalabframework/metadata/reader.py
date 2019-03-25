@@ -12,29 +12,6 @@ import jsonschema
 from dotenv import load_dotenv
 from jinja2 import Environment
 
-default_metadata = {
-    'profile': 'default',
-    'variables': {},
-    'engine': {
-        'type': 'spark',
-        'master': 'local[*]'
-    },
-    'providers': {},
-    'resources': {},
-    'loggers': {
-        'root': {
-            'severity':'info'
-        }, 
-        'datalabframework': {
-            'name':'dlf',
-            'stream': {
-                'enable': True,
-                'severity': 'notice'
-            }
-        }
-    }
-}
-
 # metadata files are cached once read the first time
 def read(file_paths=None):
     """
@@ -47,8 +24,8 @@ def read(file_paths=None):
     profiles = {}
 
     if not file_paths:
-        return profiles
-
+        file_paths = []
+    
     for filename in file_paths:
         if os.path.isfile(filename):
             with open(filename, 'r') as f:
@@ -72,9 +49,6 @@ def inherit(profiles):
     :param profiles: input dict of profiles
     :return: profile
     """
-
-    # default metadata values if no or incomplete default profile is provided
-    profiles['default'] = merge(default_metadata, profiles.get('default', {}))
 
     # inherit from default for all other profiles
     for k in profiles.get('default', {}).keys():
@@ -160,7 +134,7 @@ def validate(md):
             print(
                 f'resource {resource_alias}: given provider "{resource_provider}" does not match any metadata provider')
 
-def load(profile=None, file_paths=None, dotenv_path=None):
+def load(profile=None, file_paths=None, dotenv_path=None, factory_defaults=True):
     """
     Load the profile, given a list of yml files and a .env filename
     profiles inherit from the defaul profile, a profile not found will contain the same elements as the default profile
@@ -173,11 +147,26 @@ def load(profile=None, file_paths=None, dotenv_path=None):
     if profile is None:
         profile = 'default'
 
+    if factory_defaults:
+        # get the default metadata configuration file
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        default_metadata_file = os.path.abspath(os.path.join(dir_path, 'schemas/default.yml'))
+    
+        #prepend the default configuration
+        file_paths = [default_metadata_file] + file_paths
+
     profiles = read(file_paths)
 
     # empty profile if profile not found
     if profile not in profiles.keys():
-        profiles[profile] = {'profile': profile}
+        if file_paths:
+            message = '\nList of loaded metadata files:\n'
+            for f in file_paths:
+                message += f'  - {f}\n'
+            message += '\nList of available profiles:\n'
+            for p in profiles.keys():
+                message += f'  - {p}\n'   
+        raise ValueError(f'Profile "{profile}" not found.\n{message}')
 
     # read metadata, get the profile, if not found get an empty profile
     profiles = inherit(profiles)

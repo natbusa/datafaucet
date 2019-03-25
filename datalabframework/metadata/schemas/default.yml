@@ -1,0 +1,25 @@
+%YAML 1.2
+---
+profile: default
+variables: {}
+engine:
+    type: spark
+    master: local[*]
+providers: {}
+resources: {}
+loggers:
+    root:
+        severity: info
+    datalabframework:
+        name: dlf
+        stream:
+            enable: true
+            severity: notice
+---
+profile: prod
+---
+profile: stage
+---
+profile: test
+---
+profile: dev
