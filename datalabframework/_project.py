@@ -55,8 +55,6 @@ class Project(metaclass=Singleton):
         # set dotenv default file
         if dotenv is True:
             self._dotenv_path = os.path.join(paths.rootdir(), '.env')
-        elif isinstance(dotenv, str) and os.path.isfile(dotenv):
-            self._dotenv_path = os.path.abspath(dotenv)
         else:
             self._dotenv_path = None
 
