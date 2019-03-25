@@ -30,11 +30,6 @@ default_metadata = {
             'stream': {
                 'enable': True,
                 'severity': 'notice'
-            },
-            'kafka': {
-                'enable': False,
-                'severity': 'info'
-                
             }
         }
     }
@@ -105,7 +100,7 @@ def render(metadata, dotenv_path=None, max_passes=5):
 
     env = Environment()
     env.globals['env'] = lambda key, value=None: os.getenv(key, value)
-    env.globals['now'] = lambda tz=None: datetime.strftime(datetime.now(pytz.timezone(tz if tz else 'UTC')), '%Y-%m-%d %H:%M:%S')
+    env.globals['now'] = lambda tz=None, format='%Y-%m-%d %H:%M:%S': datetime.strftime(datetime.now(pytz.timezone(tz if tz else 'UTC')), format)
     
     doc = json.dumps(metadata)
 
