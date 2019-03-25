@@ -12,7 +12,7 @@ from datalabframework import logging
 from datalabframework.metadata import reader
 from datalabframework.metadata import resource
 
-from datalabframework._utils import Singleton, YamlDict, repo_data
+from datalabframework._utils import Singleton, YamlDict, repo_data, to_ordered_dict
 from datalabframework._notebook import NotebookFinder
 
 import uuid
@@ -111,7 +111,29 @@ class Project(metaclass=Singleton):
         return self._profile
 
     def metadata(self):
-        return YamlDict(self._metadata)
+        keys = (
+            'profile',
+            'variables',
+            ('engine',(
+                'type',
+                'master'
+                )
+            ),
+            'providers',
+            'resources',
+            ('loggers',(
+                'root',
+                ('datalabframework',(
+                    'name',
+                    'stream',
+                    'kafka'
+                    )
+                )
+                )
+            )
+        )
+
+        return YamlDict(to_ordered_dict(self._metadata, keys))
 
     def resource(self, path=None, provider=None, md=dict()):
         if not self.profile:
