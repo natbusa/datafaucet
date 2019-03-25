@@ -120,6 +120,46 @@ def render(metadata, dotenv_path=None, max_passes=5):
 
     return rendered
 
+def v(d, schema):
+    message=None
+    try:
+        jsonschema.validate(d, schema)
+        return
+    except jsonschema.exceptions.ValidationError as e:
+        message  = f'{e.message} \n\n## schema path:\n\'{"/".join(e.schema_path)}\'\n\n'
+        message += f'## metadata schema definition {"for " + str(e.parent) if e.parent else ""}:'
+        message += f'\n{yaml.dump(e.schema)}'
+    
+    if message:
+        raise ValueError(message)
+        
+def validate_schema(md, schema_filename):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    filename = os.path.abspath(os.path.join(dir_path, 'schemas/{}'.format(schema_filename)))
+    with open(filename) as f:
+        v(md, yaml.load(f))
+
+def validate(md):
+
+    # validate data structure
+    validate_schema(md, 'top.yml')
+        
+    # _validate_schema(md['loggers'], 'loggers.yml')
+
+    # for d in md['providers']:
+    #     _validate_schema(d, 'provider.yml')
+    #
+    # for d in md['resources']:
+    #     _validate_schema(d, 'resource.yml')
+
+    # validate semantics
+    providers = md.get('providers', {}).keys()
+    for resource_alias, r in md.get('resources',{}).items():
+        resource_provider = r.get('provider')
+        if resource_provider and resource_provider not in providers:
+            print(
+                f'resource {resource_alias}: given provider "{resource_provider}" does not match any metadata provider')
+
 def load(profile=None, file_paths=None, dotenv_path=None):
     """
     Load the profile, given a list of yml files and a .env filename
@@ -144,30 +184,9 @@ def load(profile=None, file_paths=None, dotenv_path=None):
     metadata = profiles[profile]
 
     # render any jinja templates in the profile
-    return render(metadata, dotenv_path)
-
-def validate_schema(md, schema_filename):
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    filename = os.path.abspath(os.path.join(dir_path, 'schemas/{}'.format(schema_filename)))
-    with open(filename) as f:
-        jsonschema.validate(md, yaml.load(f))
-
-def validate(md):
-
-    # validate data structure
-    validate_schema(md, 'top.yml')
-    # _validate_schema(md['loggers'], 'loggers.yml')
-
-    # for d in md['providers']:
-    #     _validate_schema(d, 'provider.yml')
-    #
-    # for d in md['resources']:
-    #     _validate_schema(d, 'resource.yml')
-
-    # validate semantics
-    providers = md.get('providers', {}).keys()
-    for resource_alias, r in md.get('resources',{}).items():
-        resource_provider = r.get('provider')
-        if resource_provider and resource_provider not in providers:
-            print(
-                f'resource {resource_alias}: given provider "{resource_provider}" does not match any metadata provider')
+    md = render(metadata, dotenv_path)
+    
+    # validate
+    validate(md)
+    
+    return md

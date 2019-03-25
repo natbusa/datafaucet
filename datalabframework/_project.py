@@ -64,17 +64,17 @@ class Project(metaclass=Singleton):
         metadata_files = files.get_metadata_files(paths.rootdir())
 
         # load metadata
-        md = reader.load(
-            profile,
-            [ os.path.join(paths.rootdir(), x) for x in metadata_files],
-            self._dotenv_path)
-
-        # validate metadata
-        reader.validate(md)
-
-        # store metadata in project object
-        self._metadata = md
-
+        try:
+            md_files = [ os.path.join(paths.rootdir(), x) for x in metadata_files]
+            self._metadata = reader.load(profile,md_files,self._dotenv_path)
+        except ValueError as e:
+            print(e)
+            self._metadata = {}
+ 
+        # bail if no metadata
+        if not self._metadata:
+            raise ValueError('No valid metadata to load.')
+            
         # set profile, only if not set yet
         self._profile = self._metadata['profile']
 
@@ -100,7 +100,7 @@ class Project(metaclass=Singleton):
         self._info = self.get_info()
 
         # initialize logging
-        logging.init(md, self._info['session_id'])
+        logging.init(self._metadata, self._info['session_id'])
         
         return self
 
