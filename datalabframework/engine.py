@@ -69,6 +69,9 @@ class Engine:
     def copy(self, md_src, md_trg, mode='append'):
         raise NotImplementedError
 
+    def list(self, provider):
+        raise NotImplementedError
+
     def stop(self):
         raise NotImplementedError
 
@@ -87,6 +90,9 @@ class NoEngine(Engine):
         raise ValueError('No engine loaded.')
 
     def copy(self, md_src, md_trg, mode='append'):
+        raise ValueError('No engine loaded.')
+
+    def list(self, provider):
         raise ValueError('No engine loaded.')
 
     def stop(self):
@@ -566,6 +572,67 @@ class SparkEngine(Engine):
         })
 
         logging.notice(log_data) if result else logging.error(log_data)
+
+    def list(self, provider):
+        if isinstance(provider, YamlDict):
+            md = provider.to_dict()
+        elif isinstance(provider, str):
+            md = get_metadata(self._rootdir, self._metadata, None, provider)
+        elif isinstance(provider, dict):
+            md = provider
+        else:
+            logging.warning(f'{str(provider)} cannot be used to reference a provider')
+            return []
+
+        try:
+            if md['service'] in ['local', 'file']:
+                d = []
+                for f in os.listdir(md['provider_path']):
+                    d.append(os.path.join(md['provider_path'], f))
+                return d
+            elif md['service'] == 'hdfs':
+                sc = self._ctx._sc
+                URI = sc._gateway.jvm.java.net.URI
+                Path = sc._gateway.jvm.org.apache.hadoop.fs.Path
+                FileSystem = sc._gateway.jvm.org.apache.hadoop.fs.FileSystem
+                fs = FileSystem.get(URI(md['url']), sc._jsc.hadoopConfiguration())
+
+                obj = fs.listStatus(Path(md['provider_path']))
+                tables = [obj[i].getPath().getName() for i in range(len(obj))]
+                return tables
+
+            elif md['format'] == 'jdbc':
+                if md['service'] == 'mssql':
+                    query = "(SELECT table_name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE') as query"
+                elif md['service'] == 'oracle':
+                    query = "(SELECT table_name FROM all_tables WHERE owner='schema_name') as query"
+                elif md['service'] == 'mysql':
+                    query = f"(SELECT table_name FROM information_schema.tables where table_schema='{md['database']}') as query"
+                elif md['service'] == 'pgsql':
+                    query = f"(SELECT table_name FROM information_schema.tables) as query"
+                else:
+                    # vanilla query ... for other databases
+                    query = f"(SELECT table_name FROM information_schema.tables) as query"
+
+                obj = self._ctx.read \
+                    .format('jdbc') \
+                    .option('url', md['url']) \
+                    .option("dbtable", query) \
+                    .option("driver", md['driver']) \
+                    .option("user", md['username']) \
+                    .option('password', md['password']) \
+                    .load()
+
+                # load the data from jdbc
+                return [x.TABLE_NAME for x in obj.select('TABLE_NAME').collect()]
+            else:
+                logging.error({'md': md, 'error_msg': f'List resource on service "{md["service"]}" not implemented'})
+                return []
+        except Exception as e:
+            logging.error({'md': md, 'error_msg': str(e)})
+            raise e
+
+        return []
 
 
 def get(name, md, rootdir):
