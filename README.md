@@ -1,38 +1,38 @@
 
-# Scaffolding for Data Science
+# Datalabframework
 
-After setting up various data science project and tutorials, I came up with a recipe for better productivity and automation. Here below you will find a guided tour about this data science setup.
+Basic example and directory structure.
 
 ## Elements
 
-This scaffolding works with three elements, which are co-ordinated with each other:
+This ETL/Data Science scaffolding works using a number of elements:
 
-  - a project template
-  - a python package (datalabframework)
-  - configuration files (metadata.yml)
-  - continuos integration
+  - The introductory python notebook you are reading now (main.ipynb)
+  - A directory structure for code and data processing (data)
+  - The datalabframework python package (datalabframework)
+  - Configuration files (metadata.yml, \__main__.py, Makefile)
 
 ## Principles ##
 
 - ** Both notebooks and code are first citizens **
 
-In the source directory `src` you will find all source code, and static files. In particular, both notebooks and code files are treated as source files. Source code is further partitioned in in ETL, ML, Publish directory. When a certain directory contains the `__init__.py` code, it will be handled as a python module.
+In the source directory `src` you will find all source code. In particular, both notebooks and code files are treated as source files. Source code is further partitioned and scaffolded in several directories to simplify and organize the data science project. Following python package conventions, the root of the project is tagged by a `__main__.py` file and directory contains the `__init__.py` code. By doing so, python and notebook files can reference each other.
 
-Python notebooks and Python code can be mixed and matched, and are interoperable with each other. You can include function from a notebook to a python code, and you can include python files in a notebook.
+Python notebooks and Python code can be mixed and matched, and are interoperable with each other. You can include function from a notebook to a python code, and you can include python files in a notebook. 
 
 - ** Data Directories should not contain logic code **
 
-Data can be located anywhere, on remote HDFS clusters, or Object Store Services exposed via S3 protocols etc. However, in general is a good practice to keep some (or all data, if possible) locally on the file system.
+Data can be located anywhere, on remote HDFS clusters, or Object Store Services exposed via S3 protocols etc. Also you can keep data on the local file system. For illustration purposes, this demo will use a local directory for data scaffolding. 
 
-Local data can be used also to validate the logic written in the data science steps and to test the data science pipeline in a single node setup, before scaling the code to larger datasets on more powerful clusters.
+Separating data and code is done by moving all configuration to metadata files. Metadata files make possible to define aliases for data resources, data services and spark configurations, and keeping the ETL and ML code tidy with no hardcoded parameters.
 
 - ** Decouple Code from Configuration **
 
-Notebook and Code should be decoupled from both engine configurations and from data locations. All configuration is kept in `metadata.yml` yaml files. Multiple setups for test, exploration, production can be described  in the same `metadata.yml` file or in separate multiple files.
+Code either stored as notebooks or as python files should be decoupled from both engine configurations and from data locations. All configuration is kept in `metadata.yml` yaml files. Multiple setups for test, exploration, production can be described  in the same `metadata.yml` file or in separate multiple files using __profiles__. All profile inherit from a default profiles, to reduce dupllication of configurations settings across profiles.
 
 - ** Declarative Configuration **
 
-Metadata files are responsible for the binding of data and engine configurations to the code. For instance all data in the code shouold be referenced by an alias, and storage and retrieval of data object and files should happen via a common API. The metadata yaml file, describes the providers for each data source as well as the mapping of data aliases to their corresponding data objects.
+Metadata files are responsible for the binding of data and engine configurations to the code. For instance all data in the code shouold be referenced by an alias, and storage and retrieval of data object and files should happen via a common API. The metadata yaml file, describes the providers for each data source as well as the mapping of data aliases to their corresponding data objects. 
 
 
 
@@ -43,97 +43,22 @@ The data science project is structured in a way to facilitate the deployment of 
 ### Top level Structure
 
 ```
-  - binder
-  - ci
-  - data
-  - src
-  Makefile
-  README.md
-```
-
-The directory `binder` contains all a descriptioon of all the packages (python, apt, etc) and the pre- and post- install scripts to run to notebooks and code in the `src` directory.  The `data` directory contains sample data for the project. While the `src` directory contains all the code, assets, and documents. Finally, `ci` contains all the scrits and the configuration for continuos development, integration, and deployment.
-
-### Directory Structure
-
-The data science project is structured in three group of directories
-
- - ETL (Extract, Transform, Load)
- - ML (Machine Learning)
- - Publish (Reference Documents, and notebooks for blogs)
-
-Next to that we have `data` which is meant to store local data. Testing directories can be optionally added under each specific subdirectory, and the `explore` directory is for everything else :)
+├── binder
+├── ci
+├── data
+├── resources
+├── src
+├── test
+│
+├── main.ipynb
+├── versions.ipynb
+│
+├── __main__.py
+├── metadata.yml
+│
+└── Makefile
 
 ```
-  - etl
-    - extract
-
-  - ml
-    - features  
-    - models
-      - <model_name>  
-        - train
-        - validate
-        - test
-    - apis
-
-  - data
-    - datasets
-      - raw
-      - clean
-    - models
-
-  - publish
-    - reports  
-    - assets  
-      - imgs
-      - docs
-      - js
-      - css
-
-  - explore
-
-```
-
-**Extract**   
-All ETL related code, reusable for automation. The code in here, either notebooks or python files can run to scale by binding the code to bigger files and more powerful execution engines, if necessary. The files can be directly instantiated by a scheduling/orchestrator tools for execution and dependencies (airflow, jenkins, drone, concourse).
-
-**Features**  
-All feature engineering, possibly reusable across multiple ML models
-
-**Models**  
-Predictive models, Data Science, Machine Learning: both training, (cross-) validation, testing
-
-**Reports**  
-Articles for reading in digital form, either statically or as live notebooks
-
-**Explore**  
-All free format experiments go here
-
-**Data**  
-Some (smaller) data goes here, however the metadata files can refer to data located elsewhere. See data providers.
-
-```
-  - data
-    - <run>
-      - datasets
-        - raw
-        - clean
-      - models
-        - sklearn
-        - pmml
-        - spark
-          - modelname.version.timestamp
-```  
-**Assets**  
-Pics, Static diagrams, pdf, external docs, js libraries, css files, etc etc.
-
-**Api**  
-API's can be exposed here. For instance, using the Jupyter HTTP kernel.
-... Or Flask, Or tornado. Or your fav HTTP API library.
-
-### How to set it up
-
-A template can be instantiated using the `cookiecutter` python project.
 
 ## Data Lab Framework
 
@@ -142,186 +67,408 @@ A template can be instantiated using the `cookiecutter` python project.
 import datalabframework as dlf
 ```
 
+### Package things
+Package version: package variables `version_info`, `__version__`
+
+
+```python
+dlf.version_info
+```
+
+
+
+
+    (0, 7, 1)
+
+
+
+
+```python
+dlf.__version__
+```
+
+
+
+
+    '0.7.1'
+
+
+
+Check is the datalabframework is loaded in the current python context
+
+
+```python
+try:
+    __DATALABFRAMEWORK__
+    print("the datalabframework is loaded")
+except NameError:
+    print("the datalabframework is not loaded")
+```
+
+    the datalabframework is loaded
+
+
+
+```python
+#list of modules loaded as `from datalabframework import * ` 
+dlf.__all__
+```
+
+
+
+
+    ['logging', 'project']
+
+
+
 ### Modules: project
 
-When the datalabframework is imported, it starts by searching for a `__main__.py` file, according to python module file naming conventions. All modules and alias paths are all relative to this project root path.
+Project is all about setting the correct working directories where to run and find your notebooks, python files and configuration files. When the datalabframework is imported, it starts by searching for a `__main__.py` file, according to python module file naming conventions. All modules and alias paths are all relative to this project root path.
+
+#### Load a project profile
+
+Loading the profile can be done with the `datalabframework.project.load` function call. It will look for files ending with `metadata.yml`. The function can optionally set the current working directory and import the key=values of .env file into the python os environment. if no parameters are specified, the default profile is loaded.
 
 
 ```python
-dlf.project.rootdir()
+help(dlf.project.load)
+```
+
+    Help on function load in module datalabframework.project:
+    
+    load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv=True, factory_defaults=True)
+        Performs the following steps:
+            - set rootdir for the given project
+            - perform .env env variable exporting,
+            - load the given `profile` from the metadata files,
+            - setup and start the data engine
+        
+        :param profile: load the given metadata profile (default: 'default')
+        :param rootdir_path: root directory for loaded project (default: current working directory)
+        :param search_parent_dirs: search parent dirs to detect rootdir by looking for a '__main__.py' or 'main.ipynb' file (default: True)
+        :param factory_defaults: add preset default configuration. project provided metadata file can override this default values (default: True)
+        :param dotenv: load variable from a dotenv file, if the file exists and readable (default 'True' looks for the file <rootdir>/.env)
+        :return: None
+        
+        Note that:
+        
+        1)  Metadata files are merged up, so you can split the information in multiple files as long as they end with `metadata.yml`
+            For example: `metadata.yml`, `abc.metadata.yaml`, `abc_metadata.yml` are all valid metadata file names.
+        
+        2)  All metadata files in all subdirectories from the project root directory are loaded,
+            unless the directory contains a file `metadata.ignore.yml`
+        
+        3)  Metadata files can provide multiple profile configurations,
+            by separating each profile configuration with a Document Marker ( a line with `---`)
+            (see https://yaml.org/spec/1.2/spec.html#YAML)
+        
+        4)  Each metadata profile, can be broken down in multiple yaml files,
+            When loading the files all configuration belonging to the same profile with be merged.
+        
+        5)  All metadata profiles inherit the settings from profile 'default'
+        
+        6)  If `factory_defaults` is set to true, 
+            the provided metadata profiles will inherits from a factory defaults file set as:
+             ```
+                %YAML 1.2
+                ---
+                profile: default
+                variables: {}
+                engine:
+                    type: spark
+                    master: local[*]
+                providers: {}
+                resources: {}
+                loggers:
+                    root:
+                        severity: info
+                    datalabframework:
+                        name: dlf
+                        stream:
+                            enable: true
+                            severity: notice
+                ---
+                profile: prod
+                ---
+                profile: stage
+                ---
+                profile: test
+                ---
+                profile: dev
+        
+             ```
+        
+        Metadata files are composed of 6 sections:
+            - profile
+            - variables
+            - providers
+            - resources
+            - engine
+            - loggers
+        
+        For more information about metadata configuration,
+        type `help(datalabframework.project.metadata)`
+    
+
+
+
+```python
+dlf.project.load()
+```
+
+### Metadata profiles
+
+#### Metadata files
+
+     1) Metadata files are merged up, so you can split the information in multiple files as long as they end with `metadata.yml`
+        For example: `metadata.yml`, `abc.metadata.yaml`, `abc_metadata.yml` are all valid metadata file names.
+    
+     2) All metadata files in all subdirectories from the project root directory are loaded,
+        unless the directory contains a file `metadata.ignore.yml`
+    
+     3) Metadata files can provide multiple profile configurations, 
+        by separating each profile configuration with a Document Marker ( a line with `---`) 
+        (see https://yaml.org/spec/1.2/spec.html#YAML)
+     
+     4) Each metadata profile, can be broken down in multiple yaml files,
+        When loading the files all configuration belonging to the same profile with be merged. 
+     
+     5) All metadata profiles inherit the settings from profile 'default'
+     
+     6) An empty metadata profile inherits from a factory default set as:
+         """
+            profile: default
+            variables: {}
+            engine:
+                type: spark
+                master: local[*]
+            providers: {}
+            resources: {}
+            loggers:
+                root:
+                    severity: info
+                datalabframework:
+                    name: dlf
+                    stream:
+                        enable: true
+                        severity: notice
+         """
+    
+
+     Metadata files are composed of 6 sections:
+         - profile 
+         - variables
+         - providers
+         - resources
+         - engine
+         - loggers
+
+ - jinja templates for variable substitution 
+ - environment variables as jinja template function __env('MY_ENV_VARIABLE', my_default_value)__
+ - current timestamp as a jinja template function __now(timezone='UTC', format='%Y-%m-%d %H:%M:%S')__
+ - multiple profiles, inheriting from the __default__ profile
+
+
+```python
+md = dlf.project.metadata()
+md
 ```
 
 
 
 
-    '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto'
-
-
-
-
-```python
-dlf.project.filename()
-```
-
-
-
-
-    'howto.ipynb'
-
-
-
-
-```python
-dlf.project.workdir()
-```
-
-
-
-
-    '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto'
-
-
-
-
-```python
-dlf.project.workrun()
-```
-
-
-
-
-    'default'
-
-
-
-
-```python
-dlf.project.info()
-```
-
-
-
-
-    {'workrun': 'default',
-     'filename': 'howto.ipynb',
-     'rootdir': '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto',
-     'workdir': '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto'}
-
-
-
-### Modules: Params
-
-Configuration is declared in metadata. Metadata is accumulated starting from the rootdir, and metadata files in submodules are merged all up together.
-
-
-```python
-metadata = dlf.params.metadata()
-dlf.utils.pretty_print(metadata)
-```
-
-    engines:
-      howto_spark:
-        config:
-          jobname: howto-default
-          master: local[1]
-        context: spark
-    loggers: {}
+    profile: default
+    variables:
+        my_concat_var: hello spark running at (local[*])
+        my_env_var: guest
+        my_nested_var: 'hello spark running at (local[*]): the current date is 2019-03-25'
+        my_date_var: '2019-03-25'
+        my_string_var: hello
+    engine:
+        type: spark
+        master: local[*]
     providers:
-      howto:
-        rootdir: data
-        service: fs
+        localfs:
+            service: file
+            format: csv
+            path: data
     resources:
-      .ascombe:
-        format: csv
-        path: datasets/ascombe.csv
-        provider: howto
-      .corr:
-        format: csv
-        path: datasets/correlation.csv
-        provider: howto
-    run: default
+        ascombe:
+            path: ascombe.csv
+            provider: localfs
+        correlation:
+            path: correlation.csv
+            provider: localfs
+    loggers:
+        root:
+            severity: info
+        datalabframework:
+            name: dlf
+            stream:
+                enable: true
+                severity: notice
+            kafka:
+                enable: false
+                severity: info
+                topic: dlf
+                hosts: kafka-node1:9092 kafka-node2:9092
 
+
+
+## Inspect current project configuration
+
+You can inspect the current project configuration, by calling the `datalabframework.project.config` function.
+
+
+```python
+help(dlf.project.config)
+```
+
+    Help on function config in module datalabframework.project:
+    
+    config()
+        Returns the current project configuration
+        :return: a dictionary with project configuration data
+    
+
+
+#### Project configuration
+
+The current loaded project configuration can be inspected with `datalabframework.project.config()` function call. 
+The following information is available in the returned dictionary:
+
+| key                      | explanation                                                                                 | example value                                     |
+| :---                     | :----                                                                                            |--------------------------------------------------:|
+| python_version           | version of python running the current script                                                | 3.6.7                                             |
+| session_id               | session unique for this particular script run                                               | 0xf3df202e4c6f11e9                                |
+| profile                  | name of the metadata profile loaded                                                         | default                                           |
+| filename                 | name of the current script (works both for .py and ipynb files )                            | main.ipynb                                        |
+| rootdir                  | The root directory of the project (marked by an empty __main__.py or __main__.ipynb file)   | /home/jovyan/work/basic                           |
+| workdir                  | The current working directory                                                               | /home/jovyan/work/basic                           |
+| username                 | User running the script                                                                     | jovyan                                            |
+| repository               | Information about the current git repository (if available)                                 |                                                   |
+| repository.type          | The type of revision system (supports only git currently)                                   | git                                               |
+| repository.committer     | Last committer on this repository                                                           | Natalino Busa                                     |
+| repository.hash          | last commit short hash (only 7 chars)                                                       | 5e43848                                           |
+| repository.commit        | Last committer full hash                                                                    | 5e4384853398941f4b52cb4102145ee98bdeafa6          |
+| repository.branch        | repo branch name                                                                            | master                                            |
+| repository.url           | url of the repository                                                                       | https://github.com/natbusa/datalabframework.git   |
+| repository.name          | repository name                                                                             | datalabframework.git                              |
+| repository.date          | Date of last commit                                                                         | 2019-03-22T04:21:07+00:00                         |
+| repository.clean         | Repository does not contained modified files, wrt to commited data                          | False                                             |
+| files                    | python, notebooks and configuration files in this project                                   |                                                   |
+| files.notebooks          | notebooks files (*.ipynb) in all subdirectories starting from rootdir                       | main.ipynb                                        |
+| files.python             | notebooks files (*.py) in all subdirectories starting from rootdir                          | __main__.py                                       |
+| files.metadata           | metadata files (*.yml) in all subdirectories starting from rootdir                          | metadata.yml                                      |
+| files.dotenv             | filename with variables definitions, unix style                                             | .env                                              |
+| engine                   | data engine configuration                                                                   |                                                   |
+| engine.type              | data engine type                                                                            | spark                                             |
+| engine.name              | name (generated using git repo name and metadata profile)                                   | default                                           |
+| engine.version           | engine version                                                                              | 2.4.0                                             |
+| engine.config            | engine configuration (key-values list)                                                      | spark.master: local[*]                            |
+| engine.env               | engine environment variables (key-values list)                                              | PYSPARK_SUBMIT_ARGS: ' pyspark-shell'             |
+| engine.rootdir           | engine rootdir (same as above)                                                              | /home/jovyan/work/basic                           |
+| engine.timezone          | engine timezone configuration                                                               | UTC                                               |
 
 
 
 ```python
-# just the resources, some pretty printing
-dlf.utils.pretty_print(metadata['resources'])
+dlf.project.config()
 ```
 
-    .ascombe:
-      format: csv
-      path: datasets/ascombe.csv
-      provider: howto
-    .corr:
-      format: csv
-      path: datasets/correlation.csv
-      provider: howto
 
 
 
-Data resources are relative to the `rootdir`. Next to the resources we can declare `providers` and `engines`. More about data binding in the next section.
+    dlf_version: 0.7.1
+    python_version: 3.6.7
+    session_id: '0x8aa0374e4ee811e9'
+    profile: default
+    filename: main.ipynb
+    rootdir: /home/jovyan/work/basic
+    workdir: /home/jovyan/work/basic
+    username: jovyan
+    repository:
+        type:
+        committer: ''
+        hash: 0
+        commit: 0
+        branch: ''
+        url: ''
+        name: ''
+        date: ''
+        clean: false
+    files:
+        notebooks:
+          - main.ipynb
+          - versions.ipynb
+          - hello.ipynb
+        python:
+          - __main__.py
+        metadata:
+          - metadata.yml
+        dotenv: .env
+    engine:
+        type: spark
+        name: default
+        version: 2.4.0
+        config:
+            spark.driver.port: '46739'
+            spark.rdd.compress: 'True'
+            spark.app.name: default
+            spark.serializer.objectStreamReset: '100'
+            spark.master: local[*]
+            spark.executor.id: driver
+            spark.submit.deployMode: client
+            spark.app.id: local-1553509627579
+            spark.ui.showConsoleProgress: 'true'
+            spark.driver.host: 36594ccded11
+        env:
+            PYSPARK_SUBMIT_ARGS: ' pyspark-shell'
+        rootdir: /home/jovyan/work/basic
+        timezone:
 
-### Modules: Data
+
+
+Data resources are relative to the `rootpath`. 
+
+### Resources
 
 Data binding works with the metadata files. It's a good practice to declare the actual binding in the metadata and avoiding hardcoding the paths in the notebooks and python source files.
 
-`dlf.data.path()` maps the alias to the fully qualified path, while the `dlf.data.uri()` provide the full absolute uri, where . denotes how deep in the directory structure the data is located.
-
 
 ```python
-dlf.data.uri('ascombe')
+md =dlf.project.resource('ascombe')
+md
 ```
 
 
 
 
-    '.ascombe'
-
-
-
-
-```python
-#relative to the current directory
-dlf.data.path('ascombe')
-```
-
-
-
-
-    '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto/data/datasets/ascombe.csv'
-
-
-
-
-```python
-#absolute alias from rootdir
-dlf.data.path('.ascombe')
-```
-
-
-
-
-    '/home/natbusa/Projects/dsp-titanic/src/publish/reports/howto/data/datasets/ascombe.csv'
-
-
-
-### Modules: Notebook
-
-This submodules contains a set of utilies to extract info from notebooks. In particular, how to get the notebook name and the statistics about the cells being run.
-
-`dlf.notebook.filename()` provides the filename of the current notebook, and the path relative to the `rootdir`.   
-`dlf.notebook.list_all()` lists all notebooks under the given rootdir.
-
-
-```python
-dlf.notebook.list_all()
-```
-
-
-
-
-    ['howto.ipynb', 'hello.ipynb']
+    {'hash': '0x80a539b9fc17d1c4',
+     'url': '/home/jovyan/work/basic/data/ascombe.csv',
+     'service': 'file',
+     'format': 'csv',
+     'host': '127.0.0.1',
+     'port': None,
+     'driver': None,
+     'database': None,
+     'username': None,
+     'password': None,
+     'resource_path': 'ascombe.csv',
+     'provider_path': '/home/jovyan/work/basic/data',
+     'provider_alias': 'localfs',
+     'resource_alias': 'ascombe',
+     'cache': None,
+     'date_column': None,
+     'date_start': None,
+     'date_end': None,
+     'date_window': None,
+     'date_partition': None,
+     'update_column': None,
+     'hash_column': None,
+     'state_column': None,
+     'options': {},
+     'mapping': {}}
 
 
 
@@ -332,530 +479,63 @@ This submodules will allow you to start a context, from the configuration descri
 Let's start by listing the aliases and the configuration of the engines declared in `metadata.yml`.
 
 
-
-```python
-# get the aliases of the engines
-
-dlf.utils.pretty_print(metadata['engines'])
-```
-
-    howto_spark:
-      config:
-        jobname: howto-default
-        master: local[1]
-      context: spark
-
-
-
-__Context: Pandas__  
-Let's start the engine session, by selecting a pandas context from the list.
-
-
-```python
-engine = dlf.engines.get('pandas')
-```
-
-Access the context by using the context method.
-
-
-```python
-pd = engine.context()
-
-#print out name and version
-'{}:{}'.format(pd.__name__, pd.__version__)
-```
-
-
-
-
-    'pandas:0.23.4'
-
-
-
-Let's use the context to store and load some data. First let's create a dataset.
-
-
-```python
-raw_columns=[
-    [10.0,   8.04,   10.0,   9.14,   10.0,   7.46,   8.0,    6.58],
-    [8.0,    6.95,   8.0,    8.14,   8.0,    6.77,   8.0,    5.76],
-    [13.0,   7.58,   13.0,   8.74,   13.0,   12.74,  8.0,    7.71],
-    [9.0,    8.81,   9.0,    8.77,   9.0,    7.11,   8.0,    8.84],
-    [11.0,   8.33,   11.0,   9.26,   11.0,   7.81,   8.0,    8.47],
-    [14.0,   9.96,   14.0,   8.10,   14.0,   8.84,   8.0,    7.04],
-    [6.0,    7.24,   6.0,    6.13,   6.0,    6.08,   8.0,    5.25],
-    [4.0,    4.26,   4.0,    3.10,   4.0,    5.39,   19.0,   12.5],
-    [12.0,   10.84,  12.0,   9.13,   12.0,   8.15,   8.0,    5.56],
-    [7.0,    4.82,   7.0,    7.26,   7.0,    6.42,   8.0,    7.91],
-    [5.0,    5.68,   5.0,    4.74,   5.0,    5.73,   8.0,    6.89]]
-
-n = [['I', 'II', 'III', 'IV'], ['x', 'y']]
-indexes = [i+j for i in n[0] for j in n[1]]
-
-quartet = pd.DataFrame(data=raw_columns, columns=indexes)
-quartet
-```
-
-
-
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>Ix</th>
-      <th>Iy</th>
-      <th>IIx</th>
-      <th>IIy</th>
-      <th>IIIx</th>
-      <th>IIIy</th>
-      <th>IVx</th>
-      <th>IVy</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>10.0</td>
-      <td>8.04</td>
-      <td>10.0</td>
-      <td>9.14</td>
-      <td>10.0</td>
-      <td>7.46</td>
-      <td>8.0</td>
-      <td>6.58</td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>8.0</td>
-      <td>6.95</td>
-      <td>8.0</td>
-      <td>8.14</td>
-      <td>8.0</td>
-      <td>6.77</td>
-      <td>8.0</td>
-      <td>5.76</td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>13.0</td>
-      <td>7.58</td>
-      <td>13.0</td>
-      <td>8.74</td>
-      <td>13.0</td>
-      <td>12.74</td>
-      <td>8.0</td>
-      <td>7.71</td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>9.0</td>
-      <td>8.81</td>
-      <td>9.0</td>
-      <td>8.77</td>
-      <td>9.0</td>
-      <td>7.11</td>
-      <td>8.0</td>
-      <td>8.84</td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>11.0</td>
-      <td>8.33</td>
-      <td>11.0</td>
-      <td>9.26</td>
-      <td>11.0</td>
-      <td>7.81</td>
-      <td>8.0</td>
-      <td>8.47</td>
-    </tr>
-    <tr>
-      <th>5</th>
-      <td>14.0</td>
-      <td>9.96</td>
-      <td>14.0</td>
-      <td>8.10</td>
-      <td>14.0</td>
-      <td>8.84</td>
-      <td>8.0</td>
-      <td>7.04</td>
-    </tr>
-    <tr>
-      <th>6</th>
-      <td>6.0</td>
-      <td>7.24</td>
-      <td>6.0</td>
-      <td>6.13</td>
-      <td>6.0</td>
-      <td>6.08</td>
-      <td>8.0</td>
-      <td>5.25</td>
-    </tr>
-    <tr>
-      <th>7</th>
-      <td>4.0</td>
-      <td>4.26</td>
-      <td>4.0</td>
-      <td>3.10</td>
-      <td>4.0</td>
-      <td>5.39</td>
-      <td>19.0</td>
-      <td>12.50</td>
-    </tr>
-    <tr>
-      <th>8</th>
-      <td>12.0</td>
-      <td>10.84</td>
-      <td>12.0</td>
-      <td>9.13</td>
-      <td>12.0</td>
-      <td>8.15</td>
-      <td>8.0</td>
-      <td>5.56</td>
-    </tr>
-    <tr>
-      <th>9</th>
-      <td>7.0</td>
-      <td>4.82</td>
-      <td>7.0</td>
-      <td>7.26</td>
-      <td>7.0</td>
-      <td>6.42</td>
-      <td>8.0</td>
-      <td>7.91</td>
-    </tr>
-    <tr>
-      <th>10</th>
-      <td>5.0</td>
-      <td>5.68</td>
-      <td>5.0</td>
-      <td>4.74</td>
-      <td>5.0</td>
-      <td>5.73</td>
-      <td>8.0</td>
-      <td>6.89</td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-
-
-Now let's list the available aliases to store our dataset. This is available under the `data` -> `resources` section in the yaml file.
-
-
-```python
-dlf.utils.pretty_print(metadata['resources'])
-```
-
-    .ascombe:
-      format: csv
-      path: datasets/ascombe.csv
-      provider: howto
-    .corr:
-      format: csv
-      path: datasets/correlation.csv
-      provider: howto
-
-
-
-The data provider `howto` is a local data file system.
-
-
-```python
-dlf.utils.pretty_print(metadata['providers'])
-```
-
-    howto:
-      rootdir: data
-      service: fs
-
-
-
-Let's store the dataframe as csv, first using the engine help function, then directly using the pandas context.
-
-
-```python
-# write using the engine utility
-engine.write(quartet, 'ascombe')
-```
-
-
-```python
-#write using the data.path utility
-quartet.to_csv(dlf.data.path('ascombe'))
-```
-
-Reading the data back to a DataFrame. Again first using the engine `read` utility, the directly using the pandas `read_csv` method.
-
-
-```python
-#read using the engine utility
-engine.read('ascombe')
-```
-
-
-
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>Unnamed: 0</th>
-      <th>Ix</th>
-      <th>Iy</th>
-      <th>IIx</th>
-      <th>IIy</th>
-      <th>IIIx</th>
-      <th>IIIy</th>
-      <th>IVx</th>
-      <th>IVy</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>0</td>
-      <td>10.0</td>
-      <td>8.04</td>
-      <td>10.0</td>
-      <td>9.14</td>
-      <td>10.0</td>
-      <td>7.46</td>
-      <td>8.0</td>
-      <td>6.58</td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>1</td>
-      <td>8.0</td>
-      <td>6.95</td>
-      <td>8.0</td>
-      <td>8.14</td>
-      <td>8.0</td>
-      <td>6.77</td>
-      <td>8.0</td>
-      <td>5.76</td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>2</td>
-      <td>13.0</td>
-      <td>7.58</td>
-      <td>13.0</td>
-      <td>8.74</td>
-      <td>13.0</td>
-      <td>12.74</td>
-      <td>8.0</td>
-      <td>7.71</td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>3</td>
-      <td>9.0</td>
-      <td>8.81</td>
-      <td>9.0</td>
-      <td>8.77</td>
-      <td>9.0</td>
-      <td>7.11</td>
-      <td>8.0</td>
-      <td>8.84</td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>4</td>
-      <td>11.0</td>
-      <td>8.33</td>
-      <td>11.0</td>
-      <td>9.26</td>
-      <td>11.0</td>
-      <td>7.81</td>
-      <td>8.0</td>
-      <td>8.47</td>
-    </tr>
-    <tr>
-      <th>5</th>
-      <td>5</td>
-      <td>14.0</td>
-      <td>9.96</td>
-      <td>14.0</td>
-      <td>8.10</td>
-      <td>14.0</td>
-      <td>8.84</td>
-      <td>8.0</td>
-      <td>7.04</td>
-    </tr>
-    <tr>
-      <th>6</th>
-      <td>6</td>
-      <td>6.0</td>
-      <td>7.24</td>
-      <td>6.0</td>
-      <td>6.13</td>
-      <td>6.0</td>
-      <td>6.08</td>
-      <td>8.0</td>
-      <td>5.25</td>
-    </tr>
-    <tr>
-      <th>7</th>
-      <td>7</td>
-      <td>4.0</td>
-      <td>4.26</td>
-      <td>4.0</td>
-      <td>3.10</td>
-      <td>4.0</td>
-      <td>5.39</td>
-      <td>19.0</td>
-      <td>12.50</td>
-    </tr>
-    <tr>
-      <th>8</th>
-      <td>8</td>
-      <td>12.0</td>
-      <td>10.84</td>
-      <td>12.0</td>
-      <td>9.13</td>
-      <td>12.0</td>
-      <td>8.15</td>
-      <td>8.0</td>
-      <td>5.56</td>
-    </tr>
-    <tr>
-      <th>9</th>
-      <td>9</td>
-      <td>7.0</td>
-      <td>4.82</td>
-      <td>7.0</td>
-      <td>7.26</td>
-      <td>7.0</td>
-      <td>6.42</td>
-      <td>8.0</td>
-      <td>7.91</td>
-    </tr>
-    <tr>
-      <th>10</th>
-      <td>10</td>
-      <td>5.0</td>
-      <td>5.68</td>
-      <td>5.0</td>
-      <td>4.74</td>
-      <td>5.0</td>
-      <td>5.73</td>
-      <td>8.0</td>
-      <td>6.89</td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-
-
-
-```python
-# read using the context
-pd = engine.context()
-quartet = pd.read_csv(dlf.data.path('.ascombe'))
-```
-
-
-```python
-import matplotlib
-import matplotlib.pyplot as plt
-
-fig, ax = plt.subplots()
-for s in ['I', 'II', 'III', 'IV']:
-    ax.scatter(quartet[s+'x'],quartet[s+'y'], label=s)
-ax.set_title('ascombe sets')
-ax.legend()
-plt;
-```
-
-
-![png](docs/output_45_0.png)
-
-
 __Context: Spark__  
-Let's start the engine session, by selecting a spark context from the list. Your can have many spark contexts declared, for instance for single node
+Let's start the engine session, by selecting a spark context from the list. Your can have many spark contexts declared, for instance for single node 
 
 
 ```python
-engine = dlf.engines.get('howto_spark')
+import datalabframework as dlf
+engine = dlf.project.engine()
+engine.config()
 ```
+
+
+
+
+    type: spark
+    name: default
+    version: 2.4.0
+    config:
+        spark.driver.port: '46739'
+        spark.rdd.compress: 'True'
+        spark.app.name: default
+        spark.serializer.objectStreamReset: '100'
+        spark.master: local[*]
+        spark.executor.id: driver
+        spark.submit.deployMode: client
+        spark.app.id: local-1553509627579
+        spark.ui.showConsoleProgress: 'true'
+        spark.driver.host: 36594ccded11
+    env:
+        PYSPARK_SUBMIT_ARGS: ' pyspark-shell'
+    rootdir: /home/jovyan/work/basic
+    timezone:
+
+
 
 You can quickly inspect the properties of the context by calling the `info()` function
-
-
-```python
-engine.info
-```
-
-
-
-
-    {'name': 'howto_spark',
-     'context': 'spark',
-     'config': {'jobname': 'howto-default', 'master': 'local[1]'}}
-
-
 
 By calling the `context` method, you access the Spark SQL Context directly. The rest of your spark python code is not affected by the initialization of your session with the datalabframework.
 
 
 ```python
+engine = dlf.project.engine()
 spark = engine.context()
-
-#print out name and version
-'{}:{}'.format(engine.info['context'], spark.sparkSession.version)
 ```
-
-
-
-
-    'spark:2.3.1'
-
-
 
 Once again, let's read the csv data again, this time using the spark context. First using the engine `write` utility, then directly using the spark context and the `dlf.data.path` function to localize our labeled dataset.
 
 
 ```python
-#read using the engine utility
-df = engine.read('.ascombe')
+#read using the engine utility (directly using the load function)
+df = engine.load('ascombe', header=True, inferSchema=True)
 ```
 
 
 ```python
-#read using the spark dataframe method
-df = spark.read.csv(dlf.data.path('.ascombe'), inferSchema=True, header=True)
+#read using the engine utility (also from resource metadata)
+md =dlf.project.resource('ascombe')
+df = engine.load(md, header=True, inferSchema=True)
 ```
 
 
@@ -864,7 +544,7 @@ df.printSchema()
 ```
 
     root
-     |-- _c0: integer (nullable = true)
+     |-- idx: integer (nullable = true)
      |-- Ix: double (nullable = true)
      |-- Iy: double (nullable = true)
      |-- IIx: double (nullable = true)
@@ -873,7 +553,7 @@ df.printSchema()
      |-- IIIy: double (nullable = true)
      |-- IVx: double (nullable = true)
      |-- IVy: double (nullable = true)
-
+    
 
 
 
@@ -882,7 +562,7 @@ df.show()
 ```
 
     +---+----+-----+----+----+----+-----+----+----+
-    |_c0|  Ix|   Iy| IIx| IIy|IIIx| IIIy| IVx| IVy|
+    |idx|  Ix|   Iy| IIx| IIy|IIIx| IIIy| IVx| IVy|
     +---+----+-----+----+----+----+-----+----+----+
     |  0|10.0| 8.04|10.0|9.14|10.0| 7.46| 8.0|6.58|
     |  1| 8.0| 6.95| 8.0|8.14| 8.0| 6.77| 8.0|5.76|
@@ -896,7 +576,7 @@ df.show()
     |  9| 7.0| 4.82| 7.0|7.26| 7.0| 6.42| 8.0|7.91|
     | 10| 5.0| 5.68| 5.0|4.74| 5.0| 5.73| 8.0|6.89|
     +---+----+-----+----+----+----+-----+----+----+
-
+    
 
 
 Finally, let's calculate the correlation for each set I,II, III, IV between the `x` and `y` columns and save the result on an separate dataset.
@@ -909,12 +589,12 @@ for s in ['I', 'II', 'III', 'IV']:
     va = VectorAssembler(inputCols=[s+'x', s+'y'], outputCol=s)
     df = va.transform(df)
     df = df.drop(s+'x', s+'y')
-
+    
 df.show()
 ```
 
     +---+------------+-----------+------------+-----------+
-    |_c0|           I|         II|         III|         IV|
+    |idx|           I|         II|         III|         IV|
     +---+------------+-----------+------------+-----------+
     |  0| [10.0,8.04]|[10.0,9.14]| [10.0,7.46]| [8.0,6.58]|
     |  1|  [8.0,6.95]| [8.0,8.14]|  [8.0,6.77]| [8.0,5.76]|
@@ -928,7 +608,7 @@ df.show()
     |  9|  [7.0,4.82]| [7.0,7.26]|  [7.0,6.42]| [8.0,7.91]|
     | 10|  [5.0,5.68]| [5.0,4.74]|  [5.0,5.73]| [8.0,6.89]|
     +---+------------+-----------+------------+-----------+
-
+    
 
 
 After assembling the dataframe into four sets of 2D vectors, let's calculate the pearson correlation for each set. In the case the the ascombe sets, all sets should have the same pearson correlation.
@@ -964,7 +644,7 @@ corr_df.select([f.round(f.avg(c), 3).alias(c) for c in cols]).show()
     +-----+-----+-----+-----+
     |0.816|0.816|0.816|0.817|
     +-----+-----+-----+-----+
-
+    
 
 
 Save the results. It's a very small data frame, however Spark when saving  csv format files, assumes large data sets and partitions the files inside an object (a directory) with the name of the target file. See below:
@@ -972,32 +652,42 @@ Save the results. It's a very small data frame, however Spark when saving  csv f
 
 
 ```python
-engine.write(corr_df,'corr', mode='overwrite')
+engine.save(corr_df,'correlation')
 ```
+
+
+
+
+    True
+
+
 
 We read it back to chack all went fine
 
 
 ```python
-engine.read('corr').show()
+engine.load('correlation', header=True, inferSchema=True).show()
 ```
 
-    +---------+---------+----------+----------+
-    |      _c0|      _c1|       _c2|       _c3|
-    +---------+---------+----------+----------+
-    |0.8164205|0.8162365|0.81628674|0.81652147|
-    +---------+---------+----------+----------+
-
+    +---+---------+---------+----------+----------+
+    |_c0|        I|       II|       III|        IV|
+    +---+---------+---------+----------+----------+
+    |  0|0.8164205|0.8162365|0.81628674|0.81652147|
+    +---+---------+---------+----------+----------+
+    
 
 
 ### Modules: Export
 
-This submodules will allow you to export cells and import them in other notebooks as python packages. Check the notebook [hello.ipynb](hello.ipynb), where you will see how to export the notebook, then follow the code here below to check it really works!
+This submodules will allow you to export cells and import them in other notebooks as python packages. Check the notebook [versions.ipynb](versions.ipynb), where you will see how to export the notebook, then follow the code here below to check it really works!
 
 
 
 ```python
-from hello import hi
+import datalabframework as dlf
+dlf.project.load()
+
+from hello import python_version
 ```
 
     importing Jupyter notebook from hello.ipynb
@@ -1005,7 +695,7 @@ from hello import hi
 
 
 ```python
-hi()
+python_version()
 ```
 
-    Hi World!
+    Hello world: python 3.6.7
