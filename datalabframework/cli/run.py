@@ -46,7 +46,6 @@ class DlfRunApp(DatalabframeworkApp):
 
     # app settings
     profile = Unicode(u'default', help="Execute a specific metadata profile").tag(config=True)
-    dotenv = Unicode(os.path.join(os.getcwd(),'.env'), help="environment dot file").tag(config=True)
     rootdir = Unicode(os.getcwd(), help="project root directory").tag(config=True)
 
     notebooks = List([], help="""
@@ -57,14 +56,12 @@ class DlfRunApp(DatalabframeworkApp):
     # aliases
     aliases = Dict({
         'profile': 'DlfRunApp.profile',
-        'dotenv': 'DlfRunApp.dotenv',
         'rootdir': 'DlfRunApp.rootdir',
         'timeout': 'ExecutePreprocessor.timeout',
-        #'log_level': 'DlfRunApp.log_level'
         'notebooks': 'DlfRunApp.notebooks'})
 
     #flags
-    flags = Dict() # Dict(dict(debug=({'DlfRunApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
+    flags = Dict()
 
     def init_preprocessor(self):
         self.ep = ExecutePreprocessor(config=self.config)
@@ -135,7 +132,7 @@ class DlfRunApp(DatalabframeworkApp):
             # added by dlf-run
             import datalabframework
             datalabframework.files.set_current_filename('{fullpath_filename}')
-            datalabframework.project.load(profile='{self.profile}', rootdir_path='{self.rootdir}', dotenv='{self.dotenv}')
+            datalabframework.project.load(profile='{self.profile}', rootdir_path='{self.rootdir}')
             """)
 
         nc = nbformat.v4.new_code_cell(init_str)
