@@ -5,15 +5,15 @@ def load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv=T
     """
     Performs the following steps:
         - set rootdir for the given project
-        - perform .env env variable exporting,
-        - load the given `profile` from the metadata files,
+        - import variables from  <rootdir>/.env,
+        - load the `profile` from the metadata files
         - setup and start the data engine
 
     :param profile: load the given metadata profile (default: 'default')
     :param rootdir_path: root directory for loaded project (default: current working directory)
     :param search_parent_dirs: search parent dirs to detect rootdir by looking for a '__main__.py' or 'main.ipynb' file (default: True)
     :param factory_defaults: add preset default configuration. project provided metadata file can override this default values (default: True)
-    :param dotenv: load variable from a dotenv file, if the file exists and readable (default 'True' looks for the file <rootdir>/.env)
+    :param dotenv: load variable from <rootdir>/.env file, if the file exists and readable (default 'True')
     :return: None
 
     Note that:
