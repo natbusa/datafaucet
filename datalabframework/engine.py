@@ -1,10 +1,11 @@
 import os, time
+import textwrap
 
 from datalabframework import logging
 from datalabframework import elastic
 
 from datalabframework.metadata.resource import get_metadata
-from datalabframework._utils import YamlDict, to_ordered_dict
+from datalabframework._utils import YamlDict, to_ordered_dict, find, python_version, get_hadoop_version_from_system, get_tool_home, run_command
 
 import pandas as pd
 from datalabframework.spark import dataframe
@@ -29,17 +30,18 @@ class Engine:
         self._rootdir = rootdir
         self._config = None
         self._env = None
+        self._info = {}
         self._ctx = None
         self._type = None
         self._version = None
         self._timezone = md.get('engine', {}).get('timezone')
-        self._timestamps = md.get('engine', {}).get('timestamps')
 
     def config(self):
         keys = [
             'type',
             'name',
             'version',
+            'info',
             'config',
             'env',
             'rootdir',
@@ -49,11 +51,11 @@ class Engine:
             'type': self._type,
             'name': self._name,
             'version': self._version,
+            'info': self._info,
             'config': self._config,
             'env': self._env,
             'rootdir': self._rootdir,
-            'timezone': self._timezone,
-            'timestamps': self._timestamps
+            'timezone': self._timezone
         }
         return YamlDict(to_ordered_dict(d, keys))
 
@@ -100,7 +102,62 @@ class NoEngine(Engine):
 
 
 class SparkEngine(Engine):
-    def set_submit_args(self):
+    def set_hadoop(self):
+        hadoop_version = None
+        hadoop_version_from = None
+        try:
+            sc = pyspark.sql.SparkSession.builder.getOrCreate()
+            hadoop_version = sc.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion.version()
+            hadoop_version_from = 'spark'
+        except:
+            pass
+        
+        if hadoop_version is None:
+            hadoop_version = get_hadoop_version_from_system()
+            hadoop_version_from = 'system'
+        
+        if hadoop_version is None:
+            logging.warning('Could not find a valid hadoop install.')
+
+        hadoop_home = get_tool_home('hadoop', 'HADOOP_HOME', 'bin')[0]
+        spark_home = get_tool_home('spark-submit', 'SPARK_HOME', 'bin')[0]
+        
+        spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
+        if not spark_dist_classpath:
+            with open(os.path.join(spark_home,'conf/spark-env.sh')) as s:
+                for line in s:
+                    pattern = 'SPARK_DIST_CLASSPATH='
+                    pos = line.find(pattern)
+                    if pos>=0:
+                        spark_dist_classpath = line[pos+len(pattern):].strip()
+                        spark_dist_classpath = run_command(f'echo {spark_dist_classpath}')[0]
+    
+        if hadoop_version_from == 'system' and (not spark_dist_classpath):
+            logging.warning(textwrap.dedent("""
+                    SPARK_DIST_CLASSPATH not defined and spark installed without hadoop
+                    define SPARK_DIST_CLASSPATH in $SPARK_HOME/conf/spark-env.sh as follows:
+                       
+                       export SPARK_DIST_CLASSPATH=$(hadoop classpath)
+                    
+                    for more info refer to: https://spark.apache.org/docs/latest/hadoop-provided.html
+                """))
+        
+        self._info = {
+            'python_version': python_version(),
+            'hadoop_version': hadoop_version,
+            'hadoop_install': hadoop_version_from,
+            'hadoop_home': hadoop_home,
+            'spark_home': spark_home,
+            'SPARK_HOME': os.environ.get('SPARK_HOME'),
+            'HADOOP_HOME': os.environ.get('HADOOP_HOME'),
+            'SPARK_DIST_CLASSPATH':spark_dist_classpath.split(':') 
+        }
+        
+        return self._info['hadoop_version']
+    
+    def set_submit_args(self, hadoop_version):
+        if not hadoop_version:
+            logging.error('Hadoop is not detected. Some packages/jars might not work correctly.')
 
         submit_args = ''
         submit_md = self._metadata.get('engine', {}).get('submit', {})
@@ -108,10 +165,18 @@ class SparkEngine(Engine):
         #### submit: jars
         items = submit_md.get('jars')
         jars = items if items else []
+        
+        for v in self._metadata.get('providers', {}).values():
+            if v['service'] == 'oracle':
+                jars.append('http://www.datanucleus.org/downloads/maven2/oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar')
 
         if jars:
+            print('Loading jars:')
+            for i in jars:
+                print(f'  -  {i}')
             submit_jars = ' '.join(jars)
             submit_args = '{} --jars {}'.format(submit_args, submit_jars)
+
 
         #### submit: packages
         items = submit_md.get('packages')
@@ -121,13 +186,18 @@ class SparkEngine(Engine):
             if v['service'] == 'mysql':
                 packages.append('mysql:mysql-connector-java:8.0.12')
             elif v['service'] == 'sqlite':
-                packages.append('org.xerial:sqlite-jdbc:jar:3.25.2')
+                packages.append('org.xerial:sqlite-jdbc:3.25.2')
             elif v['service'] == 'postgres':
                 packages.append('org.postgresql:postgresql:42.2.5')
             elif v['service'] == 'mssql':
                 packages.append('com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8')
-
+            elif v['service'] == 'minio':
+                packages.append(f"hadoop-aws-{hadoop_version}.jar")
+ 
         if packages:
+            print('Loading packages:')
+            for i in packages:
+                print(f'  -  {i}')
             submit_packages = ','.join(packages)
             submit_args = '{} --packages {}'.format(submit_args, submit_packages)
 
@@ -136,6 +206,9 @@ class SparkEngine(Engine):
         pyfiles = items if items else []
 
         if pyfiles:
+            print('Loading files:')
+            for i in pyfiles:
+                print(f'  -  {i}')
             submit_pyfiles = ','.join(pyfiles)
             submit_args = '{} --py-files {}'.format(submit_args, submit_pyfiles)
 
@@ -158,20 +231,19 @@ class SparkEngine(Engine):
         for v in self._metadata.get('providers', {}).values():
             if v['service'] == 'minio':
                 conf.set("spark.hadoop.fs.s3a.endpoint", 'http://{}:{}'.format(v['hostname'], v.get('port', 9000))) \
-                    .set("spark.hadoop.fs.s3a.access.key", v['access']) \
-                    .set("spark.hadoop.fs.s3a.secret.key", v['secret']) \
+                    .set("spark.hadoop.fs.s3a.access.key", v.get('username')) \
+                    .set("spark.hadoop.fs.s3a.secret.key", v.get('password')) \
                     .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-                    .set("spark.hadoop.fs.s3a.path.style.access", True)
+                    .set("spark.hadoop.fs.s3a.path.style.access", "true")
                 break
 
-        # if timezone is not set, engine treats timestamps as 'naive' 
-        if self._timestamps == 'naive':
-            os.environ['TZ'] = 'UTC'
-            time.tzset()
-            conf.set('spark.sql.session.timeZone', 'UTC')
-            conf.set('spark.driver.extraJavaOptions', '-Duser.timezone=UTC')
-            conf.set('spark.executor.extraJavaOptions', '-Duser.timezone=UTC')
-        elif self._timezone:
+        # if timezone set to 'naive', 
+        # force UTC to override local system and spark defaults 
+        # This will effectively avoid any  conversion of datetime object to/from spark
+        if self._timezone == 'naive':
+            self._timezone = 'UTC'
+            
+        if self._timezone:
             timezone = self._timezone
             os.environ['TZ'] = timezone
             time.tzset()
@@ -186,11 +258,24 @@ class SparkEngine(Engine):
             if isinstance(v, (bool, int, float, str)):
                 conf.set(k, v)
 
+    def initialize_spark_sql_context(self,sc):
+        try:
+            del pyspark.sql.SQLContext._instantiatedContext
+        except:
+            pass
+        
+        pyspark.sql.SQLContext._instantiatedContext = None
+        sql_ctx = pyspark.sql.SQLContext(sc.sparkContext, sc)
+        return sql_ctx
+
     def __init__(self, name, md, rootdir):
         super().__init__(name, md, rootdir)
-
+        
+        # setup hadoop
+        hadoop_version = self.set_hadoop()
+        
         # set submit args via env variable
-        self.set_submit_args()
+        self.set_submit_args(hadoop_version)
 
         # set spark conf object
         conf = pyspark.SparkConf()
@@ -199,23 +284,26 @@ class SparkEngine(Engine):
 
         # stop current session before creating a new one
         pyspark.SparkContext.getOrCreate().stop()
-
-        # set log level fro spark
-        sc = pyspark.SparkContext(conf=conf)
-
+        
+        # init the spark session
+        sc = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
+        
+        # fix SQLContext for back compatibility
+        self.initialize_spark_sql_context(sc)
+        
         # pyspark set log level method
         # (this will not suppress WARN before starting the context)
-        sc.setLogLevel("ERROR")
+        sc.sparkContext.setLogLevel("ERROR")
 
         # record the data in the engine object for debug and future references
-        self._config = dict(sc._conf.getAll())
+        self._config = dict(sc.sparkContext.getConf().getAll())
         self._env = {'PYSPARK_SUBMIT_ARGS': os.environ['PYSPARK_SUBMIT_ARGS']}
 
         self._type = 'spark'
         self._version = sc.version
 
-        # store the sql context
-        self._ctx = pyspark.SQLContext(sc)
+        # store the spark session
+        self._ctx = sc
 
     def stop(self):
         pyspark.SparkContext.getOrCreate().stop()

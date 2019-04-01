@@ -17,8 +17,6 @@ properties:
             jobname:
                 type: string
             timezone:
-                type: [ "string", "null" ] 
-            timestamps:
                 type: string
             submit:
                 type: object
@@ -75,8 +73,6 @@ properties:
                             topic:
                                 type: string
                         additionalProperties: false
-                        required:
-                            - hosts
                 additionalProperties: false
         additionalProperties: false
 additionalProperties: false

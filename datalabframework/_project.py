@@ -12,7 +12,7 @@ from datalabframework import logging
 from datalabframework.metadata import reader
 from datalabframework.metadata import resource
 
-from datalabframework._utils import Singleton, YamlDict, repo_data, to_ordered_dict
+from datalabframework._utils import Singleton, YamlDict, repo_data, to_ordered_dict, python_version
 from datalabframework._notebook import NotebookFinder
 
 import uuid
@@ -22,7 +22,7 @@ class Project(metaclass=Singleton):
     def get_info(self):
         return {
                 'dlf_version': __version__,
-                'python_version': '.'.join([str(x) for x in sys.version_info[0:3]]),
+                'python_version': python_version(),
                 'session_id': hex(uuid.uuid1().int>>64),
                 'profile': self._profile,
                 'filename': os.path.relpath(files.get_current_filename(), paths.rootdir()),

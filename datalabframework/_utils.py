@@ -1,4 +1,5 @@
 import os
+import sys
 import git
 
 from copy import deepcopy
@@ -6,6 +7,7 @@ from collections import Mapping
 from datalabframework.yaml import yaml
 
 import traceback
+from subprocess import Popen, PIPE
 
 def print_trace(limit=None): 
     stack =([str([x[0], x[1], x[2]]) for x in traceback.extract_stack(limit=limit)])
@@ -128,3 +130,55 @@ def repo_data(rootdir=None, search_parent_directories=True):
         pass
 
     return msg
+
+def find(filename, directory):
+    for dirpath, dirnames, files in os.walk(directory):
+        for name in files:
+            if name==filename:
+                return True
+    return False
+
+
+def get_home_dirname(command_abspath, subpath='bin'):
+    pos = command_abspath.find(f'/{subpath}/') 
+    if pos==-1:
+        # assume that the homedir is the dirname of the command path
+        return os.path.dirname(command_abspath)
+    else:
+        # if the subpath is found in the command path, 
+        # the home dir is anythng before the subpath
+        return os.path.dirname(command_abspath[:pos+1])
+    
+def get_tool_home(command, env_variable, subpath='bin'):
+    try:
+        command_abspath = os.path.join(os.environ[env_variable], subpath, command)
+        os.stat(command_abspath)
+        return (get_home_dirname(command_abspath, subpath), env_variable)
+    except:
+        pass
+    
+    try:
+        output = run_command('which', command)
+        command_abspath = output[0]
+        return (get_home_dirname(command_abspath, subpath), 'PATH')
+    except:
+        return ('','')
+
+def get_hadoop_version_from_system():
+    hadoop_home = get_tool_home('hadoop', 'HADOOP_HOME', 'bin')[0]
+    hadoop_abspath = os.path.join(hadoop_home,'bin', 'hadoop')
+    
+    try:
+        output = run_command(f'{hadoop_abspath}','version')
+        return output[0].split()[1]
+    except:
+        return ''
+
+def run_command(*args):
+    process = Popen(' '.join(args), shell='/bin/bash', stdout=PIPE)
+    (output, err) = process.communicate()
+    exit_code = process.wait()
+    return output.decode('ascii').splitlines()
+    
+def python_version():
+    return '.'.join([str(x) for x in sys.version_info[0:3]])
