@@ -661,7 +661,7 @@ class SparkEngine(Engine):
 
         logging.notice(log_data) if result else logging.error(log_data)
 
-    def list(self, provider):
+    def list(self, provider, path=''):
         if isinstance(provider, YamlDict):
             md = provider.to_dict()
         elif isinstance(provider, str):
@@ -675,20 +675,21 @@ class SparkEngine(Engine):
         try:
             if md['service'] in ['local', 'file']:
                 d = []
-                for f in os.listdir(md['provider_path']):
-                    d.append(os.path.join(md['provider_path'], f))
+                rootpath = os.path.join(md['provider_path'], path)
+                for f in os.listdir(rootpath):
+                    d.append(os.path.join(rootpath, f))
                 return d
-            elif md['service'] == 'hdfs':
+            elif md['service'] in ['hdfs', 'minio']:
                 sc = self._ctx._sc
                 URI = sc._gateway.jvm.java.net.URI
                 Path = sc._gateway.jvm.org.apache.hadoop.fs.Path
                 FileSystem = sc._gateway.jvm.org.apache.hadoop.fs.FileSystem
                 fs = FileSystem.get(URI(md['url']), sc._jsc.hadoopConfiguration())
 
-                obj = fs.listStatus(Path(md['provider_path']))
-                tables = [obj[i].getPath().getName() for i in range(len(obj))]
-                return tables
-
+                provider_path = md['provider_path'] if  md['service']=='hdfs' else '/'
+                obj = fs.listStatus(Path(os.path.join(provider_path, path)))
+                lst = [obj[i].getPath().getName() for i in range(len(obj))]
+                return lst
             elif md['format'] == 'jdbc':
                 if md['service'] == 'mssql':
                     query = "(SELECT table_name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE') as query"
