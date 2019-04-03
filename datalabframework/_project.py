@@ -130,7 +130,11 @@ class Project(metaclass=Singleton):
                 )
             )
         )
-
+        
+        if self._metadata.get('variables'):
+            s = dict(sorted(self._metadata['variables'].items()))
+            self._metadata['variables']= s
+            
         return YamlDict(to_ordered_dict(self._metadata, keys))
 
     def resource(self, path=None, provider=None, md=dict()):

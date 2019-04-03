@@ -47,8 +47,9 @@ class YamlDict(Mapping):
             self._data = dict(m,**kwargs) if m is not None else dict(**kwargs)
             
     def __getitem__(self, key):
-        return self._data[key]
-
+        m = self._data[key]
+        return YamlDict(m) if isinstance(m,dict) else m
+    
     def __len__(self):
         return len(self._data)
 
