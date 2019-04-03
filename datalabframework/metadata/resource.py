@@ -15,7 +15,7 @@ def _url(d):
     elif service == 'hdfs':
         url = 'hdfs://{}:{}{}'.format(d['host'], d['port'], fullpath)
     elif service == 'minio':
-        url = 's3a://{}'.format(fullpath)
+        url = 's3a://{}'.format(fullpath.lstrip('/'))
     elif service == 'mysql':
         url = 'jdbc:mysql://{}:{}/{}'.format(d['host'],d['port'], d['database'])
     elif service == 'postgres':

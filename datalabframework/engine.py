@@ -192,7 +192,7 @@ class SparkEngine(Engine):
             elif v['service'] == 'mssql':
                 packages.append('com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8')
             elif v['service'] == 'minio':
-                packages.append(f"hadoop-aws-{hadoop_version}.jar")
+                packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
  
         if packages:
             print('Loading packages:')
