@@ -102,3 +102,11 @@ def get_python_files(rootdir):
 
 def get_jupyter_notebook_files(rootdir):
     return get_files('.ipynb', rootdir, exclude_dirs=['.ipynb_checkpoints'])
+
+def get_dotenv_file(rootdir):
+    filepath = os.path.join(rootdir, '.env')
+    
+    if os.path.isfile(filepath):
+        return filepath
+    else:
+        return filepath

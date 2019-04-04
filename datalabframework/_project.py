@@ -12,7 +12,8 @@ from datalabframework import logging
 from datalabframework.metadata import reader
 from datalabframework.metadata import resource
 
-from datalabframework._utils import Singleton, YamlDict, repo_data, to_ordered_dict, python_version
+from datalabframework._utils import Singleton, YamlDict, repo_data, to_ordered_dict, python_version, get_relpath
+
 from datalabframework._notebook import NotebookFinder
 
 import uuid
@@ -20,6 +21,7 @@ import uuid
 class Project(metaclass=Singleton):
 
     def get_info(self):
+        
         return {
                 'dlf_version': __version__,
                 'python_version': python_version(),
@@ -34,9 +36,8 @@ class Project(metaclass=Singleton):
                     'notebooks': files.get_jupyter_notebook_files(paths.rootdir()),
                     'python': files.get_python_files(paths.rootdir()),
                     'metadata': files.get_metadata_files(paths.rootdir()),
-                    'dotenv': os.path.relpath(self._dotenv_path, paths.rootdir()) if self._dotenv_path else None,
-                },
-                'engine': self._engine.config().to_dict()
+                    'dotenv': get_relpath(self._dotenv_path, paths.rootdir())
+                }
         }
 
     def __init__(self, filename=None):
@@ -47,17 +48,14 @@ class Project(metaclass=Singleton):
         self._engine = engine.NoEngine()
         self._info = self.get_info()
 
-    def load(self, profile='default', rootdir_path=None, search_parent_dirs=True, dotenv=True, factory_defaults=True):
+    def load(self, profile='default', rootdir_path=None, search_parent_dirs=True, factory_defaults=True):
 
         # init workdir and rootdir paths
         paths.set_rootdir(rootdir_path, search_parent_dirs)
 
-        # set dotenv default file
-        if dotenv is True:
-            self._dotenv_path = os.path.join(paths.rootdir(), '.env')
-        else:
-            self._dotenv_path = None
-
+        # set dotenv default file, check the file exists
+        self._dotenv_path = files.get_dotenv_file(paths.rootdir())
+        
         # metadata files
         metadata_files = files.get_metadata_files(paths.rootdir())
 
