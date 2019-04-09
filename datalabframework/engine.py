@@ -1,10 +1,11 @@
 import os, time
+import shutil
 import textwrap
 
 from datalabframework import logging
 from datalabframework import elastic
 
-from datalabframework.metadata.resource import get_metadata
+from datalabframework import resource
 from datalabframework._utils import YamlDict, to_ordered_dict, find, python_version, get_hadoop_version_from_system, get_tool_home, run_command
 
 import pandas as pd
@@ -13,6 +14,7 @@ from datalabframework.spark import dataframe
 from timeit import default_timer as timer
 
 import pyspark.sql.functions as F
+import pyspark.sql.types as T
 
 # purpose of engines
 # abstract engine init, data read and data write
@@ -22,6 +24,13 @@ import pyspark.sql.functions as F
 
 import pyspark
 
+def get(name, md, rootdir):
+    engine = NoEngine()
+
+    if md.get('engine', {}).get('type') == 'spark':
+        engine = SparkEngine(name, md, rootdir)
+
+    return engine
 
 class Engine:
     def __init__(self, name, md, rootdir):
@@ -29,7 +38,7 @@ class Engine:
         self._metadata = md
         self._rootdir = rootdir
         self._config = None
-        self._env = None
+        self._env = {}
         self._info = {}
         self._ctx = None
         self._type = None
@@ -123,8 +132,12 @@ class SparkEngine(Engine):
         spark_home = get_tool_home('spark-submit', 'SPARK_HOME', 'bin')[0]
         
         spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
+        spark_dist_classpath_source = 'env'
+        self._env['SPARK_DIST_CLASSPATH'] = spark_dist_classpath
+        
         if not spark_dist_classpath:
-            with open(os.path.join(spark_home,'conf/spark-env.sh')) as s:
+            spark_dist_classpath_source = os.path.join(spark_home,'conf/spark-env.sh')
+            with open(spark_dist_classpath_source) as s:
                 for line in s:
                     pattern = 'SPARK_DIST_CLASSPATH='
                     pos = line.find(pattern)
@@ -139,25 +152,24 @@ class SparkEngine(Engine):
                        
                        export SPARK_DIST_CLASSPATH=$(hadoop classpath)
                     
-                    for more info refer to: https://spark.apache.org/docs/latest/hadoop-provided.html
+                    for more info refer to: 
+                    https://spark.apache.org/docs/latest/hadoop-provided.html
                 """))
         
-        self._info = {
-            'python_version': python_version(),
-            'hadoop_version': hadoop_version,
-            'hadoop_install': hadoop_version_from,
-            'hadoop_home': hadoop_home,
-            'spark_home': spark_home,
-            'SPARK_HOME': os.environ.get('SPARK_HOME'),
-            'HADOOP_HOME': os.environ.get('HADOOP_HOME'),
-            'SPARK_DIST_CLASSPATH':spark_dist_classpath.split(':') 
-        }
+        self._info['python_version']=python_version()
+        self._info['hadoop_version']=hadoop_version
+        self._info['hadoop_install']=hadoop_version_from
+        self._info['hadoop_home']=hadoop_home
+        self._info['spark_home']=spark_home
+        self._info['spark_classpath']=spark_dist_classpath.split(':')
+        self._info['spark_classpath_source']=spark_dist_classpath_source
         
         return self._info['hadoop_version']
     
     def set_submit_args(self, hadoop_version):
         if not hadoop_version:
-            logging.error('Hadoop is not detected. Some packages/jars might not work correctly.')
+            logging.error('Hadoop is not detected. '
+                          'Some packages/jars might not work correctly.')
 
         submit_args = ''
         submit_md = self._metadata.get('engine', {}).get('submit', {})
@@ -168,7 +180,8 @@ class SparkEngine(Engine):
         
         for v in self._metadata.get('providers', {}).values():
             if v['service'] == 'oracle':
-                jars.append('http://www.datanucleus.org/downloads/maven2/oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar')
+                jars.append('http://www.datanucleus.org/downloads/maven2/'
+                            'oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar')
 
         if jars:
             print('Loading jars:')
@@ -268,6 +281,35 @@ class SparkEngine(Engine):
         sql_ctx = pyspark.sql.SQLContext(sc.sparkContext, sc)
         return sql_ctx
 
+    def start_context(self, conf):
+        try:
+            # init the spark session
+            sc = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
+            
+            # fix SQLContext for back compatibility
+            self.initialize_spark_sql_context(sc)
+
+            # pyspark set log level method
+            # (this will not suppress WARN before starting the context)
+            sc.sparkContext.setLogLevel("ERROR")
+            return sc
+        except:
+            logging.error('Could not start the engine context')
+            return None
+        
+    def read_environment(self):
+        
+        vars=[
+            'SPARK_HOME',
+            'HADOOP_HOME',
+            'JAVA_HOME',
+            'PYTHONPATH',
+            'PYSPARK_SUBMIT_ARGS',
+            'SPARK_DIST_CLASSPATH',
+        ]
+        
+        self._env = {v:os.environ.get(v) for v in vars}
+
     def __init__(self, name, md, rootdir):
         super().__init__(name, md, rootdir)
         
@@ -283,36 +325,38 @@ class SparkEngine(Engine):
         self.set_conf_kv(conf)
 
         # stop current session before creating a new one
-        pyspark.SparkContext.getOrCreate().stop()
+        self.stop()
         
-        # init the spark session
-        sc = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
+        # start spark
+        sc = self.start_context(conf)
         
-        # fix SQLContext for back compatibility
-        self.initialize_spark_sql_context(sc)
-        
-        # pyspark set log level method
-        # (this will not suppress WARN before starting the context)
-        sc.sparkContext.setLogLevel("ERROR")
-
         # record the data in the engine object for debug and future references
-        self._config = dict(sc.sparkContext.getConf().getAll())
-        self._env = {'PYSPARK_SUBMIT_ARGS': os.environ['PYSPARK_SUBMIT_ARGS']}
-
+        if sc:
+            self._config = dict(sc.sparkContext.getConf().getAll())
+        else:
+            self._config = dict(conf.getAll())
+            
+        # read environment and store it in the engine
+        self.read_environment()
+        
+        # set engine type and engine version
         self._type = 'spark'
-        self._version = sc.version
+        self._version = sc.version if sc else None
 
         # store the spark session
         self._ctx = sc
 
     def stop(self):
-        pyspark.SparkContext.getOrCreate().stop()
-
+        try:
+            pyspark.SparkContext.getOrCreate().stop()
+        except:
+            logging.warning('Could not stop the engine context')
+            
     def load(self, path=None, provider=None, catch_exception=True, **kargs):
         if isinstance(path, YamlDict):
             md = path.to_dict()
         elif isinstance(path, str):
-            md = get_metadata(self._rootdir, self._metadata, path, provider)
+            md = resource.metadata(self._rootdir, self._metadata, path, provider)
         elif isinstance(path, dict):
             md = path
 
@@ -358,6 +402,17 @@ class SparkEngine(Engine):
 
         return obj
 
+    def load_with_pandas(self, kargs):
+        logging.warning("Fallback dataframe reader")
+        
+        #conversion of *some* pyspark arguments to pandas
+        kargs.pop('inferSchema', None)
+        
+        kargs['header'] = 'infer' if kargs.get('header') else None
+        kargs['prefix'] = '_c'
+        
+        return kargs
+        
     def load_dataframe(self, md, catch_exception=True, **kargs):
         obj = None
         options = md['options']
@@ -368,23 +423,42 @@ class SparkEngine(Engine):
                     try:
                         obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_csv(md['url'], **kargs))
+                        kargs = self.load_with_pandas(kargs)
+                    
+                    if obj is None:
+                        df = pd.read_csv(md['url'], **kargs)
+                        obj = self._ctx.createDataFrame(df)
 
                 elif md['format'] == 'json':
                     try:
                         obj = self._ctx.read.options(**options).json(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_json(md['url'], **kargs))
+                        kargs = self.load_with_pandas(kargs)
+                    
+                    if obj is None:
+                        df = pd.read_json(md['url'], **kargs)
+                        obj = self._ctx.createDataFrame(df)
+
                 elif md['format'] == 'jsonl':
                     try:
-                        obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
+                        obj = self._ctx.read.option('multiLine', True) \
+                                       .options(**options).json(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_json(md['url'], lines=True, **kargs))
+                        kargs = self.load_with_pandas(kargs)
+                    
+                    if obj is None:
+                        df = pd.read_json(md['url'], lines=True, **kargs)
+                        obj = self._ctx.createDataFrame(df)
+
                 elif md['format'] == 'parquet':
                     try:
                         obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
                     except:
-                        obj = self._ctx.createDataFrame(pd.read_parquet(md['url'], **kargs))
+                        kargs = self.load_with_pandas(kargs)
+                    
+                    if obj is None:
+                        df = pd.read_parquet(md['url'], **kargs)
+                        obj = self._ctx.createDataFrame(df)
                 else:
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return None
@@ -395,7 +469,8 @@ class SparkEngine(Engine):
                 elif md['format'] == 'json':
                     obj = self._ctx.read.options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'jsonl':
-                    obj = self._ctx.read.option('multiLine', True).options(**options).json(md['url'], **kargs)
+                    obj = self._ctx.read.option('multiLine', True)\
+                                   .options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
                     obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
                 else:
@@ -407,7 +482,7 @@ class SparkEngine(Engine):
                 obj = self._ctx.read \
                     .format('jdbc') \
                     .option('url', md['url']) \
-                    .option("dbtable", md['resource_path']) \
+                    .option("dbtable", md['table']) \
                     .option("driver", md['driver']) \
                     .option("user", md['username']) \
                     .option('password', md['password']) \
@@ -436,7 +511,7 @@ class SparkEngine(Engine):
         if isinstance(path, YamlDict):
             md = path.to_dict()
         elif isinstance(path, str):
-            md = get_metadata(self._rootdir, self._metadata, path, provider)
+            md = resource.metadata(self._rootdir, self._metadata, path, provider)
         elif isinstance(path, dict):
             md = path
 
@@ -491,31 +566,81 @@ class SparkEngine(Engine):
 
         return result
 
+    def is_spark_local(self):
+        return self._config.get('spark.master').startswith('local')
+                               
+    def save_with_pandas(self, md, kargs):
+        if not self.is_spark_local():
+            logging.warning("Fallback dataframe writer")
+        
+        if os.path.exists(md['url']) and os.path.isdir(md['url']):
+            shutil.rmtree(md['url'])
+                               
+        #conversion of *some* pyspark arguments to pandas
+        kargs.pop('mode', None)
+        kargs['index'] = False
+        
+        kargs['header'] = False if kargs.get('header') is None else kargs.get('header')
+
+        return kargs
+                           
+    def directory_to_file(self, path, ext):
+        if os.path.exists(path) and os.path.isfile(path):
+            return
+        
+        dirname = os.path.dirname(path)
+        basename = os.path.basename(path)
+        
+                               
+        filename = list(filter(lambda x: x.endswith(ext), os.listdir(path)))
+        if len(filename)!=1:
+            logging.warning('cannot convert if more than a partition present')
+            return
+        else:
+            filename = filename[0]
+                               
+        shutil.move(os.path.join(path,filename), dirname)
+        if os.path.exists(path) and os.path.isdir(path):
+            shutil.rmtree(path)
+                               
+        shutil.move(os.path.join(dirname,filename), os.path.join(dirname,basename))
+        return
+        
     def save_dataframe(self, obj, md, **kargs):
 
         options = md.get('options', {})
-
         try:
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':
-                    try:
-                        obj.write.options(**options).csv(md['url'], **kargs)
-                    except:
+                    if self.is_spark_local():
+                        obj.coalesce(1).write.options(**options).csv(md['url'], **kargs)
+                        self.directory_to_file(md['url'], 'csv')
+                    else:
+                        kargs = self.save_with_pandas(md, kargs)
                         obj.toPandas().to_csv(md['url'], **kargs)
+                        
                 elif md['format'] == 'json':
-                    try:
-                        obj.write.options(**options).json(md['url'], **kargs)
-                    except:
+                    if self.is_spark_local():
+                        obj.coalesce(1).write.options(**options).json(md['url'], **kargs)
+                        self.directory_to_file(md['url'], 'json')
+                    else:
+                        kargs = self.save_with_pandas(md, kargs)
                         obj.toPandas().to_json(md['url'], **kargs)
+                               
                 elif md['format'] == 'jsonl':
-                    try:
-                        obj.write.options(**options).option('multiLine', True).json(md['url'], **kargs)
-                    except:
+                    if self.is_spark_local():
+                        obj.coalesce(1).write.options(**options)\
+                                 .option('multiLine', True)\
+                                 .json(md['url'], **kargs)
+                        self.directory_to_file(md['url'], 'jsonl')
+                    else:
+                        kargs = self.save_with_pandas(md, kargs)
                         obj.toPandas().to_json(md['url'], orient='records', lines=True, **kargs)
                 elif md['format'] == 'parquet':
-                    try:
-                        obj.write.options(**options).parquet(md['url'], **kargs)
-                    except:
+                    if self.is_spark_local():
+                        obj.coalesce(1).write.options(**options).parquet(md['url'], **kargs)
+                    else:
+                        kargs = self.save_with_pandas(md, kargs)
                         obj.toPandas().to_parquet(md['url'], orient='records', lines=True, **kargs)
                 else:
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
@@ -527,7 +652,9 @@ class SparkEngine(Engine):
                 elif md['format'] == 'json':
                     obj.write.options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'jsonl':
-                    obj.write.options(**options).option('multiLine', True).json(md['url'], **kargs)
+                    obj.write.options(**options)\
+                             .option('multiLine', True)\
+                             .json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
                     obj.write.options(**options).parquet(md['url'], **kargs)
                 else:
@@ -538,7 +665,7 @@ class SparkEngine(Engine):
                 obj.write \
                     .format('jdbc') \
                     .option('url', md['url']) \
-                    .option("dbtable", md['resource_path']) \
+                    .option("dbtable", md['table']) \
                     .option("driver", md['driver']) \
                     .option("user", md['username']) \
                     .option('password', md['password']) \
@@ -665,20 +792,39 @@ class SparkEngine(Engine):
         if isinstance(provider, YamlDict):
             md = provider.to_dict()
         elif isinstance(provider, str):
-            md = get_metadata(self._rootdir, self._metadata, None, provider)
+            md = resource.metadata(self._rootdir, self._metadata, None, provider)
         elif isinstance(provider, dict):
             md = provider
         else:
             logging.warning(f'{str(provider)} cannot be used to reference a provider')
-            return []
+            df_schema = T.StructType(
+                            T.List(
+                                T.StructField('name',StringType,true),
+                                T.StructField(type,StringType,true)
+                            )
+                        )
+            return None
 
         try:
             if md['service'] in ['local', 'file']:
-                d = []
+                lst = []
                 rootpath = os.path.join(md['provider_path'], path)
                 for f in os.listdir(rootpath):
-                    d.append(os.path.join(rootpath, f))
-                return d
+                    fullpath = os.path.join(rootpath, f)
+                    if os.path.isfile(fullpath):
+                        obj_type='FILE'
+                    elif os.path.isdir(fullpath):
+                        obj_type='DIRECTORY'
+                    elif os.path.ismount(fullpath):
+                        obj_type='LINK'
+                    elif os.path.islink(fullpath):
+                        obj_type='MOUNT'
+                    else:
+                        obj_type='UNDEFINED'
+                
+                    obj_name = f
+                    lst += [(obj_name, obj_type)]
+                return self._ctx.createDataFrame(lst, ['name', 'type'])
             elif md['service'] in ['hdfs', 'minio']:
                 sc = self._ctx._sc
                 URI = sc._gateway.jvm.java.net.URI
@@ -688,20 +834,37 @@ class SparkEngine(Engine):
 
                 provider_path = md['provider_path'] if  md['service']=='hdfs' else '/'
                 obj = fs.listStatus(Path(os.path.join(provider_path, path)))
-                lst = [obj[i].getPath().getName() for i in range(len(obj))]
-                return lst
+                
+                lst = []
+                
+                for i in range(len(obj)):
+                    if obj[i].isFile():
+                        obj_type='FILE'
+                    elif obj[i].isDirectory():
+                        obj_type='DIRECTORY'
+                    else:
+                        obj_type='UNDEFINED'
+                
+                    obj_name = obj[i].getPath().getName()
+                    lst += [(obj_name, obj_type)]
+                return self._ctx.createDataFrame(lst, ['name', 'type'])
             elif md['format'] == 'jdbc':
                 if md['service'] == 'mssql':
-                    query = "(SELECT table_name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE') as query"
+                    query = "(SELECT table_name, table_type FROM INFORMATION_SCHEMA.TABLES) as query"
                 elif md['service'] == 'oracle':
-                    query = "(SELECT table_name FROM all_tables WHERE owner='schema_name') as query"
+                    query = "(SELECT table_name, table_type FROM all_tables WHERE table_schema='{md['database']}') as query"
                 elif md['service'] == 'mysql':
-                    query = f"(SELECT table_name FROM information_schema.tables where table_schema='{md['database']}') as query"
-                elif md['service'] == 'pgsql':
-                    query = f"(SELECT table_name FROM information_schema.tables) as query"
+                    query = f"(SELECT table_name, table_type FROM information_schema.tables where table_schema='{md['database']}') as query"
+                elif md['service'] == 'postgres':
+                    query = f"""
+                        ( SELECT table_name, table_type
+                          FROM information_schema.tables 
+                          WHERE table_schema = '{md["schema"]}'
+                        ) as query
+                        """
                 else:
                     # vanilla query ... for other databases
-                    query = f"(SELECT table_name FROM information_schema.tables) as query"
+                    query = f"(SELECT table_name, table_type FROM information_schema.tables) as query"
 
                 obj = self._ctx.read \
                     .format('jdbc') \
@@ -713,7 +876,8 @@ class SparkEngine(Engine):
                     .load()
 
                 # load the data from jdbc
-                return [x.TABLE_NAME for x in obj.select('TABLE_NAME').collect()]
+                lst = [(x.TABLE_NAME, x.TABLE_TYPE) for x in obj.select('TABLE_NAME', 'TABLE_TYPE').collect()]
+                return self._ctx.createDataFrame(lst, ['name', 'type'])
             else:
                 logging.error({'md': md, 'error_msg': f'List resource on service "{md["service"]}" not implemented'})
                 return []
@@ -722,15 +886,3 @@ class SparkEngine(Engine):
             raise e
 
         return []
-
-
-def get(name, md, rootdir):
-    engine = NoEngine()
-
-    if md.get('engine', {}).get('type') == 'spark':
-        engine = SparkEngine(name, md, rootdir)
-
-    # if md.get('engine', {}).get('type') == 'pandas':
-    #      engine = PandasEngine(name, md, rootdir)
-
-    return engine

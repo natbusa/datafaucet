@@ -1,3 +1,4 @@
-include datalabframework/metadata/schemas/top.yml
-include datalabframework/metadata/schemas/provider.yml
-include datalabframework/metadata/schemas/resource.yml
+include datalabframework/schemas/default.yml
+include datalabframework/schemas/top.yml
+include datalabframework/schemas/provider.yml
+include datalabframework/schemas/resource.yml

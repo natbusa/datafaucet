@@ -15,3 +15,11 @@ __all__ = [
     'logging',
     'project'
 ]
+
+# register hook for loading ipynb files
+import sys
+from ._loader import NotebookFinder
+
+if 'NotebookFinder' not in str(sys.meta_path):
+    sys.meta_path.append(NotebookFinder())
+

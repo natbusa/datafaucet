@@ -139,13 +139,23 @@ def find(filename, directory):
                 return True
     return False
 
-def get_relpath(abspath, basepath):
-    try:
-        os.stat(abspath)
-        return os.path.relpath(abspath, basepath)
-    except:
-        return None
-    
+def relpath(paths, basepath):
+    def r(path, basepath):
+        if path and path.startswith('/') and not basepath:
+            return path
+        else:
+            return os.path.relpath(path, basepath)
+    if isinstance(paths, list):
+        return [r(path, basepath) for path in paths if path]
+    else:
+        return r(paths, basepath)
+
+def abspath(paths, basepath):
+    if isinstance(paths, list):
+        return [os.path.join(basepath, path) for path in paths if path]
+    else: 
+        return os.path.join(basepath, paths) if paths else None
+                     
 def get_home_dirname(command_abspath, subpath='bin'):
     pos = command_abspath.find(f'/{subpath}/') 
     if pos==-1:

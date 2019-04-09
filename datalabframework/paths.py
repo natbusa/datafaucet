@@ -31,10 +31,8 @@ def set_rootdir(path=None, search_parent_dirs=True):
 
     if search_parent_dirs:
         _rootdir = find_rootdir(_rootdir)
+    
+    return _rootdir
 
 def rootdir():
     return _rootdir
-
-def workdir():
-    return os.getcwd()
-

@@ -8,9 +8,9 @@ import requests
 import ipykernel
 from notebook.notebookapp import list_running_servers
 
-_filename = None
+_script_path = None
 
-def extract_filename(f):
+def detect_script_path(f):
     """
     Return the full path of the jupyter notebook.
     """
@@ -61,15 +61,15 @@ def extract_filename(f):
     return os.path.join(os.getcwd(), '<unknown>')
 
 
-def set_current_filename(f=None):
-    global _filename
-    _filename = extract_filename(f)
+def set_script_path(f=None):
+    global _script_path
+    _script_path = detect_script_path(f)
 
-def get_current_filename():
-    if _filename is None:
-        set_current_filename()
+def get_script_path(rootdir=None):
+    if _script_path is None:
+        set_script_path()
         
-    return _filename
+    return os.path.relpath(_script_path, rootdir) if rootdir else _script_path
 
 def get_files(ext, rootdir, exclude_dirs=None, ignore_dir_with_file=''):
     if exclude_dirs is None:
@@ -94,19 +94,18 @@ def get_files(ext, rootdir, exclude_dirs=None, ignore_dir_with_file=''):
 
     return lst
 
-def get_metadata_files(rootdir):
-    return get_files('metadata.yml', rootdir, ignore_dir_with_file='metadata.ignore.yml')
-
 def get_python_files(rootdir):
     return get_files('.py', rootdir)
 
-def get_jupyter_notebook_files(rootdir):
-    return get_files('.ipynb', rootdir, exclude_dirs=['.ipynb_checkpoints'])
+def get_metadata_files(rootdir):
+    return get_files('metadata.yml', rootdir, None, 'metadata.ignore.yml')
 
-def get_dotenv_file(rootdir):
-    filepath = os.path.join(rootdir, '.env')
+def get_jupyter_notebook_files(rootdir):
+    return get_files('.ipynb', rootdir, ['.ipynb_checkpoints'])
+
+def get_dotenv_path(rootdir):
+    dotenv_filename = '.env'
+    dotenv_path = os.path.join(rootdir, dotenv_filename)
+    exists = os.path.isfile(dotenv_path)
     
-    if os.path.isfile(filepath):
-        return filepath
-    else:
-        return filepath
+    return dotenv_filename if exists else None
