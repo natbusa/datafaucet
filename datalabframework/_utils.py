@@ -23,6 +23,8 @@ class Singleton(type):
         return cls._instances[cls]
 
 def to_ordered_dict(d, keys):
+    print(d)
+    print(keys)
     def to_ordered_dict_generator(d, keys):
         for k in keys:
             if isinstance(k, tuple):
@@ -30,7 +32,8 @@ def to_ordered_dict(d, keys):
                 yield (k[0], dict(to_ordered_dict_generator(e, k[1])))
             else:
                 e = d.get(k)
-                yield (k, e)
+                if e is not None:
+                    yield (k, e)
 
     return dict(to_ordered_dict_generator(d, keys))
 

@@ -12,7 +12,7 @@ loggers:
         severity: info
     datalabframework:
         name: dlf
-        stream:
+        stdio:
             enable: true
             severity: notice
 ---

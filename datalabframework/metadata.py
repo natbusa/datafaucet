@@ -144,7 +144,10 @@ def formatted(md):
             'variables',
             ('engine',(
                 'type',
-                'master'
+                'master',
+                'timezone,',
+                'submit',
+                'config'
                 )
             ),
             'providers',
