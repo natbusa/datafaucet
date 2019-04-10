@@ -113,17 +113,19 @@ class NoEngine(Engine):
 class SparkEngine(Engine):
     def set_hadoop(self):
         hadoop_version = None
-        hadoop_version_from = None
+        hadoop_detect_from = None
         try:
-            sc = pyspark.sql.SparkSession.builder.getOrCreate()
-            hadoop_version = sc.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion.version()
-            hadoop_version_from = 'spark'
-        except:
+            session = pyspark.sql.SparkSession.builder.getOrCreate()
+            hadoop_version = session.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion()
+            hadoop_detect_from = 'spark'
+            self.stop(session)
+        except Exception as e:
+            print(e)
             pass
         
         if hadoop_version is None:
             hadoop_version = get_hadoop_version_from_system()
-            hadoop_version_from = 'system'
+            hadoop_detect_from = 'system'
         
         if hadoop_version is None:
             logging.warning('Could not find a valid hadoop install.')
@@ -145,7 +147,7 @@ class SparkEngine(Engine):
                         spark_dist_classpath = line[pos+len(pattern):].strip()
                         spark_dist_classpath = run_command(f'echo {spark_dist_classpath}')[0]
     
-        if hadoop_version_from == 'system' and (not spark_dist_classpath):
+        if hadoop_detect_from == 'system' and (not spark_dist_classpath):
             logging.warning(textwrap.dedent("""
                     SPARK_DIST_CLASSPATH not defined and spark installed without hadoop
                     define SPARK_DIST_CLASSPATH in $SPARK_HOME/conf/spark-env.sh as follows:
@@ -158,7 +160,7 @@ class SparkEngine(Engine):
         
         self._info['python_version']=python_version()
         self._info['hadoop_version']=hadoop_version
-        self._info['hadoop_install']=hadoop_version_from
+        self._info['hadoop_detect']=hadoop_detect_from
         self._info['hadoop_home']=hadoop_home
         self._info['spark_home']=spark_home
         self._info['spark_classpath']=spark_dist_classpath.split(':')
@@ -195,16 +197,17 @@ class SparkEngine(Engine):
         items = submit_md.get('packages')
         packages = items if items else []
 
-        for v in self._metadata.get('providers', {}).values():
-            if v['service'] == 'mysql':
+        services = {v['service'] for v in self._metadata.get('providers', {}).values()}
+        for v in sorted(list(services)):
+            if v == 'mysql':
                 packages.append('mysql:mysql-connector-java:8.0.12')
-            elif v['service'] == 'sqlite':
+            elif v == 'sqlite':
                 packages.append('org.xerial:sqlite-jdbc:3.25.2')
-            elif v['service'] == 'postgres':
+            elif v == 'postgres':
                 packages.append('org.postgresql:postgresql:42.2.5')
-            elif v['service'] == 'mssql':
+            elif v == 'mssql':
                 packages.append('com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8')
-            elif v['service'] == 'minio':
+            elif v == 'minio':
                 packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
  
         if packages:
@@ -271,29 +274,32 @@ class SparkEngine(Engine):
             if isinstance(v, (bool, int, float, str)):
                 conf.set(k, v)
 
-    def initialize_spark_sql_context(self,sc):
+    def initialize_spark_sql_context(self,spark_session, spark_context):
         try:
             del pyspark.sql.SQLContext._instantiatedContext
         except:
             pass
         
+        if spark_context is None:
+            spark_context = spark_session.sparkContext
+        
         pyspark.sql.SQLContext._instantiatedContext = None
-        sql_ctx = pyspark.sql.SQLContext(sc.sparkContext, sc)
+        sql_ctx = pyspark.sql.SQLContext(spark_context, spark_session)
         return sql_ctx
 
     def start_context(self, conf):
         try:
             # init the spark session
-            sc = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
+            session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
             
             # fix SQLContext for back compatibility
-            self.initialize_spark_sql_context(sc)
+            self.initialize_spark_sql_context(session,session.sparkContext)
 
             # pyspark set log level method
             # (this will not suppress WARN before starting the context)
-            sc.sparkContext.setLogLevel("ERROR")
-            return sc
-        except:
+            session.sparkContext.setLogLevel("ERROR")
+            return session
+        except Exception as e:
             logging.error('Could not start the engine context')
             return None
         
@@ -328,11 +334,11 @@ class SparkEngine(Engine):
         self.stop()
         
         # start spark
-        sc = self.start_context(conf)
+        spark_session = self.start_context(conf)
         
         # record the data in the engine object for debug and future references
-        if sc:
-            self._config = dict(sc.sparkContext.getConf().getAll())
+        if spark_session:
+            self._config = dict(dict(spark_session.sparkContext.getConf().getAll()))
         else:
             self._config = dict(conf.getAll())
             
@@ -341,16 +347,32 @@ class SparkEngine(Engine):
         
         # set engine type and engine version
         self._type = 'spark'
-        self._version = sc.version if sc else None
+        self._version = spark_session.version if spark_session else None
 
         # store the spark session
-        self._ctx = sc
+        self._ctx = spark_session
 
-    def stop(self):
+    def stop(self, spark_session=None):
         try:
-            pyspark.SparkContext.getOrCreate().stop()
-        except:
-            logging.warning('Could not stop the engine context')
+            spark_session = spark_session or self._ctx
+            sc = None
+            if spark_session:
+                sc = spark_session.sparkContext
+                spark_session.stop()
+                
+            cls = pyspark.SparkContext
+            sc = sc or cls._active_spark_context
+            
+            if sc:
+                sc.stop()
+                sc._gateway.shutdown()
+                
+            cls._active_spark_context = None
+            cls._gateway = None
+            cls._jvm = None
+        except Exception as e:
+            print(e)
+            logging.warning('Could not fully stop the engine context')
             
     def load(self, path=None, provider=None, catch_exception=True, **kargs):
         if isinstance(path, YamlDict):
