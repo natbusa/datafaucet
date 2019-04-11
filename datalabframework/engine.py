@@ -139,14 +139,15 @@ class SparkEngine(Engine):
         
         if not spark_dist_classpath:
             spark_dist_classpath_source = os.path.join(spark_home,'conf/spark-env.sh')
-            with open(spark_dist_classpath_source) as s:
-                for line in s:
-                    pattern = 'SPARK_DIST_CLASSPATH='
-                    pos = line.find(pattern)
-                    if pos>=0:
-                        spark_dist_classpath = line[pos+len(pattern):].strip()
-                        spark_dist_classpath = run_command(f'echo {spark_dist_classpath}')[0]
-    
+            if os.path.isfile(spark_dist_classpath_source):
+                with open(spark_dist_classpath_source) as s:
+                    for line in s:
+                        pattern = 'SPARK_DIST_CLASSPATH='
+                        pos = line.find(pattern)
+                        if pos>=0:
+                            spark_dist_classpath = line[pos+len(pattern):].strip()
+                            spark_dist_classpath = run_command(f'echo {spark_dist_classpath}')[0]
+
         if hadoop_detect_from == 'system' and (not spark_dist_classpath):
             logging.warning(textwrap.dedent("""
                     SPARK_DIST_CLASSPATH not defined and spark installed without hadoop
@@ -163,7 +164,7 @@ class SparkEngine(Engine):
         self._info['hadoop_detect']=hadoop_detect_from
         self._info['hadoop_home']=hadoop_home
         self._info['spark_home']=spark_home
-        self._info['spark_classpath']=spark_dist_classpath.split(':')
+        self._info['spark_classpath']=spark_dist_classpath.split(':') if spark_dist_classpath else None
         self._info['spark_classpath_source']=spark_dist_classpath_source
         
         return self._info['hadoop_version']
@@ -240,7 +241,7 @@ class SparkEngine(Engine):
         conf.setMaster(self._metadata.get('engine', {}).get('master', 'local[*]'))
 
     def set_conf_kv(self, conf):
-        conf_md = self._metadata.get('engine', {}).get('config', {})
+        conf_md = self._metadata['engine']['config'] or {}
 
         # setting for minio
         for v in self._metadata.get('providers', {}).values():
