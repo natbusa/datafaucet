@@ -27,7 +27,7 @@ import pyspark
 def get(name, md, rootdir):
     engine = NoEngine()
 
-    if md.get('engine', {}).get('type') == 'spark':
+    if md['engine']['type'] == 'spark':
         engine = SparkEngine(name, md, rootdir)
 
     return engine
@@ -43,7 +43,7 @@ class Engine:
         self._ctx = None
         self._type = None
         self._version = None
-        self._timezone = md.get('engine', {}).get('timezone')
+        self._timezone = None
 
     def config(self):
         keys = [
@@ -174,11 +174,10 @@ class SparkEngine(Engine):
                           'Some packages/jars might not work correctly.')
 
         submit_args = ''
-        submit_md = self._metadata.get('engine', {}).get('submit', {})
+        submit_md = self._metadata['engine']['submit']
 
         #### submit: jars
-        items = submit_md.get('jars')
-        jars = items if items else []
+        jars = submit_md['jars'] or []
         
         for v in self._metadata.get('providers', {}).values():
             if v['service'] == 'oracle':
@@ -194,10 +193,11 @@ class SparkEngine(Engine):
 
 
         #### submit: packages
-        items = submit_md.get('packages')
-        packages = items if items else []
+        packages = submit_md['packages'] or []
 
-        services = {v['service'] for v in self._metadata.get('providers', {}).values()}
+
+        providers = self._metadata['providers'] or {}
+        services = {v['service'] for v in providers.values()}
         for v in sorted(list(services)):
             if v == 'mysql':
                 packages.append('mysql:mysql-connector-java:8.0.12')
@@ -218,8 +218,7 @@ class SparkEngine(Engine):
             submit_args = '{} --packages {}'.format(submit_args, submit_packages)
 
         #### submit: py-files
-        items = submit_md.get('py-files')
-        pyfiles = items if items else []
+        pyfiles = submit_md['py-files'] or []
 
         if pyfiles:
             print('Loading files:')
@@ -318,6 +317,9 @@ class SparkEngine(Engine):
 
     def __init__(self, name, md, rootdir):
         super().__init__(name, md, rootdir)
+        
+        # timezone
+        self._timezone = md['engine']['timezone']
         
         # setup hadoop
         hadoop_version = self.set_hadoop()
@@ -538,11 +540,12 @@ class SparkEngine(Engine):
             md = path
 
         prep_start = timer()
-
+        options = md['options'] or {}
+        
         if md['date_partition'] and md['date_column']:
             tzone = 'UTC' if self._timestamps == 'naive' else self._timezone
             obj = dataframe.add_datetime_columns(obj, column=md['date_column'], tzone=tzone)
-            kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', md.get('options', {}).get('partitionBy', []))
+            kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', options.get('partitionBy', []))
 
         if md['update_column']:
             obj = dataframe.add_update_column(obj, tzone=self._timezone)
@@ -576,7 +579,7 @@ class SparkEngine(Engine):
 
         log_data = {
             'md': dict(md),
-            'mode': kargs.get('mode', md.get('options', {}).get('mode')),
+            'mode': kargs.get('mode', options.get('mode')),
             'records': num_rows,
             'columns': num_cols,
             'time': core_end - prep_start,
@@ -630,7 +633,7 @@ class SparkEngine(Engine):
         
     def save_dataframe(self, obj, md, **kargs):
 
-        options = md.get('options', {})
+        options = md['options'] or {}
         try:
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':

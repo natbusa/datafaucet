@@ -172,12 +172,16 @@ levels = {
 }
 
 def init_kafka(logger, level, md):
-    p = md.get('datalabframework',{}).get('kafka')
-    if p and p.get('enable', True) and KafkaProducer:
-        level = levels.get(p.get('severity', level))
-        topic = p.get('topic', 'dlf')
-        hosts = p.get('hosts')
+    p = md['datalabframework']['kafka'] 
+    if p and p['enable'] and KafkaProducer:
+        level = levels.get(p['severity'] or level)
+        topic = p['topic'] or 'dlf'
+        hosts = p['hosts']
     else:
+        return
+    
+    if not hosts:
+        logging.warning('Logging on kafka: no hosts defined')
         return
 
     # disable logging for 'kafka.KafkaProducer', kafka.conn
@@ -193,10 +197,11 @@ def init_kafka(logger, level, md):
     logger.addHandler(handlerKafka)
 
 def init_stdio(logger, level, md):    
-    p = md.get('datalabframework',{})
-    p = p.get('stream') or p.get('stdio')
-    if p and p.get('enable', True):
-        level = levels.get(p.get('severity', level))
+    p = md['datalabframework']['stdio']
+    p = p or md['datalabframework']['stream']
+    
+    if p and p['enable']:
+        level = levels.get(p['severity'] or level)
     else:
         return
     
@@ -222,13 +227,13 @@ file_handler = None
 def init_file(logger, level, md):    
     global file_handler
 
-    p = md.get('datalabframework',{}).get('file')
-    if p and p.get('enable', True):
-        level = levels.get(p.get('severity', level))
+    p = md['datalabframework']['file']
+    if p and p['enable']:
+        level = levels.get(p['severity'] or level)
     else:
         return
 
-    path = p.get('path', f'{logger.name}.log')
+    path = p['path'] or f'{logger.name}.log'
     try:
         if file_handler:
             file_handler.close()
@@ -256,11 +261,11 @@ def init(
     md = md if md else {}
 
     # root logger
-    level = levels.get(md.get('root', {}).get('severity', 'info'))
+    level = levels.get(md['root']['severity'] or 'info')
     logging.basicConfig(level=level)
     
     # dlf logger
-    logger_name = md.get('datalabframework',{}).get('name', 'dlf')
+    logger_name = md['datalabframework']['name'] or 'dlf'
     logger = logging.getLogger(logger_name)
     logger.setLevel(level)
     logger.handlers = []

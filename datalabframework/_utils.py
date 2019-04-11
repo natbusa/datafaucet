@@ -30,8 +30,7 @@ def to_ordered_dict(d, keys):
                 yield (k[0], dict(to_ordered_dict_generator(e, k[1])))
             else:
                 e = d.get(k)
-                if e is not None:
-                    yield (k, e)
+                yield (k, e)
 
     return dict(to_ordered_dict_generator(d, keys))
 

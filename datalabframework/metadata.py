@@ -145,25 +145,43 @@ def formatted(md):
             ('engine',(
                 'type',
                 'master',
-                'timezone,',
-                'submit',
-                'config'
+                'jobname',
+                'timezone',
+                ('submit',(
+                    'jars',
+                    'packages',
+                    'py-files',
+                )),
+                'config',
                 )
             ),
             'providers',
             'resources',
             ('loggers',(
-                'root',
+                ('root',('severity',)),
                 ('datalabframework',(
                     'name',
-                    'stream',
-                    'file',
-                    'stdio',
-                    'kafka'
-                    )
-                )
-                )
-            )
+                    ('stream',(
+                        'severity',
+                        'enable',
+                    )),
+                    ('stdio',(
+                        'severity',
+                        'enable',
+                    )),
+                    ('file',(
+                        'severity',
+                        'enable',
+                        'path',
+                    )),
+                    ('kafka',(
+                        'severity',
+                        'enable',
+                        'hosts',
+                        'topic',
+                    ))
+                ))
+            )),
         )
         
     if md.get('variables'):
