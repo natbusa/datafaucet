@@ -1,0 +1,6 @@
+dependencies:
+  # conda packages
+  - pandas
+  - pip:
+    #exemple of pip install from github source, if not available on conda
+    - git+https://github.com/WillKoehrsen/feature-selector
