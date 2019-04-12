@@ -1,3 +1,4 @@
+include datalabframework/cli/templates/metadata.ignore.yml
 include datalabframework/schemas/default.yml
 include datalabframework/schemas/top.yml
 include datalabframework/schemas/provider.yml

@@ -815,6 +815,13 @@ class SparkEngine(Engine):
         logging.notice(log_data) if result else logging.error(log_data)
 
     def list(self, provider, path=''):
+
+        df_schema = T.StructType([
+                T.StructField('name',T.StringType(),True),
+                T.StructField('type',T.StringType(),True)])
+
+        df_empty = self._ctx.createDataFrame(data=(), schema=df_schema)
+                      
         if isinstance(provider, YamlDict):
             md = provider.to_dict()
         elif isinstance(provider, str):
@@ -823,13 +830,7 @@ class SparkEngine(Engine):
             md = provider
         else:
             logging.warning(f'{str(provider)} cannot be used to reference a provider')
-            df_schema = T.StructType(
-                            T.List(
-                                T.StructField('name',StringType,true),
-                                T.StructField(type,StringType,true)
-                            )
-                        )
-            return None
+            return df_empty
 
         try:
             if md['service'] in ['local', 'file']:
@@ -850,7 +851,7 @@ class SparkEngine(Engine):
                 
                     obj_name = f
                     lst += [(obj_name, obj_type)]
-                return self._ctx.createDataFrame(lst, ['name', 'type'])
+                return self._ctx.createDataFrame(lst, ['name', 'type']) if lst else df_empty
             elif md['service'] in ['hdfs', 'minio']:
                 sc = self._ctx._sc
                 URI = sc._gateway.jvm.java.net.URI
@@ -873,14 +874,29 @@ class SparkEngine(Engine):
                 
                     obj_name = obj[i].getPath().getName()
                     lst += [(obj_name, obj_type)]
-                return self._ctx.createDataFrame(lst, ['name', 'type'])
+                return self._ctx.createDataFrame(lst, ['name', 'type']) if lst else df_empty
             elif md['format'] == 'jdbc':
                 if md['service'] == 'mssql':
-                    query = "(SELECT table_name, table_type FROM INFORMATION_SCHEMA.TABLES) as query"
+                    query = f"""
+                        ( SELECT table_name, table_type 
+                          FROM INFORMATION_SCHEMA.TABLES 
+                          WHERE TABLE_CATALOG='{md["database"]}'
+                        ) as query
+                        """
                 elif md['service'] == 'oracle':
-                    query = "(SELECT table_name, table_type FROM all_tables WHERE table_schema='{md['database']}') as query"
+                    query = f"""
+                        ( SELECT table_name, table_type 
+                         FROM all_tables 
+                         WHERE table_schema='{md["database"]}'
+                        ) as query
+                        """
                 elif md['service'] == 'mysql':
-                    query = f"(SELECT table_name, table_type FROM information_schema.tables where table_schema='{md['database']}') as query"
+                    query = f"""
+                        ( SELECT table_name, table_type 
+                          FROM information_schema.tables 
+                          WHERE table_schema='{md["database"]}'
+                        ) as query
+                        """
                 elif md['service'] == 'postgres':
                     query = f"""
                         ( SELECT table_name, table_type
@@ -890,7 +906,11 @@ class SparkEngine(Engine):
                         """
                 else:
                     # vanilla query ... for other databases
-                    query = f"(SELECT table_name, table_type FROM information_schema.tables) as query"
+                    query = f"""
+                            ( SELECT table_name, table_type 
+                              FROM information_schema.tables
+                            ) as query
+                            """
 
                 obj = self._ctx.read \
                     .format('jdbc') \
@@ -903,12 +923,12 @@ class SparkEngine(Engine):
 
                 # load the data from jdbc
                 lst = [(x.TABLE_NAME, x.TABLE_TYPE) for x in obj.select('TABLE_NAME', 'TABLE_TYPE').collect()]
-                return self._ctx.createDataFrame(lst, ['name', 'type'])
+                return self._ctx.createDataFrame(lst, ['name', 'type']) if lst else df_empty
             else:
                 logging.error({'md': md, 'error_msg': f'List resource on service "{md["service"]}" not implemented'})
-                return []
+                return  df_empty
         except Exception as e:
             logging.error({'md': md, 'error_msg': str(e)})
             raise e
 
-        return []
+        return  df_empty

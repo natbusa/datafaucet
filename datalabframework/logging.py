@@ -168,7 +168,7 @@ levels = {
     'notice': NOTICE_LEVELV_NUM,
     'warning': logging.WARNING,
     'error': logging.ERROR,
-    'fatal': logging.FATAL
+    'critical': logging.CRITICAL
 }
 
 def init_kafka(logger, level, md):
@@ -258,7 +258,9 @@ def init(
     
     global _logger
 
-    md = md if md else {}
+    if not md:
+        _logger = logging.getLogger('dlf')
+        return
 
     # root logger
     level = levels.get(md['root']['severity'] or 'info')
@@ -298,6 +300,9 @@ def _notice(msg, *args, **kwargs):
     if logger.isEnabledFor(NOTICE_LEVELV_NUM):
         logger.log(NOTICE_LEVELV_NUM, msg, *args, **kwargs) 
 
+def debug(msg, *args, **kwargs):
+    getLogger().debug(msg, *args, **kwargs)
+
 def info(msg, *args, **kwargs):
     getLogger().info(msg, *args, **kwargs)
 
@@ -310,5 +315,5 @@ def warning(msg, *args, **kwargs):
 def error(msg, *args, **kwargs):
     getLogger().error(msg, *args, **kwargs)
 
-def fatal(msg, *args, **kwargs):
-    getLogger().fatal(msg, *args, **kwargs)
+def critical(msg, *args, **kwargs):
+    getLogger().critical(msg, *args, **kwargs)
