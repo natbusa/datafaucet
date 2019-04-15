@@ -26,8 +26,11 @@ def to_ordered_dict(d, keys):
     def to_ordered_dict_generator(d, keys):
         for k in keys:
             if isinstance(k, tuple):
-                e = d.get(k[0], {})
-                yield (k[0], dict(to_ordered_dict_generator(e, k[1])))
+                e = d.get(k[0])
+                if isinstance(e, dict):
+                    yield (k[0], dict(to_ordered_dict_generator(e, k[1])))
+                else:
+                    yield (k[0], e)
             else:
                 e = d.get(k)
                 yield (k, e)
@@ -88,7 +91,7 @@ def merge(a, b):
         return deepcopy(a) | deepcopy(b)
 
     #if b is None, inherit from a
-    return deepcopy(b if b else a)
+    return deepcopy(a if b is None else b)
 
 
 def repo_data(rootdir=None, search_parent_directories=True):
@@ -199,3 +202,6 @@ def run_command(*args):
     
 def python_version():
     return '.'.join([str(x) for x in sys.version_info[0:3]])
+
+def str_join(lst, sep=' '):
+    return sep.join([x for x in lst if x])

@@ -6,7 +6,7 @@ from datalabframework import logging
 from datalabframework import elastic
 
 from datalabframework import resource
-from datalabframework._utils import YamlDict, to_ordered_dict, find, python_version, get_hadoop_version_from_system, get_tool_home, run_command
+from datalabframework._utils import YamlDict, to_ordered_dict, find, python_version, get_hadoop_version_from_system, get_tool_home, run_command, str_join
 
 import pandas as pd
 from datalabframework.spark import dataframe
@@ -38,7 +38,6 @@ class Engine:
         self._metadata = md
         self._rootdir = rootdir
         self._config = None
-        self._env = {}
         self._info = {}
         self._ctx = None
         self._type = None
@@ -62,11 +61,14 @@ class Engine:
             'version': self._version,
             'info': self._info,
             'config': self._config,
-            'env': self._env,
+            'env': self.env(),
             'rootdir': self._rootdir,
             'timezone': self._timezone
         }
         return YamlDict(to_ordered_dict(d, keys))
+
+    def env(self):
+        return {}
 
     def context(self):
         return self._ctx
@@ -111,7 +113,7 @@ class NoEngine(Engine):
 
 
 class SparkEngine(Engine):
-    def set_hadoop(self):
+    def set_info(self):
         hadoop_version = None
         hadoop_detect_from = None
         try:
@@ -135,7 +137,6 @@ class SparkEngine(Engine):
         
         spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
         spark_dist_classpath_source = 'env'
-        self._env['SPARK_DIST_CLASSPATH'] = spark_dist_classpath
         
         if not spark_dist_classpath:
             spark_dist_classpath_source = os.path.join(spark_home,'conf/spark-env.sh')
@@ -167,39 +168,38 @@ class SparkEngine(Engine):
         self._info['spark_classpath']=spark_dist_classpath.split(':') if spark_dist_classpath else None
         self._info['spark_classpath_source']=spark_dist_classpath_source
         
-        return self._info['hadoop_version']
+        return 
     
-    def set_submit_args(self, hadoop_version):
-        if not hadoop_version:
-            logging.error('Hadoop is not detected. '
-                          'Some packages/jars might not work correctly.')
+    def get_detected_submit_lists(self, detect=True):
+        
+        submit_types = ['jars', 'packages', 'py-files']
+        
+        submit_objs=dict()
+        for submit_type in submit_types:
+            submit_objs[submit_type] = []
 
-        submit_args = ''
-        submit_md = self._metadata['engine']['submit']
+        if not detect:
+            return submit_objs
+
+        # get hadoop, and configured metadata services
+        hadoop_version = self._info['hadoop_version']
+
+        providers = self._metadata['providers']
+        services = {v['service'] for v in providers.values()}
+        services = sorted(list(services))
 
         #### submit: jars
-        jars = submit_md['jars'] or []
+        jars = submit_objs['jars']
+            
+        if 'oracle' in services:
+            jar  = 'http://www.datanucleus.org/downloads/maven2/'
+            jar += 'oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar'
+            jars.append(jar)
         
-        for v in self._metadata.get('providers', {}).values():
-            if v['service'] == 'oracle':
-                jars.append('http://www.datanucleus.org/downloads/maven2/'
-                            'oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar')
-
-        if jars:
-            print('Loading jars:')
-            for i in jars:
-                print(f'  -  {i}')
-            submit_jars = ' '.join(jars)
-            submit_args = '{} --jars {}'.format(submit_args, submit_jars)
-
-
         #### submit: packages
-        packages = submit_md['packages'] or []
-
-
-        providers = self._metadata['providers'] or {}
-        services = {v['service'] for v in providers.values()}
-        for v in sorted(list(services)):
+        packages = submit_objs['packages']
+        
+        for v in services:
             if v == 'mysql':
                 packages.append('mysql:mysql-connector-java:8.0.12')
             elif v == 'sqlite':
@@ -209,66 +209,110 @@ class SparkEngine(Engine):
             elif v == 'mssql':
                 packages.append('com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8')
             elif v == 'minio':
-                packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
- 
-        if packages:
-            print('Loading packages:')
-            for i in packages:
-                print(f'  -  {i}')
-            submit_packages = ','.join(packages)
-            submit_args = '{} --packages {}'.format(submit_args, submit_packages)
-
+                if hadoop_version:
+                    packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
+                else:
+                    logging.warning('Hadoop is not detected. '
+                                    'Could not load hadoop-aws package ')
+        
         #### submit: py-files
-        pyfiles = submit_md['py-files'] or []
+        pyfiles = submit_objs['py-files']
+        
+        #### print debug
+        
+        for submit_type in submit_types:
+            if submit_objs[submit_type]:
+                print(f'Loading detected {submit_type}:')
+                for i in submit_objs[submit_type]:
+                    print(f'  -  {i}')
 
-        if pyfiles:
-            print('Loading files:')
-            for i in pyfiles:
-                print(f'  -  {i}')
-            submit_pyfiles = ','.join(pyfiles)
-            submit_args = '{} --py-files {}'.format(submit_args, submit_pyfiles)
+        return submit_objs
 
+    def get_metadata_submit_lists(self):
+                
+        submit_types = ['jars', 'packages', 'py-files']
+        
+        submit_objs=dict()
+        md_submit = self._metadata['engine']['submit']
+        for submit_type in submit_types:
+            submit_objs[submit_type] =  md_submit[submit_type]
+        
+        #### print debug
+        
+        for submit_type in submit_types:
+            if submit_objs[submit_type]:
+                print(f'Loading {submit_type}:')
+                for i in submit_objs[submit_type]:
+                    print(f'  -  {i}')
+
+        return submit_objs
+
+    def set_submit_args(self, detected_objs, metadata_objs):
+        
+        submit_types = ['jars', 'packages', 'py-files']
+        
+        submit_args = ''
+
+        for submit_type in submit_types:
+            # collects lists
+            m_list = metadata_objs[submit_type]
+            d_list = detected_objs[submit_type]
+            
+            # build args
+            submit_list =  d_list + m_list
+            if submit_list:
+                objs = ','.join(submit_list)
+                submit_args += ' ' if submit_args else ''
+                submit_args += f'--{submit_type} {objs}'
+        
         # set PYSPARK_SUBMIT_ARGS env variable
         submit_args = '{} pyspark-shell'.format(submit_args)
         os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args
 
-    def set_context_args(self, conf):
-        # jobname
-        app_name = self._metadata.get('engine', {}).get('jobname', self._name)
-        conf.setAppName(app_name)
+    def set_conf_detect(self, conf, detect=True):
+        # setting for minio
+        if detect:
+            for v in self._metadata.get('providers', {}).values():
+                if v['service'] == 'minio':
+                    url = 'http://{}:{}'.format(v['hostname'], v.get('port', 9000))
+                    s3a = "org.apache.hadoop.fs.s3a.S3AFileSystem"
 
-        # set master
-        conf.setMaster(self._metadata.get('engine', {}).get('master', 'local[*]'))
+                    conf.set("spark.hadoop.fs.s3a.endpoint", url) \
+                        .set("spark.hadoop.fs.s3a.access.key", v.get('username')) \
+                        .set("spark.hadoop.fs.s3a.secret.key", v.get('password')) \
+                        .set("spark.hadoop.fs.s3a.impl", s3a) \
+                        .set("spark.hadoop.fs.s3a.path.style.access", "true")
+                    break
+
+            # if timezone set to 'naive', 
+            # force UTC to override local system and spark defaults 
+            # This will effectively avoid any  conversion of datetime object to/from spark
+            if self._timezone == 'naive':
+                self._timezone = 'UTC'
+
+            if self._timezone:
+                timezone = self._timezone
+                os.environ['TZ'] = timezone
+                time.tzset()
+                conf.set('spark.sql.session.timeZone', timezone)
+                conf.set('spark.driver.extraJavaOptions', f'-Duser.timezone={timezone}')
+                conf.set('spark.executor.extraJavaOptions', f'-Duser.timezone={timezone}')
+            else:
+                # use spark and system defaults
+                pass
 
     def set_conf_kv(self, conf):
-        conf_md = self._metadata['engine']['config'] or {}
+        # appname
+        if self._metadata['engine']['jobname']:
+            logging.warning('deprecated: metadata engine/jobname is generated')
+        conf.setAppName(self._name)
 
-        # setting for minio
-        for v in self._metadata.get('providers', {}).values():
-            if v['service'] == 'minio':
-                conf.set("spark.hadoop.fs.s3a.endpoint", 'http://{}:{}'.format(v['hostname'], v.get('port', 9000))) \
-                    .set("spark.hadoop.fs.s3a.access.key", v.get('username')) \
-                    .set("spark.hadoop.fs.s3a.secret.key", v.get('password')) \
-                    .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-                    .set("spark.hadoop.fs.s3a.path.style.access", "true")
-                break
+        # set master
+        master_url = self._metadata['engine']['master']
+        conf.setMaster(master_url)
 
-        # if timezone set to 'naive', 
-        # force UTC to override local system and spark defaults 
-        # This will effectively avoid any  conversion of datetime object to/from spark
-        if self._timezone == 'naive':
-            self._timezone = 'UTC'
-            
-        if self._timezone:
-            timezone = self._timezone
-            os.environ['TZ'] = timezone
-            time.tzset()
-            conf.set('spark.sql.session.timeZone', timezone)
-            conf.set('spark.driver.extraJavaOptions', f'-Duser.timezone={timezone}')
-            conf.set('spark.executor.extraJavaOptions', f'-Duser.timezone={timezone}')
-        else:
-            # use spark and system defaults
-            pass
+        # set kv conf from metadata
+        conf_md = self._metadata['engine']['config']
 
         for k, v in conf_md.items():
             if isinstance(v, (bool, int, float, str)):
@@ -303,7 +347,7 @@ class SparkEngine(Engine):
             logging.error('Could not start the engine context')
             return None
         
-    def read_environment(self):
+    def env(self):
         
         vars=[
             'SPARK_HOME',
@@ -314,23 +358,37 @@ class SparkEngine(Engine):
             'SPARK_DIST_CLASSPATH',
         ]
         
-        self._env = {v:os.environ.get(v) for v in vars}
+        return {v:os.environ.get(v) for v in vars}
 
     def __init__(self, name, md, rootdir):
         super().__init__(name, md, rootdir)
         
+        # set engine type
+        self._type = 'spark'
+
         # timezone
-        self._timezone = md['engine']['timezone']
+        self._timezone = self._metadata['engine']['timezone']
         
-        # setup hadoop
-        hadoop_version = self.set_hadoop()
+        # set engine info
+        self.set_info()
+        
+        # print statement
+        print(f'Init engine "{self._type}"')
+        
+        # auto detect set to True 
+        # will load configuration properties and packages
+        detect = self._metadata['engine']['submit']['detect']
         
         # set submit args via env variable
-        self.set_submit_args(hadoop_version)
+        detected_objs = self.get_detected_submit_lists(detect)
+        metadata_objs = self.get_metadata_submit_lists()
+        self.set_submit_args(detected_objs, metadata_objs)
 
         # set spark conf object
+        print(f"Connecting to spark master: {self._metadata['engine']['master']}")
+
         conf = pyspark.SparkConf()
-        self.set_context_args(conf)
+        self.set_conf_detect(conf, detect)
         self.set_conf_kv(conf)
 
         # stop current session before creating a new one
@@ -340,20 +398,17 @@ class SparkEngine(Engine):
         spark_session = self.start_context(conf)
         
         # record the data in the engine object for debug and future references
+        self._config = dict(conf.getAll())
+                    
         if spark_session:
             self._config = dict(dict(spark_session.sparkContext.getConf().getAll()))
-        else:
-            self._config = dict(conf.getAll())
             
-        # read environment and store it in the engine
-        self.read_environment()
-        
-        # set engine type and engine version
-        self._type = 'spark'
-        self._version = spark_session.version if spark_session else None
+            # set version if spark is loaded
+            self._version = spark_session.version
+            print(f'Engine context {self._type}:{self._version} successfully started')
 
-        # store the spark session
-        self._ctx = spark_session
+            # store the spark session
+            self._ctx = spark_session
 
     def stop(self, spark_session=None):
         try:
@@ -876,32 +931,34 @@ class SparkEngine(Engine):
                     lst += [(obj_name, obj_type)]
                 return self._ctx.createDataFrame(lst, ['name', 'type']) if lst else df_empty
             elif md['format'] == 'jdbc':
+                # remove options from database, if any
+                database = md["database"].split('?')[0]
                 if md['service'] == 'mssql':
                     query = f"""
                         ( SELECT table_name, table_type 
                           FROM INFORMATION_SCHEMA.TABLES 
-                          WHERE TABLE_CATALOG='{md["database"]}'
+                          WHERE TABLE_CATALOG='{database}'
                         ) as query
                         """
                 elif md['service'] == 'oracle':
                     query = f"""
                         ( SELECT table_name, table_type 
                          FROM all_tables 
-                         WHERE table_schema='{md["database"]}'
+                         WHERE table_schema='{database}'
                         ) as query
                         """
                 elif md['service'] == 'mysql':
                     query = f"""
                         ( SELECT table_name, table_type 
                           FROM information_schema.tables 
-                          WHERE table_schema='{md["database"]}'
+                          WHERE table_schema='{database}'
                         ) as query
                         """
                 elif md['service'] == 'postgres':
                     query = f"""
                         ( SELECT table_name, table_type
                           FROM information_schema.tables 
-                          WHERE table_schema = '{md["schema"]}'
+                          WHERE table_schema = '{database}'
                         ) as query
                         """
                 else:
@@ -909,6 +966,7 @@ class SparkEngine(Engine):
                     query = f"""
                             ( SELECT table_name, table_type 
                               FROM information_schema.tables
+                              WHERE table_schema = '{database}'
                             ) as query
                             """
 

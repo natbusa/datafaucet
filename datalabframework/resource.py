@@ -190,7 +190,8 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
     if d['service'] in ['file', 'sqlite'] and \
             not os.path.isabs(d['provider_path']) and \
             not os.path.isabs(d['resource_path']):
-        d['provider_path'] = os.path.realpath(os.path.join(d['rootdir'], d['provider_path']))
+        d['provider_path'] = os.path.realpath(
+            os.path.join(d['rootdir'], d['provider_path']))
 
     d['format'] = _format(d)
     d['driver'] = _driver(d)

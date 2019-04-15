@@ -196,8 +196,10 @@ def init_kafka(logger, level, md):
     handlerKafka.setFormatter(formatter)
     logger.addHandler(handlerKafka)
 
-def init_stdio(logger, level, md):    
-    p = md['datalabframework']['stdio']
+def init_stdout(logger, level, md):    
+    p = md['datalabframework']['stdout']
+    
+    # legacy param
     p = p or md['datalabframework']['stream']
     
     if p and p['enable']:
@@ -274,7 +276,7 @@ def init(
     
     # init handlers
     init_kafka(logger, level, md)
-    init_stdio(logger, level, md)
+    init_stdout(logger, level, md)
     init_file(logger, level, md)
     
     # stream replaces higher handlers, setting propagate to false

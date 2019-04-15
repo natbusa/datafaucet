@@ -5,16 +5,36 @@ variables: {}
 engine:
     type: spark
     master: local[*]
+    config: {}
+    submit: 
+        detect: true
+        jars: []
+        packages: []
+        py-files: []
+        
 providers: {}
 resources: {}
+
 loggers:
     root:
         severity: info
     datalabframework:
         name: dlf
-        stdio:
+        stream:
+            enable: false
+            severity: notice
+        stdout:
             enable: true
             severity: notice
+        file:
+            enable: false
+            severity: info
+        kafka:
+            enable: false
+            severity: info
+            hosts: []
+            topic: dlf
+
 ---
 profile: prod
 ---

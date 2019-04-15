@@ -40,7 +40,7 @@ class Project(metaclass=Singleton):
         
         self._no_reload = False
 
-    def load(self, profile='default', rootdir_path=None, search_parent_dirs=True, factory_defaults=True):
+    def load(self, profile='default', rootpath=None):
         """
         Performs the following steps:
             - set rootdir for the given project
@@ -49,66 +49,36 @@ class Project(metaclass=Singleton):
             - setup and start the data engine
 
         :param profile: load the given metadata profile (default: 'default')
-        :param rootdir_path: root directory for loaded project (default: current working directory)
-
-        :param search_parent_dirs: search parent dirs to detect rootdir by 
-               looking for a '__main__.py' or 'main.ipynb' file (default: True)
-
-        :param factory_defaults: add preset default configuration. 
-               Project provided metadata file can override this default values (default: True)
+        
+        :param rootpath: root directory for loaded project 
+               default behaviour: search parent dirs to detect rootdir by 
+               looking for a '__main__.py' or 'main.ipynb' file. 
+               When such a file is found, the corresponding directory is the 
+               root path for the project. If nothing is found, the current 
+               working directory, will be the rootpath
 
         :return: None
 
-        Note that:
+        Notes abount metadata configuration:
 
-        1)  Metadata files are merged up, so you can split the information in multiple 
-            files as long as they end with `metadata.yml`. 
+        1)  Metadata files are merged up, so you can split the information in 
+            multiple files as long as they end with `metadata.yml`. 
 
             For example: `metadata.yml`, `abc.metadata.yaml`, `abc_metadata.yml` 
             are all valid metadata file names.
 
-        2)  All metadata files in all subdirectories from the project root directory are loaded,
-            unless the directory contains a file `metadata.ignore.yml`
+        2)  All metadata files in all subdirectories from the project root directory 
+            are loaded, unless the directory contains a file `metadata.ignore.yml`
 
         3)  Metadata files can provide multiple profile configurations,
-            by separating each profile configuration with a Document Marker ( a line with `---`)
-            (see https://yaml.org/spec/1.2/spec.html#YAML)
+            by separating each profile configuration with a Document Marker 
+            ( a line with `---`) (see https://yaml.org/spec/1.2/spec.html#YAML)
 
         4)  Each metadata profile, can be broken down in multiple yaml files,
-            When loading the files all configuration belonging to the same profile with be merged.
+            When loading the files all configuration belonging to the same profile 
+            with be merged.
 
         5)  All metadata profiles inherit the settings from profile 'default'
-
-        6)  If `factory_defaults` is set to true, 
-            the provided metadata profiles will inherits from a factory defaults file set as:
-             ```
-                %YAML 1.2
-                ---
-                profile: default
-                variables: {}
-                engine:
-                    type: spark
-                    master: local[*]
-                providers: {}
-                resources: {}
-                loggers:
-                    root:
-                        severity: info
-                    datalabframework:
-                        name: dlf
-                        stream:
-                            enable: true
-                            severity: notice
-                ---
-                profile: prod
-                ---
-                profile: stage
-                ---
-                profile: test
-                ---
-                profile: dev
-
-             ```
 
         Metadata files are composed of 6 sections:
             - profile
@@ -128,6 +98,9 @@ class Project(metaclass=Singleton):
                  "Skipping project.load()")
             return self
         
+        # set rootpath
+        paths.set_rootdir(rootpath)
+
         # set loaded to false
         self._loaded = False
         
@@ -140,9 +113,6 @@ class Project(metaclass=Singleton):
         # get repo data
         self._repo = repo_data()
 
-        # init workdir and rootdir paths
-        self._rootdir = paths.set_rootdir(rootdir_path, search_parent_dirs)
-
         # get currently running script path
         self._script_path = files.get_script_path(paths.rootdir())
         
@@ -154,13 +124,17 @@ class Project(metaclass=Singleton):
         self._notebook_files = files.get_jupyter_notebook_files(paths.rootdir())
         self._python_files = files.get_python_files(paths.rootdir())
 
+        # metadata defaults
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        default_md_files = [os.path.join(dir_path, 'schemas/default.yml')]
+        project_md_files = abspath(self._metadata_files, paths.rootdir())
+
         # load metadata
         try:
-            self._metadata = get_project_metadata(
-                profile,
-                abspath(self._metadata_files, paths.rootdir()),
-                abspath(self._dotenv_path, paths.rootdir()),
-                factory_defaults)
+            md_paths = default_md_files + project_md_files
+            dotenv_path = abspath(self._dotenv_path, paths.rootdir())
+            
+            self._metadata = get_project_metadata(profile,md_paths,dotenv_path)
         except ValueError as e:
             print(e)
             self._metadata = {}
@@ -180,9 +154,11 @@ class Project(metaclass=Singleton):
         if self._engine:
             self._engine.stop()
 
-        # initialize the engine
+        # craft the engine name
         L = [self._profile, self._repo.get('name')]
         name = '-'.join([x for x in L if x])
+
+        #initialize the engine
         self._engine = dlf_engine.get(name, self._metadata, paths.rootdir())
 
         # initialize logging
@@ -255,38 +231,6 @@ class Project(metaclass=Singleton):
            When loading the files all configuration belonging to the same profile with be merged. 
 
         5) All metadata profiles inherit the settings from profile 'default'
-
-        6)  If `factory_defaults` is set to true, when a project metadata is loaded
-            the provided metadata profiles will extend/override the following metadata configuration:
-             ```
-                %YAML 1.2
-                ---
-                profile: default
-                variables: {}
-                engine:
-                    type: spark
-                    master: local[*]
-                providers: {}
-                resources: {}
-                loggers:
-                    root:
-                        severity: info
-                    datalabframework:
-                        name: dlf
-                        stream:
-                            enable: true
-                            severity: notice
-                ---
-                profile: prod
-                ---
-                profile: stage
-                ---
-                profile: test
-                ---
-                profile: dev
-
-             ```
-
 
         #### Metadata sections
 
@@ -626,28 +570,16 @@ class Project(metaclass=Singleton):
         self.check_if_loaded()
         return self._engine
 
-def load(profile='default', rootdir_path=None, search_parent_dirs=True, factory_defaults=True):
-    return Project().load(profile, rootdir_path, search_parent_dirs, factory_defaults)
+def load(profile='default', rootpath=None):
+    return Project().load(profile, rootpath)
 
 def config():
-    """
-    Returns the current project configuration
-    :return: a dictionary with project configuration data
-    """
     return Project().config()
 
 def engine():
-    """
-    Get the engine defined in the loaded metadata profile
-    :return: the Engine object
-    """
     return Project().engine()
 
 def metadata():
-    """
-    return a metadata object which provides just one method:
-    :return: a Metadata object
-    """
     return Project().metadata()
 
 def resource(path=None, provider=None, md=dict()):
@@ -656,9 +588,9 @@ def resource(path=None, provider=None, md=dict()):
     This object provides a config() method which returns the dictionary
 
     :param path: the path or the alias of the resource
-    :param provider: as defined in the current metadata profile
+    :param provider: as defined in the loaded metadata profile
     :param md: dictionary override
-    :return: a Resouce Object
+    :return: a resouce object
     """
     return Project().resource(path, provider, md)
 

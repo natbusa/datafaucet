@@ -2,36 +2,28 @@ import os
 
 _rootdir = os.getcwd()
 
-def find_rootdir(wd):
-    assert(os.path.exists(wd))
+def find_rootdir(filenames = ('__main__.py', 'main.ipynb')):
+    path = os.getcwd()
 
-    pattern_filenames = ('__main__.py', 'main.ipynb')
-    for filename in pattern_filenames:
-        path = os.path.abspath(wd)
-        while True:
-            try:
-                ls = os.listdir(path)
-                if filename in ls:
-                    return os.path.abspath(path)
-                else:
-                    path += '/..'
-            except:
-                break
+    while os.path.isdir(path):
+        ls = os.listdir(path)
+        if any([f in ls for f in filenames]):
+            return os.path.abspath(path)
+        else:
+            path += '/..'
 
     # nothing found: using the current working dir
-    return os.path.abspath(wd)
+    return os.getcwd()
 
-def set_rootdir(path=None, search_parent_dirs=True):
+def set_rootdir(path=None):
     global _rootdir
 
     try:
+        path = path if os.path.isdir(path) else find_rootdir()
         _rootdir = os.path.abspath(path)
     except:
         _rootdir = os.getcwd()
 
-    if search_parent_dirs:
-        _rootdir = find_rootdir(_rootdir)
-    
     return _rootdir
 
 def rootdir():

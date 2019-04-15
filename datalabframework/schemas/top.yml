@@ -4,16 +4,20 @@ properties:
 
     profile:
         type: string
+        default: default
 
     engine:
         type: object
         properties:
             type:
                 type: string
+                default: spark
             config:
                 type: object
+                default: {}
             master:
                 type: string
+                default: "local[*]"
             jobname:
                 type: string
             timezone:
@@ -21,12 +25,18 @@ properties:
             submit:
                 type: object
                 properties:
+                    detect:
+                        type: boolean
+                        default: true
                     jars:
                         type: array
+                        default: []
                     packages:
                         type: array
+                        default: []
                     py-files:
                         type: array
+                        default: []
                 additionalProperties: false
         additionalProperties: false
 
@@ -38,6 +48,7 @@ properties:
 
     variables:
         type: object
+        default: {}
 
     loggers:
         type: object
@@ -47,12 +58,14 @@ properties:
                 properties:
                     severity:
                         type: string
+                        default: info
                 additionalProperties: false
             datalabframework:
                 type: object
                 properties:
                     name:
                         type: string
+                        default: dlf
                     stream:
                         type: object
                         properties:
@@ -61,35 +74,43 @@ properties:
                             enable:
                                 type: boolean
                         additionalProperties: false
-                    stdio:
+                    stdout:
                         type: object
                         properties:
                             severity:
                                 type: string
+                                default: notice
                             enable:
                                 type: boolean
+                                default: true
                         additionalProperties: false
                     file:
                         type: object
                         properties:
                             severity:
                                 type: string
+                                default: info
                             path:
                                 type: string
                             enable:
                                 type: boolean
+                                default: false
                         additionalProperties: false
                     kafka:
                         type: object
                         properties:
                             severity:
                                 type: string
+                                default: info
                             enable:
                                 type: boolean
+                                default: false
                             hosts:
-                                type: string
+                                type: [string, array]
+                                default: []
                             topic:
                                 type: string
+                                default: dlf
                         additionalProperties: false
                 additionalProperties: false
         additionalProperties: false

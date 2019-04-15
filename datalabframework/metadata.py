@@ -12,6 +12,9 @@ import jsonschema
 from dotenv import load_dotenv
 from jinja2 import Environment
 
+loaded_md_files = []
+profiles = {}
+
 # metadata files are cached once read the first time
 def read(file_paths=None):
     """
@@ -21,16 +24,21 @@ def read(file_paths=None):
     :param file_paths: list of yaml files paths
     :return: dict of profiles
     """
+    global loaded_md_files, profiles
+    
+    # empty profiles, before start reading 
     profiles = {}
 
     if not file_paths:
         file_paths = []
     
+    loaded_md_files = []
     for filename in file_paths:
         if os.path.isfile(filename):
             with open(filename, 'r') as f:
                 try:
                     docs = list(yaml.load_all(f))
+                    loaded_md_files.append(filename)
                 except yaml.YAMLError as e:
                     if hasattr(e, 'problem_mark'):
                         mark = e.problem_mark
@@ -53,7 +61,7 @@ def inherit(profiles):
 
     # inherit from default for all other profiles
     for k in profiles.get('default', {}).keys():
-        for p in profiles.keys() - 'default':
+        for p in set(profiles.keys()) - {'default'}:
             profiles[p][k] = merge(profiles['default'][k], profiles[p].get(k))
 
     return profiles
@@ -99,17 +107,19 @@ def render(metadata,  max_passes=5):
     return rendered
 
 def v(d, schema):
-    message=None
+    msg_error=None
     try:
         jsonschema.validate(d, schema)
         return
     except jsonschema.exceptions.ValidationError as e:
-        message  = f'{e.message} \n\n## schema path:\n\'{"/".join(e.schema_path)}\'\n\n'
-        message += f'## metadata schema definition {"for " + str(e.parent) if e.parent else ""}:'
-        message += f'\n{yaml.dump(e.schema)}'
-    
-    if message:
-        raise ValueError(message)
+        msg_error  = f'{e.message} \n\n## schema path:\n'
+        msg_error += f'\'{"/".join(e.schema_path)}\'\n\n'
+        msg_error += f'## metadata schema definition '
+        msg_error += f'{"for " + str(e.parent) if e.parent else ""}:'
+        msg_error += f'\n{yaml.dump(e.schema)}'
+        
+    if msg_error:
+        raiseException(msg_error)
         
 def validate_schema(md, schema_filename):
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -122,8 +132,6 @@ def validate(md):
     # validate data structure
     validate_schema(md, 'top.yml')
         
-    # _validate_schema(md['loggers'], 'loggers.yml')
-
     # for d in md['providers']:
     #     _validate_schema(d, 'provider.yml')
     #
@@ -148,6 +156,7 @@ def formatted(md):
                 'jobname',
                 'timezone',
                 ('submit',(
+                    'detect',
                     'jars',
                     'packages',
                     'py-files',
@@ -165,7 +174,7 @@ def formatted(md):
                         'severity',
                         'enable',
                     )),
-                    ('stdio',(
+                    ('stdout',(
                         'severity',
                         'enable',
                     )),
@@ -183,13 +192,41 @@ def formatted(md):
                 ))
             )),
         )
-        
-    if md.get('variables'):
-        md['variables'] = dict(sorted(md['variables'].items()))
-            
-    return to_ordered_dict(md, keys)
+    
+    d = to_ordered_dict(md, keys)
+    
+    if d['variables']:
+        d['variables'] = dict(sorted(d['variables'].items()))
+    
+    return d
 
-def load(profile='default', metadata_files=None, dotenv_path=None, factory_defaults=True):
+def debugMetadataFiles():
+    message = '\nList of loaded metadata files:\n'
+    if loaded_md_files:
+        for f in loaded_md_files:
+            message += f'  - {f}\n'
+    else:
+        message += 'None'
+        
+    return message
+
+def debugProfiles():
+    message = '\nList of available profiles:\n'
+    if profiles:
+        for f in profiles.keys():
+            message += f'  - {f}\n'
+    else:
+        message += 'None'
+        
+    return message
+
+def raiseException(message=''):
+    message += '\n'
+    message += debugMetadataFiles()
+    message += debugProfiles()
+    raise ValueError(message)
+    
+def load(profile='default', metadata_files=None, dotenv_path=None):
     """
     Load the profile, given a list of yml files and a .env filename
     profiles inherit from the defaul profile, a profile not found will contain the same elements as the default profile
@@ -197,35 +234,17 @@ def load(profile='default', metadata_files=None, dotenv_path=None, factory_defau
     :param profile: the profile to load (default: 'default')
     :param metadata_files: a list of metadata files to read 
     :param dotenv_path: the path of a dotenv file to read
-    :param factory_defaults: if True, loads a default configuration
     :return: the loaded metadata profile dict
     """
     # get env variables from .env file
     if dotenv_path and os.path.isfile(dotenv_path):
         load_dotenv(dotenv_path)
-
-    if factory_defaults:
-        # get the default metadata configuration file
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        default_metadata_file = os.path.abspath(os.path.join(dir_path, 'schemas/default.yml'))
     
-        #prepend the default configuration
-        file_paths = [default_metadata_file] + metadata_files
-    else:
-        file_paths = metadata_files
-        
-    profiles = read(file_paths)
+    profiles = read(metadata_files)
     
     # empty profile if profile not found
     if profile not in profiles.keys():
-        if file_paths:
-            message = '\nList of loaded metadata files:\n'
-            for f in file_paths:
-                message += f'  - {f}\n'
-            message += '\nList of available profiles:\n'
-            for p in profiles.keys():
-                message += f'  - {p}\n'   
-        raise ValueError(f'Profile "{profile}" not found.\n{message}')
+        raiseException(f'Profile "{profile}" not found.')
 
     # read metadata, get the profile, if not found get an empty profile
     profiles = inherit(profiles)
@@ -239,5 +258,4 @@ def load(profile='default', metadata_files=None, dotenv_path=None, factory_defau
     
     # format
     md  = formatted(md)
-    
     return md
