@@ -19,7 +19,7 @@ def set_rootdir(path=None):
     global _rootdir
 
     try:
-        path = path if os.path.isdir(path) else find_rootdir()
+        path = path if path and os.path.isdir(path) else find_rootdir()
         _rootdir = os.path.abspath(path)
     except:
         _rootdir = os.getcwd()
