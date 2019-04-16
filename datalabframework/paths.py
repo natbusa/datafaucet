@@ -18,11 +18,10 @@ def find_rootdir(filenames = ('__main__.py', 'main.ipynb')):
 def set_rootdir(path=None):
     global _rootdir
 
-    try:
-        path = path if path and os.path.isdir(path) else find_rootdir()
+    if path and os.path.isdir(path):
         _rootdir = os.path.abspath(path)
-    except:
-        _rootdir = os.getcwd()
+    else:
+        _rootdir = find_rootdir()
 
     return _rootdir
 
