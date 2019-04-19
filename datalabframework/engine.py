@@ -933,40 +933,40 @@ class SparkEngine(Engine):
             elif md['format'] == 'jdbc':
                 # remove options from database, if any
                 database = md["database"].split('?')[0]
+                schema = md['schema']
                 if md['service'] == 'mssql':
                     query = f"""
                         ( SELECT table_name, table_type 
                           FROM INFORMATION_SCHEMA.TABLES 
-                          WHERE TABLE_CATALOG='{database}'
+                          WHERE table_schema='{schema}'
                         ) as query
                         """
                 elif md['service'] == 'oracle':
                     query = f"""
                         ( SELECT table_name, table_type 
                          FROM all_tables 
-                         WHERE table_schema='{database}'
+                         WHERE table_schema='{schema}'
                         ) as query
                         """
                 elif md['service'] == 'mysql':
                     query = f"""
                         ( SELECT table_name, table_type 
                           FROM information_schema.tables 
-                          WHERE table_schema='{database}'
+                          WHERE table_schema='{schema}'
                         ) as query
                         """
                 elif md['service'] == 'postgres':
                     query = f"""
                         ( SELECT table_name, table_type
                           FROM information_schema.tables 
-                          WHERE table_schema = '{database}'
+                          WHERE table_schema = '{schema}'
                         ) as query
                         """
                 else:
                     # vanilla query ... for other databases
                     query = f"""
                             ( SELECT table_name, table_type 
-                              FROM information_schema.tables
-                              WHERE table_schema = '{database}'
+                              FROM information_schema.tables'
                             ) as query
                             """
 

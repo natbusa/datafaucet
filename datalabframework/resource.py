@@ -210,12 +210,25 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
         
         if d.get('database'):
             d['database'] = d.get('database')
-            d['schema'] = d['provider_path'] if d['provider_path'] else 'public'
+            d['schema'] = d['provider_path'] if d['provider_path'] else ''
         else:
             d['database'] = d['provider_path']
-            d['schema'] = 'public'
-            
-            
+            d['schema'] = ''
+        
+        #if schema is not yet defined, take the default for each service
+        if not d['schema']:
+            if  d.get('service') == 'mysql':
+                d['schema'] = d['database']
+            elif d.get('service') == 'mssql':
+                d['schema'] = 'dbo'
+            elif d.get('service') == 'postgres':
+                d['schema'] = 'public'
+            elif d.get('service') == 'oracle':
+                d['schema'] = d.get('username', '')
+            else:
+                #use postgres default if service unkown
+                d['schema'] = 'public'        
+        
         # if format is jdbc and an SQL query is detected, 
         # wrap the resource path as a temp table
         sql_query = d['table']
