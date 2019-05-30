@@ -45,8 +45,6 @@ def filter_by_date(df, column=None, start=None, end=None, window=None):
         df = df.filter(F.col(column) < date_end) if date_end else df
         df = df.filter(F.col(column) >= date_start) if date_start else df
     
-    # print(column, date_start, date_end, df.count())
-
     return df
 
 def common_columns(df_a, df_b=None, exclude_cols=[]):

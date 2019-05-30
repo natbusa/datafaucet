@@ -1,3 +1,4 @@
+import sys
 import os, time
 import shutil
 import textwrap
@@ -6,7 +7,8 @@ from datalabframework import logging
 from datalabframework import elastic
 
 from datalabframework import resource
-from datalabframework._utils import YamlDict, to_ordered_dict, find, python_version, get_hadoop_version_from_system, get_tool_home, run_command, str_join
+from datalabframework.yaml import YamlDict
+from datalabframework._utils import to_ordered_dict, find, python_version, get_hadoop_version_from_system, get_tool_home, run_command, str_join
 
 import pandas as pd
 from datalabframework.spark import dataframe
@@ -33,11 +35,9 @@ def get(name, md, rootdir):
     return engine
 
 class Engine:
-    def __init__(self, name, md, rootdir):
+    def __init__(self, name):
         self._name = name
-        self._metadata = md
-        self._rootdir = rootdir
-        self._config = None
+        self._config = {}
         self._info = {}
         self._ctx = None
         self._type = None
@@ -52,7 +52,6 @@ class Engine:
             'info',
             'config',
             'env',
-            'rootdir',
             'timezone'
         ]
         d = {
@@ -62,7 +61,6 @@ class Engine:
             'info': self._info,
             'config': self._config,
             'env': self.env(),
-            'rootdir': self._rootdir,
             'timezone': self._timezone
         }
         return YamlDict(to_ordered_dict(d, keys))
@@ -73,16 +71,16 @@ class Engine:
     def context(self):
         return self._ctx
 
-    def load(self, path=None, provider=None, **kargs):
+    def load(self, path=None, provider=None, format=None, schema=None, username=None, password=None, **options):
         raise NotImplementedError
 
-    def save(self, obj, path=None, provider=None, **kargs):
+    def save(self, obj, path=None, provider=None, format=None, mode=None, schema=None, username=None, password=None, **options):
         raise NotImplementedError
 
-    def copy(self, md_src, md_trg, mode='append'):
+    def copy(self, md_src, md_trg, mode='changelog'):
         raise NotImplementedError
 
-    def list(self, provider):
+    def list(self, provider, path):
         raise NotImplementedError
 
     def stop(self):
@@ -172,7 +170,7 @@ class SparkEngine(Engine):
     
     def get_detected_submit_lists(self, detect=True):
         
-        submit_types = ['jars', 'packages', 'py-files']
+        submit_types = ['jars', 'packages', 'py-files', 'repositories']
         
         submit_objs=dict()
         for submit_type in submit_types:
@@ -268,6 +266,11 @@ class SparkEngine(Engine):
         # set PYSPARK_SUBMIT_ARGS env variable
         submit_args = '{} pyspark-shell'.format(submit_args)
         os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args
+    
+    def set_env_variables(self, detect=True):
+        for e in ['PYSPARK_PYTHON','PYSPARK_DRIVER_PYTHON']:
+            if sys.executable and not os.environ.get(e):
+                os.environ[e] = sys.executable
 
     def set_conf_detect(self, conf, detect=True):
         # setting for minio
@@ -353,13 +356,15 @@ class SparkEngine(Engine):
             'SPARK_HOME',
             'HADOOP_HOME',
             'JAVA_HOME',
+            'PYSPARK_PYTHON', 
+            'PYSPARK_DRIVER_PYTHON',
             'PYTHONPATH',
             'PYSPARK_SUBMIT_ARGS',
             'SPARK_DIST_CLASSPATH',
         ]
         
         return {v:os.environ.get(v) for v in vars}
-
+    
     def __init__(self, name, md, rootdir):
         super().__init__(name, md, rootdir)
         
@@ -383,6 +388,9 @@ class SparkEngine(Engine):
         detected_objs = self.get_detected_submit_lists(detect)
         metadata_objs = self.get_metadata_submit_lists()
         self.set_submit_args(detected_objs, metadata_objs)
+        
+        # set other spark-related environment variables
+        self.set_env_variables()
 
         # set spark conf object
         print(f"Connecting to spark master: {self._metadata['engine']['master']}")
@@ -433,9 +441,7 @@ class SparkEngine(Engine):
             logging.warning('Could not fully stop the engine context')
             
     def load(self, path=None, provider=None, catch_exception=True, **kargs):
-        if isinstance(path, YamlDict):
-            md = path.to_dict()
-        elif isinstance(path, str):
+        if isinstance(path, str):
             md = resource.metadata(self._rootdir, self._metadata, path, provider)
         elif isinstance(path, dict):
             md = path
@@ -470,7 +476,7 @@ class SparkEngine(Engine):
         prep_end = timer()
 
         log_data = {
-            'md': dict(md),
+            'md': md,
             'mode': kargs.get('mode', md.get('options', {}).get('mode')),
             'records': num_rows,
             'columns': num_cols,
@@ -480,6 +486,7 @@ class SparkEngine(Engine):
         }
         logging.info(log_data) if obj is not None else logging.error(log_data)
 
+        obj.__name__ = path
         return obj
 
     def load_with_pandas(self, kargs):
@@ -516,7 +523,7 @@ class SparkEngine(Engine):
                         kargs = self.load_with_pandas(kargs)
                     
                     if obj is None:
-                        df = pd.read_json(md['url'], **kargs)
+                        df = pd.read_json(md['url'])
                         obj = self._ctx.createDataFrame(df)
 
                 elif md['format'] == 'jsonl':
@@ -527,7 +534,7 @@ class SparkEngine(Engine):
                         kargs = self.load_with_pandas(kargs)
                     
                     if obj is None:
-                        df = pd.read_json(md['url'], lines=True, **kargs)
+                        df = pd.read_json(md['url'], lines=True)
                         obj = self._ctx.createDataFrame(df)
 
                 elif md['format'] == 'parquet':
@@ -537,13 +544,13 @@ class SparkEngine(Engine):
                         kargs = self.load_with_pandas(kargs)
                     
                     if obj is None:
-                        df = pd.read_parquet(md['url'], **kargs)
+                        df = pd.read_parquet(md['url'])
                         obj = self._ctx.createDataFrame(df)
                 else:
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return None
 
-            elif md['service'] in ['hdfs', 'minio']:
+            elif md['service'] in ['hdfs', 'minio', 's3a']:
                 if md['format'] == 'csv':
                     obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
                 elif md['format'] == 'json':
@@ -579,7 +586,8 @@ class SparkEngine(Engine):
                 logging.error({'md': md, 'error_msg': f'Unknown service "{md["service"]}"'})
         except Exception as e:
             if catch_exception:
-                logging.error({'md': md, 'error': str(e)})
+                print(e.message)
+                logging.error({'md': md, 'error': str(e.message)})
                 return None
             else:
                 raise e
@@ -588,9 +596,11 @@ class SparkEngine(Engine):
 
     def save(self, obj, path=None, provider=None, **kargs):
 
-        if isinstance(path, YamlDict):
-            md = path.to_dict()
-        elif isinstance(path, str):
+        if path is None:
+            path  = obj.__name__
+            logging.warning(f'No path provider, using {path}')
+                               
+        if isinstance(path, str):
             md = resource.metadata(self._rootdir, self._metadata, path, provider)
         elif isinstance(path, dict):
             md = path
@@ -658,10 +668,12 @@ class SparkEngine(Engine):
             shutil.rmtree(md['url'])
                                
         #conversion of *some* pyspark arguments to pandas
-        kargs.pop('mode', None)
-        kargs['index'] = False
-        
-        kargs['header'] = False if kargs.get('header') is None else kargs.get('header')
+        if md['format'] == 'csv':
+            kargs.pop('mode', None)
+            kargs['index'] = False
+            
+            if kargs.get('header') is None :
+                kargs['header'] = False 
 
         return kargs
                            
@@ -705,29 +717,29 @@ class SparkEngine(Engine):
                         obj.coalesce(1).write.options(**options).json(md['url'], **kargs)
                         self.directory_to_file(md['url'], 'json')
                     else:
-                        kargs = self.save_with_pandas(md, kargs)
-                        obj.toPandas().to_json(md['url'], **kargs)
+                        self.save_with_pandas(md, kargs)
+                        obj.toPandas().to_json(md['url'])
                                
                 elif md['format'] == 'jsonl':
                     if self.is_spark_local():
                         obj.coalesce(1).write.options(**options)\
                                  .option('multiLine', True)\
                                  .json(md['url'], **kargs)
-                        self.directory_to_file(md['url'], 'jsonl')
+                        self.directory_to_file(md['url'], 'json')
                     else:
-                        kargs = self.save_with_pandas(md, kargs)
-                        obj.toPandas().to_json(md['url'], orient='records', lines=True, **kargs)
+                        self.save_with_pandas(md, kargs)
+                        obj.toPandas().to_json(md['url'], orient='records', lines=True)
                 elif md['format'] == 'parquet':
                     if self.is_spark_local():
                         obj.coalesce(1).write.options(**options).parquet(md['url'], **kargs)
                     else:
-                        kargs = self.save_with_pandas(md, kargs)
-                        obj.toPandas().to_parquet(md['url'], orient='records', lines=True, **kargs)
+                        self.save_with_pandas(md, kargs)
+                        obj.toPandas().to_parquet(md['url'])
                 else:
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return False
 
-            elif md['service'] in ['hdfs', 'minio']:
+            elif md['service'] in ['hdfs', 'minio', 's3a']:
                 if md['format'] == 'csv':
                     obj.write.options(**options).csv(md['url'], **kargs)
                 elif md['format'] == 'json':
@@ -742,7 +754,7 @@ class SparkEngine(Engine):
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return False
 
-            elif md['service'] in ['sqlite', 'mysql', 'postgres', 'oracle']:
+            elif md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
                 obj.write \
                     .format('jdbc') \
                     .option('url', md['url']) \
@@ -765,14 +777,21 @@ class SparkEngine(Engine):
             raise e
 
         return True
-
+                               
     def copy(self, md_src, md_trg, mode='append'):
-
         # timer
         timer_start = timer()
 
         # src dataframe
         df_src = self.load(md_src)
+                               
+        # if not path on target, get it from src
+        if not md_trg['resource_path']:
+           md_trg = resource.metadata(
+               self._rootdir, 
+               self._metadata, 
+               md_src['resource_path'], 
+               md_trg['provider_alias'])
 
         # logging
         log_data = {
@@ -877,9 +896,7 @@ class SparkEngine(Engine):
 
         df_empty = self._ctx.createDataFrame(data=(), schema=df_schema)
                       
-        if isinstance(provider, YamlDict):
-            md = provider.to_dict()
-        elif isinstance(provider, str):
+        if isinstance(provider, str):
             md = resource.metadata(self._rootdir, self._metadata, None, provider)
         elif isinstance(provider, dict):
             md = provider
@@ -897,17 +914,24 @@ class SparkEngine(Engine):
                         obj_type='FILE'
                     elif os.path.isdir(fullpath):
                         obj_type='DIRECTORY'
-                    elif os.path.ismount(fullpath):
-                        obj_type='LINK'
                     elif os.path.islink(fullpath):
+                        obj_type='LINK'
+                    elif os.path.ismount(fullpath):
                         obj_type='MOUNT'
                     else:
                         obj_type='UNDEFINED'
                 
                     obj_name = f
                     lst += [(obj_name, obj_type)]
-                return self._ctx.createDataFrame(lst, ['name', 'type']) if lst else df_empty
-            elif md['service'] in ['hdfs', 'minio']:
+                
+                if lst:
+                    df = self._ctx.createDataFrame(lst, ['name', 'type'])
+                else:
+                    df = df_empty
+                
+                return df
+                               
+            elif md['service'] in ['hdfs', 'minio', 's3a']:
                 sc = self._ctx._sc
                 URI = sc._gateway.jvm.java.net.URI
                 Path = sc._gateway.jvm.org.apache.hadoop.fs.Path
@@ -929,7 +953,14 @@ class SparkEngine(Engine):
                 
                     obj_name = obj[i].getPath().getName()
                     lst += [(obj_name, obj_type)]
-                return self._ctx.createDataFrame(lst, ['name', 'type']) if lst else df_empty
+
+                if lst:
+                    df = self._ctx.createDataFrame(lst, ['name', 'type'])
+                else:
+                    df = df_empty
+                
+                return df
+            
             elif md['format'] == 'jdbc':
                 # remove options from database, if any
                 database = md["database"].split('?')[0]
@@ -980,8 +1011,17 @@ class SparkEngine(Engine):
                     .load()
 
                 # load the data from jdbc
-                lst = [(x.TABLE_NAME, x.TABLE_TYPE) for x in obj.select('TABLE_NAME', 'TABLE_TYPE').collect()]
-                return self._ctx.createDataFrame(lst, ['name', 'type']) if lst else df_empty
+                lst = []
+                for x in obj.select('TABLE_NAME', 'TABLE_TYPE').collect():
+                    lst.append((x.TABLE_NAME, x.TABLE_TYPE))
+                               
+                if lst:
+                    df = self._ctx.createDataFrame(lst, ['name', 'type'])
+                else:
+                    df = df_empty
+                
+                return df
+
             else:
                 logging.error({'md': md, 'error_msg': f'List resource on service "{md["service"]}" not implemented'})
                 return  df_empty

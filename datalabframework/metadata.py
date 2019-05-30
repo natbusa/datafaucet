@@ -2,9 +2,12 @@ import os
 from datetime import datetime
 import pytz
 
+from datalabframework import paths
+from datalabframework import files
 from datalabframework import logging
-from datalabframework.yaml import yaml
-from datalabframework._utils import merge, to_ordered_dict
+
+from datalabframework.yaml import yaml, YamlDict
+from datalabframework._utils import abspath, merge, to_ordered_dict
 
 import json
 import jsonschema
@@ -12,8 +15,13 @@ import jsonschema
 from dotenv import load_dotenv
 from jinja2 import Environment
 
-loaded_md_files = []
-profiles = {}
+loaded_files = dict()
+loaded_profiles = set()
+
+profile = None
+
+def get_loaded_profile_name():
+    return profile.get('profile') if profile else None
 
 # metadata files are cached once read the first time
 def read(file_paths=None):
@@ -24,7 +32,7 @@ def read(file_paths=None):
     :param file_paths: list of yaml files paths
     :return: dict of profiles
     """
-    global loaded_md_files, profiles
+    global loaded_files, loaded_profiles
     
     # empty profiles, before start reading 
     profiles = {}
@@ -32,13 +40,13 @@ def read(file_paths=None):
     if not file_paths:
         file_paths = []
     
-    loaded_md_files = []
+    loaded_files = []
     for filename in file_paths:
         if os.path.isfile(filename):
             with open(filename, 'r') as f:
                 try:
                     docs = list(yaml.load_all(f))
-                    loaded_md_files.append(filename)
+                    loaded_files.append(filename)
                 except yaml.YAMLError as e:
                     if hasattr(e, 'problem_mark'):
                         mark = e.problem_mark
@@ -49,6 +57,8 @@ def read(file_paths=None):
                         doc['profile'] = doc.get('profile', 'default')
                         profiles[doc['profile']] = merge(profiles.get(doc['profile'],{}), doc)
 
+    loaded_profiles = set(profiles.keys())
+    
     return profiles
 
 def inherit(profiles):
@@ -212,8 +222,8 @@ def debugMetadataFiles():
 
 def debugProfiles():
     message = '\nList of available profiles:\n'
-    if profiles:
-        for f in profiles.keys():
+    if loaded_profiles:
+        for f in loaded_profiles:
             message += f'  - {f}\n'
     else:
         message += 'None'
@@ -226,7 +236,7 @@ def raiseException(message=''):
     message += debugProfiles()
     raise ValueError(message)
     
-def load(profile='default', metadata_files=None, dotenv_path=None):
+def load(profile_name='default',metadata_files=None, dotenv_path=None):
     """
     Load the profile, given a list of yml files and a .env filename
     profiles inherit from the defaul profile, a profile not found will contain the same elements as the default profile
@@ -236,6 +246,24 @@ def load(profile='default', metadata_files=None, dotenv_path=None):
     :param dotenv_path: the path of a dotenv file to read
     :return: the loaded metadata profile dict
     """
+    
+    global profile
+    
+    # get metadata by scanning rootdir, if no list is provided
+    if metadata_files is None:
+        metadata_files = []
+        
+        # defaults metadata
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        metadata_files += abspath(['schemas/default.yml'], dir_path)
+
+        # project metadata
+        metadata_files += abspath(files.get_metadata_files(paths.rootdir()), paths.rootdir())
+        
+    # get dotenv_path by scanning rootdir, if no dotenv file is provided
+    if dotenv_path is None:
+        dotenv_path = abspath(files.get_dotenv_path(paths.rootdir()), paths.rootdir())
+        
     # get env variables from .env file
     if dotenv_path and os.path.isfile(dotenv_path):
         load_dotenv(dotenv_path)
@@ -243,12 +271,12 @@ def load(profile='default', metadata_files=None, dotenv_path=None):
     profiles = read(metadata_files)
     
     # empty profile if profile not found
-    if profile not in profiles.keys():
-        raiseException(f'Profile "{profile}" not found.')
+    if profile_name not in loaded_profiles:
+        raiseException(f'Profile "{profile_name}" not found.')
 
     # read metadata, get the profile, if not found get an empty profile
     profiles = inherit(profiles)
-    metadata = profiles[profile]
+    metadata = profiles[profile_name]
 
     # render any jinja templates in the profile
     md = render(metadata)
@@ -258,4 +286,6 @@ def load(profile='default', metadata_files=None, dotenv_path=None):
     
     # format
     md  = formatted(md)
-    return md
+    
+    # save as singleton
+    profile = YamlDict(md)

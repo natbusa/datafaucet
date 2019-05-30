@@ -1,7 +1,43 @@
 import os
 import ctypes
+from urllib.parse import urlparse
 
+from datalabframework.yaml import YamlDict
 from datalabframework._utils import merge, to_ordered_dict
+
+from urllib.parse import urlparse
+from collections import namedtuple
+
+Urn = namedtuple('Urn', ['scheme', 'user', 'password', 'host', 'port', 'path', 'params', 'query', 'fragment'])
+
+def tsplit(s, sep, shift='left'):
+    s = s.split(sep)
+    if shift=='left':
+        return (s[0],s[1]) if len(s)>1 else ('', s[0])
+    else: # right
+        return (s[0],s[1]) if len(s)>1 else (s[0], '')
+    
+def urnparse(s):
+    scheme, url = tsplit(s, '//')
+    
+    url = urlparse('scheme://'+url) if scheme else urlparse(url)
+
+    scheme = scheme or 'file:'
+    scheme = scheme.split(':')
+    
+    auth, netloc = tsplit(url.netloc, '@')
+    user, password = tsplit(auth, ':', 'right')
+    host, port = tsplit(netloc,':', 'right') 
+
+    # parsing oracle thin urn for user, password
+    if scheme[-1] and scheme[-1][-1]=='@':
+        o_user, o_password = tsplit(scheme[-1].rstrip('@'), '/', 'right')
+        user = o_user or user
+        password = o_password or user
+        
+    #print(url)
+    urn = Urn(scheme,user, password, host, port, url.path, url.params, url.query, url.fragment)
+    return urn 
 
 def _url(d):
 
@@ -12,7 +48,6 @@ def _url(d):
     
     service = d['service']
 
-    if service in ['local', 'file', 'sqlite', 'hdfs', 'minio']:
         fullpath = os.path.join(d['provider_path'],d['resource_path'])
 
         if  service in ['local', 'file']:
@@ -21,12 +56,9 @@ def _url(d):
             url = 'jdbc:sqlite:{}'.format(os.path.realpath(fullpath))
         elif service == 'hdfs':
             url = 'hdfs://{}:{}{}'.format(d['host'], d['port'], fullpath)
-        elif service == 'minio':
-            url = 's3a://{}'.format(fullpath.lstrip('/'))
-    
-    elif service in ['mysql', 'postgres', 'mssql', 'oracle', 'elastic']:
-        
-        if service == 'mysql':
+        elif service in ['minio', 's3a']:
+            url = 's3a://{}/{}'.format(d['provider_path'],d['resource_path'])
+        elif service == 'mysql':
             url = 'jdbc:mysql://{}:{}/{}'.format(d['host'],d['port'], d['database'])
         elif service == 'postgres':
             url = 'jdbc:postgresql://{}:{}/{}'.format(d['host'], d['port'], d['database'])
@@ -60,14 +92,16 @@ def _format(d):
     if d.get('service') in ['elastic', 'mongodb']:
         return 'nosql'
 
+    formats = [
+        'csv', 
+        'json', 
+        'jsonl',
+        'parquet'
+    ]
+    
     path = d.get('resource_path', '')
     path = path.split('.') if path else ''
-    if len(path)>1 and path[-1] in ['csv', 'json', 'jsonl']:
-        return path[-1]
-
-    path = d.get('provider_path', '')
-    path = path.split('.') if path else ''
-    if len(path)>1 and path[-1] in ['csv', 'json', 'jsonl']:
+    if len(path)>1 and path[-1] in formats:
         return path[-1]
 
     # default is parquet
@@ -79,7 +113,7 @@ def _driver(d):
         'mysql': 'com.mysql.cj.jdbc.Driver',
         'postgres': 'org.postgresql.Driver',
         'mssql': 'com.microsoft.sqlserver.jdbc.SQLServerDriver',
-        'oracle':'oracle.jdbc.driver.OracleDriver'
+        'oracle': 'oracle.jdbc.driver.OracleDriver'
     }
     return drivers.get(d.get('service'))
 
@@ -155,8 +189,11 @@ def _override_metadata(access, param, pmd=dict(), rmd=dict()):
     d = merge(pmd.get(access, {}).get(param, {}), rmd.get(access, {}).get(param, {}))
     return d
 
-def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
+def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=None):
 
+    if user_md is None:
+        user_md = dict()
+        
     d = merge(pmd, rmd)
     
     d['provider_alias'] = pmd.get('alias', pmd.get('path', ''))
@@ -164,40 +201,49 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
     
     d['provider_path']  = pmd.get('path', pmd.get('alias', ''))
     d['resource_path']  = rmd.get('path', rmd.get('alias', ''))
-        
+
+    # cleanup aliases
+    d['provider_alias'] = os.path.splitext(os.path.split(d['provider_alias'])[1])[0]
+    d['resource_alias'] = os.path.splitext(os.path.split(d['resource_alias'])[1])[0]
+
     d.pop('alias', None)
     d.pop('path', None)
     
     d['rootdir'] = rootdir
 
-    if not d.get('service'):
-        parts = d['provider_path'].split('://')
-        if len(parts)>1:
-            d['service'] = parts[0]
-            d['provider_path'] = parts[1]
-
-    if not d.get('service'):
-        parts = d['resource_path'].split('://')
-        if len(parts)>1:
-            d['service'] = parts[0]
-            d['resource_path'] = parts[1]
-
-    if not d.get('service'):
-        d['service'] = 'file'
-
-    # if service is local or sqlite,
-    # relative path is allowed, and prefixed with rootpath
-    if d['service'] in ['file', 'sqlite'] and \
-            not os.path.isabs(d['provider_path']) and \
-            not os.path.isabs(d['resource_path']):
-        d['provider_path'] = os.path.realpath(
-            os.path.join(d['rootdir'], d['provider_path']))
-
-    d['format'] = _format(d)
-    d['driver'] = _driver(d)
+    urn = urlparse(d['resource_path'])
+    
+    d['service'] = urn.scheme or d.get('service', 'file')
+    d['resource_path'] = urn.path
 
     #default hostname is localhost
-    d['host'] = d.get('hostname', d.get('host','127.0.0.1'))
+    d['host'] = urn.netloc or d.get('hostname', d.get('host','127.0.0.1'))
+
+    # if service is file or sqlite,
+    # relative provider path is allowed, and prefixed with rootpath
+    if d['service'] in ['file', 'sqlite'] and not os.path.isabs(d['provider_path']):
+        d['provider_path'] = os.path.realpath(
+            os.path.join(d['rootdir'], d['provider_path']))
+    
+    if d['service'] in ['file', 'sqlite'] :
+        (path, filename) = os.path.split(d['resource_path'])
+        if path and path.startswith(d['rootdir']):
+            d['resource_path'] = os.path.join(os.path.relpath(path, d['rootdir']),filename)
+            d['provider_path'] = d['rootdir']
+            d['provider_alias'] = 'file_project_path'
+        else:
+            d['resource_path'] = filename
+            d['provider_alias'] = 'file_local_path'
+            d['provider_path'] = path
+    
+    if d['service'] == 's3a' :
+        d['resource_path'] = os.path.split(d['resource_path'])[1]
+        d['provider_path'] = d['host']        
+        d['provider_alias'] = 's3a_'+ d['provider_path']
+        d['host'] = ''
+    
+    d['format'] = _format(d)
+    d['driver'] = _driver(d)
 
     # provider path can be use as database name, if database is undefined
     # for some special rdbms, database and path are both required
@@ -251,13 +297,12 @@ def _build_resource_metadata(rootdir, pmd={}, rmd={}, user_md=dict()):
     # override with function provided metadata
     d = merge(d, user_md)
     
-    d['hash'] = hash(d['url']) ^ hash(d['format']) ^ hash(d['resource_path'])
+    d['hash'] = hash(d['url']) ^ hash(d['format'])
     d['hash'] = hex(ctypes.c_size_t(d['hash']).value)
 
     return d
 
-def _dict_formatting(d):
-    keys = (
+resource_keys = (
         'hash',
         'url',
         'service',
@@ -293,9 +338,15 @@ def _dict_formatting(d):
         'mapping',
     )
 
-    return to_ordered_dict(d, keys)
-
-def metadata(rootdir=None, metadata=dict(), path=None, provider=None, md=dict()):
+def metadata(
+    rootdir=None, 
+    metadata=dict(), 
+    path=None, 
+    provider=None, 
+    md=None, 
+    username=None, 
+    password=None, 
+    **kargs):
     """
     :param metadata: resources metadata
     :param rootdir:  directory path for relative local files
@@ -310,4 +361,8 @@ def metadata(rootdir=None, metadata=dict(), path=None, provider=None, md=dict())
     pmd = _get_provider_metadata(metadata, rmd)
     
     d = _build_resource_metadata(rootdir, pmd, rmd, md)
-    return _dict_formatting(d)
+    
+    d = merge(d, {'options': kargs})
+    d = merge(d, {'username': username, 'password':password})
+
+    return YamlDict(to_ordered_dict(d, resource_keys))

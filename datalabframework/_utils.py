@@ -3,8 +3,6 @@ import sys
 import git
 
 from copy import deepcopy
-from collections import Mapping
-from datalabframework.yaml import yaml
 
 import traceback
 from subprocess import Popen, PIPE
@@ -36,37 +34,6 @@ def to_ordered_dict(d, keys):
                 yield (k, e)
 
     return dict(to_ordered_dict_generator(d, keys))
-
-class YamlDict(Mapping):
-    """
-    A helper class which provides read-only access to the dictionary and
-    representation in yaml formal, for enhanced readability
-    the to_dict() method return the underlying dictionary
-    """
-    def __init__(self, m=None, **kwargs):
-        if isinstance(m,str):
-            self._data = yaml.load(m)
-        else:
-            self._data = dict(m,**kwargs) if m is not None else dict(**kwargs)
-            
-    def __getitem__(self, key):
-        m = self._data[key]
-        return YamlDict(m) if isinstance(m,dict) else m
-    
-    def __len__(self):
-        return len(self._data)
-
-    def __iter__(self):
-        return iter(self._data)
-
-    def __repr__(self):
-        return yaml.dump(self._data)
-
-    def __dict__(self):
-        return self._data
-    
-    def to_dict(self):
-        return self._data
 
 def merge(a, b):
     """

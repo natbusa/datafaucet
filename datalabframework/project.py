@@ -12,11 +12,12 @@ from datalabframework import logging
 from datalabframework import engine as dlf_engine
 
 # metadata
-from datalabframework.metadata import load as get_project_metadata
+from datalabframework import metadata
 from datalabframework.resource import metadata as get_resource_metadata
 
 #utils
-from datalabframework._utils import Singleton, YamlDict, repo_data, to_ordered_dict, python_version, relpath, abspath
+from datalabframework.yaml import YamlDict
+from datalabframework._utils import Singleton, repo_data, to_ordered_dict, python_version, relpath, abspath
 
 import uuid
 
@@ -134,17 +135,16 @@ class Project(metaclass=Singleton):
             md_paths = default_md_files + project_md_files
             dotenv_path = abspath(self._dotenv_path, paths.rootdir())
             
-            self._metadata = get_project_metadata(profile,md_paths,dotenv_path)
+            metadata.load(profile,md_paths,dotenv_path)
         except ValueError as e:
             print(e)
-            self._metadata = {}
-
+            
         # bail if no metadata
-        if not self._metadata:
+        if metadata.profile is None:
             raise ValueError('No valid metadata to load.')
             
         # set profile from metadata
-        self._profile = self._metadata['profile']
+        self._profile_name = metadata.get_loaded_profile_name()
 
         # add roothpath to the list of python sys paths
         if paths.rootdir() not in sys.path:
@@ -201,11 +201,8 @@ class Project(metaclass=Singleton):
             'repository': self._repo
         })
 
+    @property
     def profile(self):
-        self.check_if_loaded()
-        return self._profile
-
-    def metadata(self):
         """
         return a metadata object which provides just one method:
         :return: a Metadata object
@@ -559,11 +556,17 @@ class Project(metaclass=Singleton):
         
         
         self.check_if_loaded()
-        return YamlDict(self._metadata)
+        return metadata.profile
 
-    def resource(self, path=None, provider=None, md=dict()):
+    def resource(self, path=None, provider=None, md=None, **kargs):
         self.check_if_loaded()
-        md = get_resource_metadata(paths.rootdir(), self._metadata , path, provider, md)
+        md = get_resource_metadata(
+            paths.rootdir(), 
+            self._metadata , 
+            path, 
+            provider, 
+            md, 
+            **kargs)
         return md
 
     def engine(self):
@@ -579,10 +582,10 @@ def config():
 def engine():
     return Project().engine()
 
-def metadata():
-    return Project().metadata()
+def profile():
+    return Project().profile()
 
-def resource(path=None, provider=None, md=dict()):
+def resource(path=None, provider=None, md=None, **kargs):
     """
     returns a resource object for read and write operations
     This object provides a config() method which returns the dictionary
@@ -592,11 +595,11 @@ def resource(path=None, provider=None, md=dict()):
     :param md: dictionary override
     :return: a resouce object
     """
-    return Project().resource(path, provider, md)
+    return Project().resource(path, provider, md, **kargs)
 
 # doc methods from class methods
 load.__doc__ = Project.load.__doc__
 config.__doc__ = Project.config.__doc__
 engine.__doc__ = Project.engine.__doc__
-metadata.__doc__ = Project.metadata.__doc__
+profile.__doc__ = Project.profile.__doc__
 

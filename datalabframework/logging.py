@@ -15,7 +15,7 @@ import json
 import os
 import sys
 from numbers import Number
-
+from collections import MutableMapping
 
 # import a few help methods
 from datalabframework import paths
@@ -77,8 +77,9 @@ class LoggerAdapter(logging.LoggerAdapter):
         d = self.extra
         d.update({'dlf_funcname': func_name(5)})
         
-        if isinstance(msg, dict):
-            d.update({'dlf_data': merge(msg, kwargs.get('extra', {}))})
+        if isinstance(msg, MutableMapping):
+            merged = merge(msg, kwargs.get('extra', {}))
+            d.update({'dlf_data': merged})
             msg = 'data'
         elif isinstance(msg, str):
             d.update({'dlf_data': kwargs.get('extra', {})})
