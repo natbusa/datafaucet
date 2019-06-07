@@ -166,12 +166,13 @@ def formatted(md):
                 'jobname',
                 'timezone',
                 ('submit',(
-                    'detect',
                     'jars',
                     'packages',
-                    'py-files',
+                    'pyfiles',
+                    'files',
+                    'repositories',
+                    'conf',
                 )),
-                'config',
                 )
             ),
             'providers',

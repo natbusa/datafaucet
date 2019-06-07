@@ -247,3 +247,105 @@ class Test_build_resource_metadata(object):
         m = merge(m,u)
 
         assert(d == m)
+
+        
+# resource('SELECT 0 as result where 1 = 0', 'pagila')
+# resource('foo.csv', '/bar')
+# resource('foo.csv', 'bar')
+# resource('foo.csv', 'hdfs')
+# resource('/foo.abc', 'hdfs')
+# resource('/foo.abc', 'test')
+# resource('hello/foo.abc', 'test')
+# resource('foo.abc', 'hdfs://hdfs-namenode:8020/wanna/dance/with/somebody')
+# resource('/foo.abc', 'hdfs://hdfs-namenode/wanna/dance/with/somebody')
+# resource('/foo.abc', 'hdfs://hdfs-namenode:8020/wanna/dance/with/somebody')
+# resource('staff', 'jdbc:mysql://1.2.3.4:3306/sakila?useSSL=false&serverTimezone=UTC&zeroDateTimeBehavior=CONVERT_TO_NULL')
+# resource('staff', 'jdbc:mysql://pippo:baudo@1.2.3.4:3306/sakila?useSSL=false&serverTimezone=UTC&zeroDateTimeBehavior=CONVERT_TO_NULL')
+# resource('staff', 'jdbc:mysql://1.2.3.4/sakila', useSSL='false', serverTimezone='UTC', zeroDateTimeBehavior='CONVERT_TO_NULL')
+# resource('staff', service='mysql', database='sakila', serverTimezone='UTC')
+# resource('sakila/staff', service='mysql', serverTimezone='UTC', user='pippo', password='baudo')
+# resource('foo/bar.tsv', service='s3a')
+# resource('/foo/bar.tsv', service='s3a')
+# resource('/apples/orange', service='minio')
+# resource('SELECT count(*) as cnt from employees;', 'jdbc:mysql://1.2.3.4:3306/sakila?useSSL=false&serverTimezone=UTC&zeroDateTimeBehavior=CONVERT_TO_NULL', user='pippo', password='baudo')
+# resource('ascombe')
+# resource('ascombe', 'saywhat')
+# resource('ascombe', 'hdfs://hdfs-namenode:8020/otherpath/')
+# resource('ascombe', 'hdfs')
+# resource('ascombe', 'test')
+# resource('r_test', 'test')
+
+# urn = 'jdbc:oracle:thin:name/pass@//123.123.123:345/schema/database'
+# parsed = Urn(scheme=['jdbc', 'oracle', 'thin', 'name/pass@'], user='name', password='pass', host='123.123.123', port='345', path='/schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:oracle:thin:name@//123.123.123:345/schema/database'
+# parsed = Urn(scheme=['jdbc', 'oracle', 'thin', 'name@'], user='name', password='', host='123.123.123', port='345', path='/schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:oracle:thin:@//123.123.123/schema/database'
+# parsed = Urn(scheme=['jdbc', 'oracle', 'thin', '@'], user='', password='', host='123.123.123', port='', path='/schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'hdfs://123.123.123/schema/database'
+# parsed = Urn(scheme=['hdfs'], user='', password='', host='123.123.123', port='', path='/schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = '/schema/database'
+# parsed = Urn(scheme=[], user='', password='', host='', port='', path='/schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 's3a://schema/database'
+# parsed = Urn(scheme=['s3a'], user='', password='', host='', port='', path='schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = '1.2.34/schema/database'
+# parsed = Urn(scheme=[], user='', password='', host='', port='', path='1.2.34/schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'file://1.2.34/schema/database'
+# parsed = Urn(scheme=['file'], user='', password='', host='1.2.34', port='', path='/schema/database', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:sqlite://localdir/a/b/c'
+# parsed = Urn(scheme=['jdbc', 'sqlite'], user='', password='', host='', port='', path='localdir/a/b/c', params=[], query='', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:oracle:thin:@ldap://xyz.acme.com:7777/sales,cn=salesdept,cn=OracleContext,dc=com'
+# parsed = Urn(scheme=['jdbc', 'oracle', 'thin', '@ldap'], user='', password='', host='xyz.acme.com', port='7777', path='/sales', params=[('cn', 'salesdept'), ('cn', 'OracleContext'), ('dc', 'com')], query='cn=salesdept&cn=OracleContext&dc=com', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'http://xyz.acme.com:7777/foo/bar?a=1&edf=abc#anchor1'
+# parsed = Urn(scheme=['http'], user='', password='', host='xyz.acme.com', port='7777', path='/foo/bar', params=[('a', '1'), ('edf', 'abc')], query='a=1&edf=abc', fragment='anchor1')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:sqlserver://localhost:1433;databaseName=AdventureWorks;integratedSecurity=true;'
+# parsed = Urn(scheme=['jdbc', 'sqlserver'], user='', password='', host='localhost', port='1433', path='', params=[('databaseName', 'AdventureWorks'), ('integratedSecurity', 'true')], query='databaseName=AdventureWorks&integratedSecurity=true', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:sqlserver://localhost;databaseName=AdventureWorks;integratedSecurity=true;'
+# parsed = Urn(scheme=['jdbc', 'sqlserver'], user='', password='', host='localhost', port='', path='', params=[('databaseName', 'AdventureWorks'), ('integratedSecurity', 'true')], query='databaseName=AdventureWorks&integratedSecurity=true', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:postgresql://localhost/test?user=fred&password=secret&ssl=false'
+# parsed = Urn(scheme=['jdbc', 'postgresql'], user='', password='', host='localhost', port='', path='/test', params=[('user', 'fred'), ('password', 'secret'), ('ssl', 'false')], query='user=fred&password=secret&ssl=false', fragment='')
+
+# assert(parsed == urnparse(urn))
+
+# urn = 'jdbc:mysql://localhost:3306/youdatabase?useSSL=false&serverTimezone=UTC&zeroDateTimeBehavior=CONVERT_TO_NULL'
+# parsed = Urn(scheme=['jdbc', 'mysql'], user='', password='', host='localhost', port='3306', path='/youdatabase', params=[('useSSL', 'false'), ('serverTimezone', 'UTC'), ('zeroDateTimeBehavior', 'CONVERT_TO_NULL')], query='useSSL=false&serverTimezone=UTC&zeroDateTimeBehavior=CONVERT_TO_NULL', fragment='')
+
+# assert(parsed == urnparse(urn))

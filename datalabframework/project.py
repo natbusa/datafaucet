@@ -9,11 +9,11 @@ from datalabframework import files
 from datalabframework import logging
 
 # engine
-from datalabframework import engine as dlf_engine
+from datalabframework.engine import create
 
 # metadata
 from datalabframework import metadata
-from datalabframework.resource import metadata as get_resource_metadata
+from datalabframework.resources import resource
 
 #utils
 from datalabframework.yaml import YamlDict
@@ -158,8 +158,35 @@ class Project(metaclass=Singleton):
         L = [self._profile, self._repo.get('name')]
         name = '-'.join([x for x in L if x])
 
+        #services
+        services = dict()
+        
+        all_aliases  = list(metadata.profile['providers'].keys())
+        
+        # get services from aliases
+        for alias in all_aliases:
+            r = resource(alias)
+            services[r['service']] = r
+        
+        # get one service from each type to 
+        # load drivers, jars etc via the engine init
+        services = list(services.values())
+        
         #initialize the engine
-        self._engine = dlf_engine.get(name, self._metadata, paths.rootdir())
+        md = metadata.profile['engine']
+        self._engine = create(
+            type=md['type'],
+            session=name, 
+            master = md['master'], 
+            timezone=md['timezone'], 
+            jars=md['submit']['jars'], 
+            packages=md['submit']['packages'], 
+            pyfiles=md['submit']['pyfiles'], 
+            files=md['submit']['files'], 
+            repositories = md['submit']['repositories'], 
+            conf=md['submit']['conf'],
+            services=services 
+        )
 
         # initialize logging
         logging.init(
@@ -584,18 +611,6 @@ def engine():
 
 def profile():
     return Project().profile()
-
-def resource(path=None, provider=None, md=None, **kargs):
-    """
-    returns a resource object for read and write operations
-    This object provides a config() method which returns the dictionary
-
-    :param path: the path or the alias of the resource
-    :param provider: as defined in the loaded metadata profile
-    :param md: dictionary override
-    :return: a resouce object
-    """
-    return Project().resource(path, provider, md, **kargs)
 
 # doc methods from class methods
 load.__doc__ = Project.load.__doc__
