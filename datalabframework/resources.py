@@ -70,22 +70,32 @@ def urnparse(s):
     urn = Urn(scheme,user, password, host, port, path, params, query, url.fragment)
     return urn 
 
-def path_to_jdbc(md):
+def path_to_jdbc(md, provider=False):
     
     database = md['database']
     table = md['table']
     path = md['path'] or ''
+    
+    if md['format']!='jdbc':
+        return database, table, path
     
     e = filter_empty(path.split('/'))
     
     if len(e)==0:
         pass;
     elif len(e)==1:
-        table = e[0] or None
+        if provider:
+            database = e[0] or None
+            path = None
+        else:
+            table = e[0] or None
+            path = None
     else:    
         database = e[0] or None
         table = e[1] or None
-    return database, table
+        path = None
+        
+    return database, table, path
 
 def get_default_md():
     f = [
@@ -130,16 +140,19 @@ def metadata_overrides(md, host=None, service=None, port=None, user=None, passwo
     md['driver'] =  driver or md['driver']
     md['options'] = options or md['options']
     
-    if database and table:
-        md['path'] = f'{database}/{table}'
-    elif database:
-        md['path'] = database
-    elif table:
-        md['path'] = table
+    if database or table:
+        md['path'] = None
 
     return md
 
 def resource_from_urn(urn):
+    
+    md = get_default_md()
+    query = get_sql_query(urn.path)
+    if query:
+        md['table'] = query
+        md['format'] = 'jdbc'
+        return md
     
     if urn.scheme and urn.scheme[0]=='jdbc':
         service, format = urn.scheme[1], urn.scheme[0]        
@@ -147,8 +160,6 @@ def resource_from_urn(urn):
         _, format = os.path.splitext(urn.path)
         format = format[1:] if len(format)>1 else ''
         service = urn.scheme[0] if urn.scheme else ''
-    
-    md = get_default_md()
     
     md['service'] = service
     md['format'] = format
@@ -167,6 +178,25 @@ def resource_from_urn(urn):
             md[k] = None
     
     return md
+
+def get_sql_query(s):
+    # if SQL query is detected, 
+    # wrap the resource path as a temp table
+    sql_query = s
+    sql_query = sql_query.replace('\n', ' ')
+    sql_query = sql_query.replace('\t', ' ')
+    sql_query = sql_query.replace('\r', ' ')
+    sql_query = ' '.join(sql_query.split())
+    sql_query = sql_query.rstrip(' ')
+    sql_query = sql_query.rstrip(';')
+    sql_query = sql_query.lower()
+
+    #imple sql test: check for from or where prefixed with a space
+    # indicates multiple words
+    if any([x in sql_query for x in [' from ', ' where ']]):
+        return sql_query
+    else:
+        return None
 
 def to_resource(url_alias=None, *args, **kwargs):
     
@@ -192,7 +222,7 @@ def to_resource(url_alias=None, *args, **kwargs):
     if not md:
         md = get_default_md()
 
-    # sanitize path if it's a url
+    # sanitize path if it's a url or a query
     if md['path']:
         url_md = resource_from_urn(urnparse(md['path']))
         md = merge(url_md, md)
@@ -221,6 +251,11 @@ def get_format(md):
     if md['service'] in ['elastic']:
         return 'json'
 
+    # check if path is a query
+    query = get_sql_query(md['path'])
+    if query:
+        return 'jdbc'
+    
     # extract the format from file extension
     _, ext = os.path.splitext(md['path'])
 
@@ -259,6 +294,8 @@ def get_url(md):
         url = f"jdbc:sqlite:{path}"
     elif service == 'hdfs':
         url = f"hdfs://{md['host']}:{md['port']}{md['path']}"
+    elif service in ['http', 'https']:
+        url = f"{service}://{md['host']}:{md['port']}{md['path']}"
     elif service in ['minio', 's3a']:
         url = f"s3a://{md['path']}'"
     elif service == 'mysql':
@@ -276,6 +313,7 @@ def get_url(md):
 
 
 def process_metadata(md):
+    
     
     # update format from 
     md['format'] = get_format(md)
@@ -303,8 +341,7 @@ def process_metadata(md):
 
     # generate database, table from path
     if md['format']=='jdbc':
-        md['database'], md['table']  = path_to_jdbc(md)
-        md['path'] = None
+        md['database'], md['table'], md['path'] = path_to_jdbc(md)
 
         # set driver
         md['driver'] = md['driver'] or get_driver(md['service'])
@@ -323,18 +360,9 @@ def process_metadata(md):
         
         md['schema'] = md['schema'] or default_schemas.get(md['service'])
         
-        # if SQL query is detected, 
-        # wrap the resource path as a temp table
-        sql_query = md['table']
-        sql_query = sql_query.replace('\n', ' ')
-        sql_query = sql_query.replace('\t', ' ')
-        sql_query = sql_query.replace('\r', ' ')
-        sql_query = ' '.join(sql_query.split())
-        sql_query = sql_query.rstrip(' ')
-        sql_query = sql_query.rstrip(';')
-
-        if any([x in sql_query.lower() for x in [' from ', ' where ']]):
-            md['table'] = '( {} ) as _query'.format(sql_query)
+        query = get_sql_query(md['table'])
+        if query:
+            md['table'] = '( {} ) as _query'.format(query)
 
     md['port'] = md['port'] or get_port(md['service'])
     md['port'] = int(md['port']) if md['port'] else None
@@ -398,13 +426,17 @@ def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
     
     # get the provider, by alias metadata or by url
     pmd = to_resource(prov)
-
+    pmd['database'], pmd['table'], pmd['path'] = path_to_jdbc(pmd, True)
 
     # merge provider and resource metadata
     md = merge(pmd,rmd)
-        
-    # concatenate paths
-    md['path'] = os.path.join(pmd['path'] or '', rmd['path'] or '')
+    
+    
+    # concatenate paths, if no table is defined
+    if md['table']:
+        md['path'] = None
+    else:
+        md['path'] = os.path.join(pmd['path'] or '', rmd['path'] or '')
 
     #process metadata
     md = process_metadata(md)
