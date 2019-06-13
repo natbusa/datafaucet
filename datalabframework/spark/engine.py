@@ -3,16 +3,22 @@ import os, time
 import shutil
 import textwrap
 
+import logging as python_logging
+
 from datalabframework import logging
 from datalabframework import elastic
 
-from datalabframework.resources import resource
+from datalabframework.resources import Resource
+
+from datalabframework.yaml import YamlDict
 
 from datalabframework._utils import python_version, get_hadoop_version_from_system
 from datalabframework._utils import get_tool_home, run_command, str_join, merge
 
 import pandas as pd
 from datalabframework.spark import dataframe
+
+from datalabframework.engines import EngineSingleton, EngineBase
 
 from timeit import default_timer as timer
 
@@ -27,53 +33,7 @@ import pyspark.sql.types as T
 
 import pyspark
 
-class EngineBase:
-    def __init__(self, type=None, session=None):
-        self.type = type
-        self.session = session
-        self.submit = dict()
-        self.info = dict()
-        self.conf = dict()
-        self.context = None
-        self.version = None
-        self.env = dict()
-        
-    def load(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def save(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def copy(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def list(self, provider, path):
-        raise NotImplementedError
-
-    def stop(self):
-        raise NotImplementedError
-
-class NoEngine(EngineBase):
-    def __init__(self):
-        self._version = 0
-        super().__init__('no-engine')
-
-    def load(self, *args, **kwargs):
-        raise ValueError('No engine loaded.')
-
-    def save(self, *args, **kwargs):
-        raise ValueError('No engine loaded.')
-
-    def copy(self, *args, **wvargs):
-        raise ValueError('No engine loaded.')
-
-    def list(self, *args, **wvargs):
-        raise ValueError('No engine loaded.')
-
-    def stop(self):
-        pass
-
-class SparkEngine(EngineBase):
+class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
     @staticmethod
     def set_conf_timezone(conf, timezone=None):
@@ -100,13 +60,19 @@ class SparkEngine(EngineBase):
         hadoop_version = None
         hadoop_detect_from = None
         try:
-            session = pyspark.sql.SparkSession.builder.getOrCreate()
-            hadoop_version = session.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion()
+            spark_session = pyspark.sql.SparkSession.builder.getOrCreate()
+            hadoop_version = spark_session.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion()
             hadoop_detect_from = 'spark'
-            self.stop(session)
         except Exception as e:
-            print(e)
+            print('oooo', e)
             pass
+        
+        try:
+            spark_session.stop()
+        except  Exception as e:
+            print('kkkk', e)
+            pass
+
 
         if hadoop_version is None:
             hadoop_version = get_hadoop_version_from_system()
@@ -252,8 +218,8 @@ class SparkEngine(EngineBase):
             if sys.executable and not os.environ.get(e):
                 os.environ[e] = sys.executable
 
-    def __init__(self, session=None, master = 'local[*]', timezone=None, 
-                 jars=None, packages=None, pyfiles=None, files=None, 
+    def __init__(self, session_name=None, session_id=0, master = 'local[*]', 
+                 timezone=None, jars=None, packages=None, pyfiles=None, files=None, 
                  repositories = None, services=None, conf=None) :
 
         # bundle all submit in a dictionary
@@ -267,13 +233,12 @@ class SparkEngine(EngineBase):
         }
         
         #call base class
-        super().__init__('spark', session)
+        # stop the previous instance, 
+        # register self a the new instance
+        super().__init__('spark', session_name, session_id)
 
-        # stop current session before creating a new one
-        self.stop()
-
-        # print statement
-        print(f'Init engine "{self.type}"')
+        # suppress INFO logging for java_gateway
+        python_logging.getLogger('py4j.java_gateway').setLevel(python_logging.ERROR)
 
         # collect info
         self.set_info()
@@ -298,7 +263,7 @@ class SparkEngine(EngineBase):
         self.set_conf_timezone(conf, timezone)
 
         # set session name
-        conf.setAppName(session)
+        conf.setAppName(session_name)
 
         # set master
         conf.setMaster(master)
@@ -313,17 +278,20 @@ class SparkEngine(EngineBase):
         spark_session = self.start_context(conf)
 
         # record the data in the engine object for debug and future references
-        self.conf = dict(conf.getAll())
+        self.conf = YamlDict(dict(conf.getAll()))
 
         if spark_session:
             self.conf = dict(dict(spark_session.sparkContext.getConf().getAll()))
 
             # set version if spark is loaded
             self._version = spark_session.version
-            print(f'Engine context {self.type}:{self.version} successfully started')
+            print(f'Engine context {self.engine_type}:{self.version} successfully started')
 
             # store the spark session
             self.context = spark_session
+            
+            # session is running
+            self.stopped = False
 
     def initialize_spark_sql_context(self, spark_session, spark_context):
         try:
@@ -375,39 +343,54 @@ class SparkEngine(EngineBase):
             'SPARK_DIST_CLASSPATH',
         ]
     
-        return {v: os.environ.get(v) for v in vars}
+        return YamlDict({v: os.environ.get(v) for v in vars})
 
 
-    def stop(self, spark_session=None):
+    def _stop(self, spark_session=None):
+        if self.stopped and spark_session is None:
+            return
+        
         try:
-            spark_session = spark_session or self.context
-            sc = None
+            sc_from_session = spark_session.sparkContext if spark_session else None
+            sc_from_engine = self.context.sparkContext if self.context else None
+            sc_from_module = pyspark.SparkContext._active_spark_context or None
+            
+            scs = [
+                sc_from_session,
+                sc_from_engine,
+                sc_from_module
+            ]
+            
+            if self.context:
+                self.context.stop()
+    
             if spark_session:
-                sc = spark_session.sparkContext
                 spark_session.stop()
-    
+
             cls = pyspark.SparkContext
-            sc = sc or cls._active_spark_context
-    
-            if sc:
-                sc.stop()
-                sc._gateway.shutdown()
-    
+            
+            for sc in scs:
+                if sc:
+                    try:
+                        sc.stop()
+                        sc._gateway.shutdown()
+                    except Exception as e:
+                        print('ppppppp', e)
+                        pass
+                    
             cls._active_spark_context = None
             cls._gateway = None
             cls._jvm = None
-            return True
+            
+            self.stopped = True
         except Exception as e:
-            print(e)
-            logging.warning(f'Could not fully stop the {self.type} context')
-            return False
+            print('qqqqqqqq', e)
+            logging.warning(f'Could aaaaa not fully stop the {self.engine_type} context')
+            self.stopped = False
 
 
-    def load(self, path=None, provider=None, catch_exception=True, **kargs):
-        if isinstance(path, str):
-            md = resource.metadata(self._rootdir, self._metadata, path, provider)
-        elif isinstance(path, dict):
-            md = path
+    def load_plus(self, path=None, provider=None, catch_exception=True, **kargs):
+        md = Resource(path, provider, **kargs)
     
         core_start = timer()
         obj = self.load_dataframe(md, catch_exception, **kargs)
@@ -416,7 +399,7 @@ class SparkEngine(EngineBase):
             return obj
     
         prep_start = timer()
-        date_column = '_date' if md['date_partition'] else md['date_column']
+        #date_column = '_date' if md['date_partition'] else md['date_column']
         obj = dataframe.filter_by_date(
             obj,
             date_column,
@@ -465,73 +448,79 @@ class SparkEngine(EngineBase):
         return kargs
     
     
-    def load_dataframe(self, md, catch_exception=True, **kargs):
+    def load(self, path=None, provider=None, *args, **kargs):
         obj = None
+        md = Resource(path, provider, *args, **kargs)
+        
         options = md['options']
     
         try:
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':
                     try:
-                        obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
+                        print('a')
+                        obj = self.context.read.options(**options).csv(md['url'], **kargs)
+                        print(obj.show())
                     except:
+                        print('b')
                         kargs = self.load_with_pandas(kargs)
     
                     if obj is None:
+                        print('c')
                         df = pd.read_csv(md['url'], **kargs)
-                        obj = self._ctx.createDataFrame(df)
+                        obj = self.context.createDataFrame(df)
     
                 elif md['format'] == 'json':
                     try:
-                        obj = self._ctx.read.options(**options).json(md['url'], **kargs)
+                        obj = self.context.read.options(**options).json(md['url'], **kargs)
                     except:
                         kargs = self.load_with_pandas(kargs)
     
                     if obj is None:
                         df = pd.read_json(md['url'])
-                        obj = self._ctx.createDataFrame(df)
+                        obj = self.context.createDataFrame(df)
     
                 elif md['format'] == 'jsonl':
                     try:
-                        obj = self._ctx.read.option('multiLine', True) \
+                        obj = self.context.read.option('multiLine', True) \
                             .options(**options).json(md['url'], **kargs)
                     except:
                         kargs = self.load_with_pandas(kargs)
     
                     if obj is None:
                         df = pd.read_json(md['url'], lines=True)
-                        obj = self._ctx.createDataFrame(df)
+                        obj = self.context.createDataFrame(df)
     
                 elif md['format'] == 'parquet':
                     try:
-                        obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
+                        obj = self.context.read.options(**options).parquet(md['url'], **kargs)
                     except:
                         kargs = self.load_with_pandas(kargs)
     
                     if obj is None:
                         df = pd.read_parquet(md['url'])
-                        obj = self._ctx.createDataFrame(df)
+                        obj = self.context.createDataFrame(df)
                 else:
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return None
     
             elif md['service'] in ['hdfs', 'minio', 's3a']:
                 if md['format'] == 'csv':
-                    obj = self._ctx.read.options(**options).csv(md['url'], **kargs)
+                    obj = self.context.read.options(**options).csv(md['url'], **kargs)
                 elif md['format'] == 'json':
-                    obj = self._ctx.read.options(**options).json(md['url'], **kargs)
+                    obj = self.context.read.options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'jsonl':
-                    obj = self._ctx.read.option('multiLine', True) \
+                    obj = self.context.read.option('multiLine', True) \
                         .options(**options).json(md['url'], **kargs)
                 elif md['format'] == 'parquet':
-                    obj = self._ctx.read.options(**options).parquet(md['url'], **kargs)
+                    obj = self.context.read.options(**options).parquet(md['url'], **kargs)
                 else:
                     logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
                     return None
     
             elif md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
     
-                obj = self._ctx.read \
+                obj = self.context.read \
                     .format('jdbc') \
                     .option('url', md['url']) \
                     .option("dbtable", md['table']) \
@@ -546,29 +535,17 @@ class SparkEngine(EngineBase):
             elif md['service'] == 'elastic':
                 results = elastic.read(md['url'], options.get('query', {}))
                 rows = [pyspark.sql.Row(**r) for r in results]
-                obj = self.context().createDataFrame(rows)
+                obj = self.context.createDataFrame(rows)
             else:
                 logging.error({'md': md, 'error_msg': f'Unknown service "{md["service"]}"'})
         except Exception as e:
-            if catch_exception:
-                print(e.message)
-                logging.error({'md': md, 'error': str(e.message)})
-                return None
-            else:
-                raise e
-    
+                print(e)
+        print('d', obj)
         return obj
 
 
-    def save(self, obj, path=None, provider=None, **kargs):
-        if path is None:
-            path = obj.__name__
-            logging.warning(f'No path provider, using {path}')
-    
-        if isinstance(path, str):
-            md = resource.metadata(self._rootdir, self._metadata, path, provider)
-        elif isinstance(path, dict):
-            md = path
+    def save_plus(self, obj, path=None, provider=None, **kargs):
+        md = Resource(path, provider, **kargs)
     
         prep_start = timer()
         options = md['options'] or {}
@@ -624,7 +601,7 @@ class SparkEngine(EngineBase):
     
     
     def is_spark_local(self):
-        return self._config.get('spark.master').startswith('local')
+        return self.conf.get('spark.master').startswith('local[')
     
     
     def save_with_pandas(self, md, kargs):
@@ -667,8 +644,9 @@ class SparkEngine(EngineBase):
         return
     
     
-    def save_dataframe(self, obj, md, **kargs):
-        options = md['options'] or {}
+    def save(self, obj, path=None, provider=None, **kargs):
+        md = Resource(path, provider, **kargs)
+        options = md['options']
         try:
             if md['service'] in ['local', 'file']:
                 if md['format'] == 'csv':
@@ -998,22 +976,3 @@ class SparkEngine(EngineBase):
             raise e
     
         return df_empty
-
-                               
-#singleton
-instance = None
-
-#factory
-def create(type='spark', session=None, **kwargs):
-    global instance
-    stopped = instance.stop() if instance else True
-
-    if not stopped:
-        logging.error(f'Cound not stop currently running '
-                  f'{instance.type} before creating {type}')
-
-    # staring engine
-    if type == 'spark':
-        instance = SparkEngine(session=session, **kwargs)
-
-    return instance

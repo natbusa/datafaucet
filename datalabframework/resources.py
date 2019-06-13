@@ -1,6 +1,7 @@
 import os
 import re
 import ctypes
+import zlib
 import functools
 
 from urllib.parse import urlparse
@@ -80,10 +81,7 @@ def path_to_jdbc(md):
     if len(e)==0:
         pass;
     elif len(e)==1:
-        if database:
-            table = e[0] or None
-        else:
-            database = e[0] or None
+        table = e[0] or None
     else:    
         database = e[0] or None
         table = e[1] or None
@@ -179,12 +177,12 @@ def to_resource(url_alias=None, *args, **kwargs):
         md = metadata_overrides(get_default_md(), **url_alias)
     
     # if a string, and a metadata profile is loaded, check for aliases
-    if metadata.profile:
-        if not md and url_alias in metadata.profile.get('resources', {}).keys():
-            md = metadata.profile['resources'][url_alias]
+    if metadata.profile():
+        if not md and url_alias in metadata.profile().get('resources', {}).keys():
+            md = metadata.profile()['resources'][url_alias]
         
-        if not md and url_alias in metadata.profile.get('providers', {}).keys():
-            md = metadata.profile['providers'][url_alias]
+        if not md and url_alias in metadata.profile().get('providers', {}).keys():
+            md = metadata.profile()['providers'][url_alias]
     
     # if nothing found yet, interpret as a urn/path
     if not md and url_alias:
@@ -339,11 +337,12 @@ def process_metadata(md):
             md['table'] = '( {} ) as _query'.format(sql_query)
 
     md['port'] = md['port'] or get_port(md['service'])
+    md['port'] = int(md['port']) if md['port'] else None
     md['url'] = get_url(md)
 
     md['options'] = md['options'] or {}
     
-    h_list = [hash(md[k]) for k in ['url', 'format', 'table', 'database']]
+    h_list = [zlib.crc32(md[k].encode()) for k in ['url', 'format', 'table', 'database'] if md[k]]
     md['hash'] = functools.reduce(lambda a,b : a^b, h_list)
     md['hash'] = hex(ctypes.c_size_t(md['hash']).value)
     
@@ -377,7 +376,7 @@ def assemble_metadata(md):
     keys.append('options')
     return YamlDict(to_ordered_dict(md, keys))
         
-def resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None, 
+def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None, 
         host=None, service=None, port=None, user=None, password=None,
         driver=None, database=None, schema=None, table=None, format=None, 
         hostname=None, username=None, **options):
@@ -409,6 +408,9 @@ def resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
 
     #process metadata
     md = process_metadata(md)
+    
+    #todo: verify resource
+    # check format and other minimum requirements are met
     
     # assemble output
     md = assemble_metadata(md)

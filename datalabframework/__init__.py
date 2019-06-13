@@ -3,23 +3,33 @@ builtins.__DATALABFRAMEWORK__ = True
 
 from ._version import version_info, __version__
 
-# automatically imports submodules
-# by loading the package, as in `import datalabframework as dlf`
+from datalabframework import logging
+from datalabframework import project
+from datalabframework import metadata
+from datalabframework import engines
 
-from . import logging
-from . import project
+from datalabframework.paths import rootdir
 
-# from datalabframework import *
-# imports the following according to the __all__ variable
-__all__ = [
-    'logging',
-    'project'
-]
+from datalabframework.resources import Resource
 
-# register hook for loading ipynb files
-import sys
-from ._loader import NotebookFinder
+#engines
+from datalabframework.spark.engine import SparkEngine
 
-if 'NotebookFinder' not in str(sys.meta_path):
-    sys.meta_path.append(NotebookFinder())
+from datalabframework.engines import (
+    #factory for all engines
+    context,
+    engine
+)
 
+from datalabframework.project import (
+    Project
+)
+
+from datalabframework.metadata import (
+    Metadata
+)
+
+from datalabframework.io import (
+    load,
+    save
+)
