@@ -208,19 +208,19 @@ def init_stdout(logger, level, md):
     else:
         return
     
-    # create console handler and set level to debug
-    formatter = logging.Formatter(' - '.join([
-        #'%(asctime)s',
-        '%(levelname)s',
-        #'%(dlf_sid)s',
-        #'%(dlf_repohash)s',
-        #'%(dlf_reponame)s',
-        #'%(dlf_filepath)s',
-        '%(dlf_funcname)s',
-        '%(message)s',
-        '%(dlf_data)s'
-        ]))
+    #'%(asctime)s',
+    #'%(levelname)s',
+    #'%(dlf_sid)s',
+    #'%(dlf_repohash)s',
+    #'%(dlf_reponame)s',
+    #'%(dlf_filepath)s',
+    #'%(dlf_funcname)s'
+    #'%(message)s'
+    #'%(dlf_data)s')
     
+    # create console handler and set level to debug
+    formatter = logging.Formatter('%(levelname)s:%(name)s:%(dlf_funcname)s %(message)s')
+
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(level)
     handler.setFormatter(formatter)

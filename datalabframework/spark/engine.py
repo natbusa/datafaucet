@@ -10,7 +10,7 @@ from datalabframework import elastic
 
 from datalabframework.resources import Resource
 
-from datalabframework.yaml import YamlDict
+from datalabframework.yaml import YamlDict, to_dict
 
 from datalabframework._utils import python_version, get_hadoop_version_from_system
 from datalabframework._utils import get_tool_home, run_command, str_join, merge
@@ -24,6 +24,8 @@ from timeit import default_timer as timer
 
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
+
+from pyspark.sql.utils import AnalysisException
 
 # purpose of engines
 # abstract engine init, data read and data write
@@ -64,15 +66,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             hadoop_version = spark_session.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion()
             hadoop_detect_from = 'spark'
         except Exception as e:
-            print('oooo', e)
             pass
         
-        try:
-            spark_session.stop()
-        except  Exception as e:
-            print('kkkk', e)
-            pass
-
+        self._stop(spark_session)
 
         if hadoop_version is None:
             hadoop_version = get_hadoop_version_from_system()
@@ -119,13 +115,14 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         return
 
-    def detect_submit_params(self, services):
-        assert (isinstance(services, (type(None), list, set)))
+    def detect_submit_params(self, services=None):
+        assert (isinstance(services, (type(None), str, list, set)))
+        services = [services] if isinstance(services,str) else services
         services = services or []
         
         # if service is a string, make a resource out of it
         
-        resources = [s if isinstance(s, dict) else resource(service=s) for s in services ]
+        resources = [s if isinstance(s, dict) else Resource(service=s) for s in services ]
         services = set([r['service'] for r in resources])
 
         submit_types = ['jars', 'packages', 'repositories', 'py-files', 'files', 'conf']
@@ -186,22 +183,22 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         return submit_objs
 
-    def set_submit_args(self, submit):
+    def set_submit_args(self):
         submit_args = ''
 
-        for k in submit.keys() - {'conf'}:
-            s = ",".join(submit[k])
+        for k in self.submit.keys() - {'conf'}:
+            s = ",".join(self.submit[k])
             submit_args += f' --{k} {s}' if s else ''
 
         # submit config options one by one
-        for c in submit['conf']:
+        for c in self.submit['conf']:
             submit_args += f' --conf {c[0]}={c[1]}'
             
         #### print debug
-        for k in submit.keys():
-            if submit[k]:
+        for k in self.submit.keys():
+            if self.submit[k]:
                 print(f'Configuring {k}:')
-                for e in submit[k]:
+                for e in self.submit[k]:
                     v = e
                     if isinstance(e, tuple):
                         if len(e)>1 and str(e[0]).endswith('.key'):
@@ -222,8 +219,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                  timezone=None, jars=None, packages=None, pyfiles=None, files=None, 
                  repositories = None, services=None, conf=None) :
 
+        #call base class
+        # stop the previous instance, 
+        # register self a the new instance
+        super().__init__('spark', session_name, session_id)
+
         # bundle all submit in a dictionary
-        submit= {
+        self.submit= {
             'jars': [jars] if isinstance(jars, str) else jars or [],
             'packages': [packages] if isinstance(packages, str) else packages or [],
             'py-files': [pyfiles] if isinstance(pyfiles, str) else pyfiles or [],
@@ -231,11 +233,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             'repositories': [repositories] if isinstance(repositories, str) else repositories or [],
             'conf': [conf] if isinstance(conf, tuple) else conf or [],
         }
-        
-        #call base class
-        # stop the previous instance, 
-        # register self a the new instance
-        super().__init__('spark', session_name, session_id)
 
         # suppress INFO logging for java_gateway
         python_logging.getLogger('py4j.java_gateway').setLevel(python_logging.ERROR)
@@ -247,11 +244,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         detected = self.detect_submit_params(services)
         
         # merge up with those passed with the init
-        for k in submit.keys():
-            submit[k] = list(sorted(set(submit[k] + detected[k])))
+        for k in self.submit.keys():
+            self.submit[k] = list(sorted(set(self.submit[k] + detected[k])))
 
         #set submit args via env variable
-        self.set_submit_args(submit)
+        self.set_submit_args()
 
         # set other spark-related environment variables
         self.set_env_variables()
@@ -269,11 +266,14 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         conf.setMaster(master)
 
         # config passed through the api call go via the config
-        for c in submit['conf']:
+        for c in self.submit['conf']:
             k,v,*_ = list(c)+['']
             if isinstance(v, (bool, int, float, str)):
                 conf.set(k, v)
 
+        # stop the current session if running
+        self._stop()
+        
         # start spark
         spark_session = self.start_context(conf)
 
@@ -311,7 +311,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         try:
             # init the spark session
             session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
-    
+        
             # fix SQLContext for back compatibility
             self.initialize_spark_sql_context(session, session.sparkContext)
     
@@ -327,6 +327,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             
             return session
         except Exception as e:
+            print(e)
             logging.error('Could not start the engine context')
             return None
 
@@ -347,9 +348,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
 
     def _stop(self, spark_session=None):
-        if self.stopped and spark_session is None:
-            return
-        
+        self.stopped = True
         try:
             sc_from_session = spark_session.sparkContext if spark_session else None
             sc_from_engine = self.context.sparkContext if self.context else None
@@ -375,25 +374,21 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                         sc.stop()
                         sc._gateway.shutdown()
                     except Exception as e:
-                        print('ppppppp', e)
                         pass
                     
             cls._active_spark_context = None
             cls._gateway = None
             cls._jvm = None
-            
-            self.stopped = True
         except Exception as e:
-            print('qqqqqqqq', e)
-            logging.warning(f'Could aaaaa not fully stop the {self.engine_type} context')
-            self.stopped = False
+            print(e)
+            logging.warning(f'Could not fully stop the {self.engine_type} context')
 
 
-    def load_plus(self, path=None, provider=None, catch_exception=True, **kargs):
-        md = Resource(path, provider, **kargs)
+    def load_plus(self, path=None, provider=None, catch_exception=True, **kwargs):
+        md = Resource(path, provider, **kwargs)
     
         core_start = timer()
-        obj = self.load_dataframe(md, catch_exception, **kargs)
+        obj = self.load_dataframe(md, catch_exception, **kwargs)
         core_end = timer()
         if obj is None:
             return obj
@@ -423,7 +418,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
     
         log_data = {
             'md': md,
-            'mode': kargs.get('mode', md.get('options', {}).get('mode')),
+            'mode': kwargs.get('mode', md.get('options', {}).get('mode')),
             'records': num_rows,
             'columns': num_cols,
             'time': prep_end - core_start,
@@ -436,116 +431,228 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         return obj
 
 
-    def load_with_pandas(self, kargs):
+    def load_with_pandas(self, kwargs):
         logging.warning("Fallback dataframe reader")
     
         # conversion of *some* pyspark arguments to pandas
-        kargs.pop('inferSchema', None)
+        kwargs.pop('inferSchema', None)
     
-        kargs['header'] = 'infer' if kargs.get('header') else None
-        kargs['prefix'] = '_c'
+        kwargs['header'] = 'infer' if kwargs.get('header') else None
+        kwargs['prefix'] = '_c'
     
-        return kargs
+        return kwargs
     
-    
-    def load(self, path=None, provider=None, *args, **kargs):
+    def load_csv(self, path=None, provider=None, *args, 
+                 sep=None, header=None, **kwargs):
+
+        #return None 
         obj = None
-        md = Resource(path, provider, *args, **kargs)
         
-        options = md['options']
-    
+        md = Resource(
+                path, 
+                provider, 
+                sep=sep, 
+                header=header, 
+                **kwargs)
+
+        options =  md['options']
+        
+        # after collecting from metadata, or method call, define csv defaults
+        options['header'] = options.get('header') or True
+        options['inferSchema'] = options.get('inferSchema') or True
+        options['sep'] = options.get('sep') or ','
+        
+        local = self.is_spark_local()
+                               
         try:
-            if md['service'] in ['local', 'file']:
-                if md['format'] == 'csv':
-                    try:
-                        print('a')
-                        obj = self.context.read.options(**options).csv(md['url'], **kargs)
-                        print(obj.show())
-                    except:
-                        print('b')
-                        kargs = self.load_with_pandas(kargs)
-    
-                    if obj is None:
-                        print('c')
-                        df = pd.read_csv(md['url'], **kargs)
-                        obj = self.context.createDataFrame(df)
-    
-                elif md['format'] == 'json':
-                    try:
-                        obj = self.context.read.options(**options).json(md['url'], **kargs)
-                    except:
-                        kargs = self.load_with_pandas(kargs)
-    
-                    if obj is None:
-                        df = pd.read_json(md['url'])
-                        obj = self.context.createDataFrame(df)
-    
-                elif md['format'] == 'jsonl':
-                    try:
-                        obj = self.context.read.option('multiLine', True) \
-                            .options(**options).json(md['url'], **kargs)
-                    except:
-                        kargs = self.load_with_pandas(kargs)
-    
-                    if obj is None:
-                        df = pd.read_json(md['url'], lines=True)
-                        obj = self.context.createDataFrame(df)
-    
-                elif md['format'] == 'parquet':
-                    try:
-                        obj = self.context.read.options(**options).parquet(md['url'], **kargs)
-                    except:
-                        kargs = self.load_with_pandas(kargs)
-    
-                    if obj is None:
-                        df = pd.read_parquet(md['url'])
-                        obj = self.context.createDataFrame(df)
-                else:
-                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
-                    return None
-    
-            elif md['service'] in ['hdfs', 'minio', 's3a']:
-                if md['format'] == 'csv':
-                    obj = self.context.read.options(**options).csv(md['url'], **kargs)
-                elif md['format'] == 'json':
-                    obj = self.context.read.options(**options).json(md['url'], **kargs)
-                elif md['format'] == 'jsonl':
-                    obj = self.context.read.option('multiLine', True) \
-                        .options(**options).json(md['url'], **kargs)
-                elif md['format'] == 'parquet':
-                    obj = self.context.read.options(**options).parquet(md['url'], **kargs)
-                else:
-                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
-                    return None
-    
-            elif md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
-    
-                obj = self.context.read \
-                    .format('jdbc') \
-                    .option('url', md['url']) \
-                    .option("dbtable", md['table']) \
-                    .option("driver", md['driver']) \
-                    .option("user", md['username']) \
-                    .option('password', md['password']) \
-                    .options(**options)
-    
-                # load the data from jdbc
-                obj = obj.load(**kargs)
-    
-            elif md['service'] == 'elastic':
-                results = elastic.read(md['url'], options.get('query', {}))
-                rows = [pyspark.sql.Row(**r) for r in results]
-                obj = self.context.createDataFrame(rows)
+            #three approaches: local, cluster, and service
+            if md['service'] == 'file' and local:
+                obj = self.context.read.options(**options).csv(md['url'])
+            elif md['service'] == 'file':
+                logging.warning(
+                    f'local file + spark cluster: loading using pandas reader', 
+                    extra={'md': to_dict(md)})
+                
+                df = pd.read_csv(
+                        md['url'], 
+                        sep=options['sep'], 
+                        header=options['header'])
+                obj = self.context.createDataFrame(df)
+            elif md['service'] in ['hdfs', 's3a']:
+                obj = self.context.read.options(**options).csv(md['url'])
             else:
-                logging.error({'md': md, 'error_msg': f'Unknown service "{md["service"]}"'})
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return obj     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
         except Exception as e:
-                print(e)
-        print('d', obj)
+            logging.error(e, extra={'md': md})
+    
         return obj
 
+        
+    def load_parquet(self, path=None, provider=None, *args, 
+                 mergeSchema=None, **kwargs):
 
-    def save_plus(self, obj, path=None, provider=None, **kargs):
-        md = Resource(path, provider, **kargs)
+        #return None 
+        obj = None
+        
+        md = Resource(
+                path, 
+                provider, 
+                format='parquet',
+                mergeSchema=mergeSchema, 
+                **kwargs)
+
+        options =  md['options']
+        
+        # after collecting from metadata, or method call, define csv defaults
+        options['mergeSchema'] = options.get('mergeSchema') or True
+        
+        local = self.is_spark_local()
+                               
+        try:
+            #three approaches: local, cluster, and service
+            if md['service'] == 'file' and local:
+                obj = self.context.read.options(**options).parquet(md['url'])
+            elif md['service'] == 'file':
+                logging.warning(
+                    f'local file + spark cluster: loading using pandas reader', 
+                    extra={'md': to_dict(md)})
+                #fallback to the pandas reader, then convert to spark
+                df = pd.read_parquet(md['url'])
+                obj = self.context.createDataFrame(df)
+            elif md['service'] in ['hdfs', 's3a']:
+                obj = self.context.read.options(**options).parquet(md['url'])
+            else:
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return obj     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
+        except Exception as e:
+            logging.error(e, extra={'md': md})
+    
+        return obj
+
+    def load_json(self, path=None, provider=None, *args, 
+                 lines=True, **kwargs):
+
+        #return None 
+        obj = None
+        
+        md = Resource(
+                path, 
+                provider, 
+                format='json',
+                lines=lines, 
+                **kwargs)
+
+        options =  md['options']
+        
+        # after collecting from metadata, or method call, define csv defaults
+        options['lines'] = options.get('lines') or True
+        options['inferSchema'] = options.get('inferSchema') or True
+        
+        local = self.is_spark_local()
+                               
+        try:
+            #three approaches: local, cluster, and service
+            if md['service'] == 'file' and options['lines']:
+                obj = self.context.read.options(**options).json(md['url'])
+            elif md['service'] == 'file':
+                # fallback to the pandas reader, 
+                # then convert to spark
+                logging.warning(
+                    f'local file + spark cluster: loading using pandas reader', 
+                    extra={'md': to_dict(md)})
+                df = pd.read_json(
+                        md['url'], 
+                        lines=options['lines'])
+                obj = self.context.createDataFrame(df)
+            elif md['service'] in ['hdfs', 's3a']:
+                obj = self.context.read.options(**options).json(md['url'])
+            else:
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return obj     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
+        except Exception as e:
+            logging.error(e, extra={'md': md})
+    
+        return obj
+
+    def load_jdbc(self, path=None, provider=None, *args, **kwargs):
+        #return None 
+        obj = None
+        
+        md = Resource(
+                path, 
+                provider, 
+                format='jdbc', 
+                **kwargs)
+        
+        options =  md['options']
+
+        try:
+            if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
+                    obj = self.context.read \
+                        .format('jdbc') \
+                        .option('url', md['url']) \
+                        .option("dbtable", md['table']) \
+                        .option("driver", md['driver']) \
+                        .option("user", md['user']) \
+                        .option('password', md['password']) \
+                        .options(**options)
+                    # load the data from jdbc
+                    obj = obj.load(**kwargs)
+            else:
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return obj     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
+        except Exception as e:
+            logging.error(e, extra={'md': md})
+    
+        return obj
+                
+            
+    def load(self, path=None, provider=None, *args, format=None, **kwargs):
+        
+        md = Resource(
+                path, 
+                provider, 
+                format=format, 
+                **kwargs)
+
+        if md['format'] == 'csv':
+            return self.load_csv(path, provider, **kwargs)
+        elif md['format'] == 'json':
+            return self.load_json(path, provider, **kwargs)
+        elif md['format'] == 'parquet':
+            return self.load_parquet(path, provider, **kwargs)
+        elif md['format'] == 'jdbc':
+            return self.load_jdbc(path, provider, **kwargs)
+        else:
+            logging.error(
+                    f'Unknown resource format "{md["format"]}"', 
+                    extra={'md': to_dict(md)})
+        return None
+
+
+    def save_plus(self, obj, path=None, provider=None, **kwargs):
+        md = Resource(path, provider, **kwargs)
     
         prep_start = timer()
         options = md['options'] or {}
@@ -553,7 +660,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         if md['date_partition'] and md['date_column']:
             tzone = 'UTC' if self._timestamps == 'naive' else self._timezone
             obj = dataframe.add_datetime_columns(obj, column=md['date_column'], tzone=tzone)
-            kargs['partitionBy'] = ['_date'] + kargs.get('partitionBy', options.get('partitionBy', []))
+            kwargs['partitionBy'] = ['_date'] + kwargs.get('partitionBy', options.get('partitionBy', []))
     
         if md['update_column']:
             obj = dataframe.add_update_column(obj, tzone=self._timezone)
@@ -576,18 +683,18 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         num_cols = len(obj.columns)
     
         # force 1 file per partition, just before saving
-        obj = obj.repartition(1, *kargs['partitionBy']) if kargs.get('partitionBy') else obj.repartition(1)
+        obj = obj.repartition(1, *kwargs['partitionBy']) if kwargs.get('partitionBy') else obj.repartition(1)
         # obj = obj.coalesce(1)
     
         prep_end = timer()
     
         core_start = timer()
-        result = self.save_dataframe(obj, md, **kargs)
+        result = self.save_dataframe(obj, md, **kwargs)
         core_end = timer()
     
         log_data = {
             'md': dict(md),
-            'mode': kargs.get('mode', options.get('mode')),
+            'mode': kwargs.get('mode', options.get('mode')),
             'records': num_rows,
             'columns': num_cols,
             'time': core_end - prep_start,
@@ -599,39 +706,20 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
     
         return result
     
-    
     def is_spark_local(self):
-        return self.conf.get('spark.master').startswith('local[')
+        return self.conf.get('spark.master').startswith('local[')    
     
-    
-    def save_with_pandas(self, md, kargs):
-        if not self.is_spark_local():
-            logging.warning("Fallback dataframe writer")
-    
-        if os.path.exists(md['url']) and os.path.isdir(md['url']):
-            shutil.rmtree(md['url'])
-    
-        # conversion of *some* pyspark arguments to pandas
-        if md['format'] == 'csv':
-            kargs.pop('mode', None)
-            kargs['index'] = False
-    
-            if kargs.get('header') is None:
-                kargs['header'] = False
-    
-        return kargs
-    
-    
-    def directory_to_file(self, path, ext):
+    def directory_to_file(self, path):
         if os.path.exists(path) and os.path.isfile(path):
             return
     
         dirname = os.path.dirname(path)
         basename = os.path.basename(path)
     
-        filename = list(filter(lambda x: x.endswith(ext), os.listdir(path)))
+        filename = list(filter(lambda x: x.startswith('part-'), os.listdir(path)))
         if len(filename) != 1:
-            logging.warning('cannot convert if more than a partition present')
+            if len(filename)>1:
+                logging.warning('cannot convert if more than a partition present')
             return
         else:
             filename = filename[0]
@@ -642,87 +730,250 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
     
         shutil.move(os.path.join(dirname, filename), os.path.join(dirname, basename))
         return
-    
-    
-    def save(self, obj, path=None, provider=None, **kargs):
-        md = Resource(path, provider, **kargs)
+  
+    def save_parquet(self, obj, path=None, provider=None, *args, 
+                 mode=None, **kwargs):
+
+        md = Resource(
+                path, 
+                provider, 
+                format='parquet', 
+                mode=mode, 
+                **kwargs)
         options = md['options']
+        
+        # after collecting from metadata, or method call, define defaults
+        options['mode'] = options['mode'] or 'overwrite'
+                               
+        local = self.is_spark_local()
+                               
         try:
-            if md['service'] in ['local', 'file']:
-                if md['format'] == 'csv':
-                    if self.is_spark_local():
-                        obj.coalesce(1).write.options(**options).csv(md['url'], **kargs)
-                        self.directory_to_file(md['url'], 'csv')
-                    else:
-                        kargs = self.save_with_pandas(md, kargs)
-                        obj.toPandas().to_csv(md['url'], **kargs)
-    
-                elif md['format'] == 'json':
-                    if self.is_spark_local():
-                        obj.coalesce(1).write.options(**options).json(md['url'], **kargs)
-                        self.directory_to_file(md['url'], 'json')
-                    else:
-                        self.save_with_pandas(md, kargs)
-                        obj.toPandas().to_json(md['url'])
-    
-                elif md['format'] == 'jsonl':
-                    if self.is_spark_local():
-                        obj.coalesce(1).write.options(**options) \
-                            .option('multiLine', True) \
-                            .json(md['url'], **kargs)
-                        self.directory_to_file(md['url'], 'json')
-                    else:
-                        self.save_with_pandas(md, kargs)
-                        obj.toPandas().to_json(md['url'], orient='records', lines=True)
-                elif md['format'] == 'parquet':
-                    if self.is_spark_local():
-                        obj.coalesce(1).write.options(**options).parquet(md['url'], **kargs)
-                    else:
-                        self.save_with_pandas(md, kargs)
-                        obj.toPandas().to_parquet(md['url'])
-                else:
-                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
-                    return False
-    
-            elif md['service'] in ['hdfs', 'minio', 's3a']:
-                if md['format'] == 'csv':
-                    obj.write.options(**options).csv(md['url'], **kargs)
-                elif md['format'] == 'json':
-                    obj.write.options(**options).json(md['url'], **kargs)
-                elif md['format'] == 'jsonl':
-                    obj.write.options(**options) \
-                        .option('multiLine', True) \
-                        .json(md['url'], **kargs)
-                elif md['format'] == 'parquet':
-                    obj.write.options(**options).parquet(md['url'], **kargs)
-                else:
-                    logging.error({'md': md, 'error_msg': f'Unknown format "{md["format"]}"'})
-                    return False
-    
-            elif md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
-                obj.write \
-                    .format('jdbc') \
-                    .option('url', md['url']) \
-                    .option("dbtable", md['table']) \
-                    .option("driver", md['driver']) \
-                    .option("user", md['username']) \
-                    .option('password', md['password']) \
-                    .options(**options) \
-                    .save(**kargs)
-    
-            elif md['service'] == 'elastic':
-                mode = kargs.get("mode", None)
-                obj = [row.asDict() for row in obj.collect()]
-                elastic.write(obj, md['url'], mode, md['resource_path'], options['settings'], options['mappings'])
+            #three approaches: file-local, local+cluster, and service
+            if md['service'] == 'file' and local:
+                obj.coalesce(1).write\
+                    .format('parquet')\
+                    .mode(options['mode'])\
+                    .options(**options)\
+                    .parquet(md['url'])
+                
+            elif md['service'] == 'file':
+                if os.path.exists(md['url']) and os.path.isdir(md['url']):
+                    shutil.rmtree(md['url'])
+
+                # save with pandas
+                obj.toPandas().to_parquet(
+                    md['url'], 
+                    mode=options['mode'])
+
+            elif md['service'] in ['hdfs', 's3a']:
+               obj.write\
+                    .format('parquet')\
+                    .mode(options['mode'])\
+                    .options(**options)\
+                    .parquet(md['url'])
             else:
-                logging.error({'md': md, 'error_msg': f'Unknown service "{md["service"]}"'})
-                return False
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return False     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
         except Exception as e:
             logging.error({'md': md, 'error_msg': str(e)})
             raise e
     
         return True
+
+    def save_csv(self, obj, path=None, provider=None, *args, 
+                 mode=None, sep=None, header=None, **kwargs):
+
+        md = Resource(
+                path, 
+                provider, 
+                format='csv', 
+                mode=mode, 
+                sep=sep, 
+                header=header, 
+                **kwargs)
+
+        options = md['options']
+        
+        # after collecting from metadata, or method call, define csv defaults
+        options['header'] = options['header'] or 'true'
+        options['sep'] = options['sep'] or ','
+        options['mode'] = options['mode'] or 'overwrite'
+                               
+        local = self.is_spark_local()
+                               
+        try:
+            #three approaches: file+local, file+cluster, and service
+            if md['service'] == 'file' and local:
+                obj.coalesce(1).write\
+                    .format('csv')\
+                    .mode(options['mode'])\
+                    .options(**options)\
+                    .csv(md['url'])
+                self.directory_to_file(md['url'])
+
+            elif md['service'] == 'file':
+                if os.path.exists(md['url']) and os.path.isdir(md['url']):
+                    shutil.rmtree(md['url'])
+
+                # save with pandas
+                obj.toPandas().to_csv(
+                    md['url'], 
+                    mode=options['mode'], 
+                    header=options['header'], 
+                    sep=options['sep'])
+
+            elif md['service'] in ['hdfs', 's3a']:
+                obj.write\
+                    .format('csv')\
+                    .mode(options['mode'])\
+                    .options(**options)\
+                    .csv(md['url'])
+            else:
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return False     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
+        except Exception as e:
+            logging.error({'md': md, 'error_msg': str(e)})
+            raise e
     
+        return True
+                               
+                               
+    def save_json(self, obj, path=None, provider=None, *args, 
+                 mode=None, lines=None, **kwargs):
+
+        md = Resource(
+                path, 
+                provider, 
+                format='csv', 
+                mode=mode, 
+                lines=lines,
+                **kwargs)
+
+        options = md['options']
+        
+        # after collecting from metadata, or method call, define csv defaults
+        options['mode'] = options['mode'] or 'overwrite'
+        options['lines'] = options['lines'] or True
+                               
+        local = self.is_spark_local()
+                               
+        try:
+            #three approaches: local, cluster, and service
+            if local and md['service'] == 'file' and options['lines']:
+                obj.coalesce(1).write\
+                    .format('json')\
+                    .mode(options['mode'])\
+                    .options(**options)\
+                    .json(md['url'])
+                self.directory_to_file(md['url'])
+
+            elif md['service'] == 'file':
+                # fallback, use pandas
+                # save single files, not directories
+                if os.path.exists(md['url']) and os.path.isdir(md['url']):
+                    shutil.rmtree(md['url'])
+
+                # save with pandas
+                obj.toPandas().to_json(
+                    md['url'], 
+                    mode=options['mode'], 
+                    lines=options['lines'])
+
+            elif md['service'] in ['hdfs', 's3a']:
+                obj.write\
+                    .format('json')\
+                    .mode(options['mode'])\
+                    .options(**options)\
+                    .json(md['url'])
+            else:
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return False     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
+        except Exception as e:
+            logging.error({'md': md, 'error_msg': str(e)})
+            raise e
+    
+        return True
+
+    def save_jdbc(self, obj, path=None, provider=None, *args, mode=None, **kwargs):
+        md = Resource(
+                path, 
+                provider, 
+                format='jdbc', 
+                mode=mode,
+                **kwargs)
+
+        options = md['options']
+        
+        # after collecting from metadata, or method call, define csv defaults
+        options['mode'] = options['mode'] or 'overwrite'
+                               
+        try:
+            #three approaches: local, cluster, and service
+            if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
+                obj.write \
+                    .format('jdbc') \
+                    .option('url', md['url']) \
+                    .option("dbtable", md['table']) \
+                    .option("driver", md['driver']) \
+                    .option("user", md['user']) \
+                    .option('password', md['password']) \
+                    .options(**options) \
+                    .mode(options['mode'])\
+                    .save()
+            else:
+                logging.error(
+                    f'Unknown resource service "{md["service"]}"', 
+                    extra={'md': to_dict(md)})
+                return False     
+                               
+        except AnalysisException as e:
+            logging.error(str(e), extra={'md': md})
+        except Exception as e:
+            logging.error({'md': md, 'error_msg': str(e)})
+            raise e
+    
+        return True
+                               
+    def save(self, obj, path=None, provider=None, *args, format=None, mode=None, **kwargs):
+        
+        md = Resource(
+                path, 
+                provider, 
+                format=format, 
+                mode=mode,
+                **kwargs)
+
+        if md['format'] == 'csv':
+            return self.save_csv(obj, path, provider, mode=mode, **kwargs)
+        elif md['format'] == 'tsv':
+            kwargs['sep'] = '\t'
+            return self.save_csv(obj, path, provider, mode=mode, **kwargs)
+        elif md['format'] == 'json':
+            return self.save_json(obj, path, provider, mode=mode, **kwargs)
+        elif md['format'] == 'jsonl':
+            return self.save_json(obj, path, provider, mode=mode, **kwargs)
+        elif md['format'] == 'parquet':
+            return self.save_parquet(obj, path, provider, mode=mode, **kwargs)
+        elif md['format'] == 'jdbc':
+            return self.save_jdbc(obj, path, provider, mode=mode, **kwargs)
+        else:
+            logging.error(f'Unknown format "{md["service"]}"', extra={'md':md})
+            return False
     
     def copy(self, md_src, md_trg, mode='append'):
         # timer

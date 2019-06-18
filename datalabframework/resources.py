@@ -125,24 +125,35 @@ def metadata_overrides(md, host=None, service=None, port=None, user=None, passwo
                 driver=None, database=None, schema=None, table=None, format=None, 
                 hostname=None, username=None, **options):
     
-    md['host'] = host or hostname or md['host'] or md.get('hostname')
-    md['port'] = port or md['port']
-
-    md['service'] = service or md['service']
-    md['format'] = format or md['format']
-
-    md['user'] =  user or username or md['user'] or md.get('username')
-    md['password'] =  password or md['password']
+    d = {}
+    d['path'] = md.get('url') or md.get('path')
+    d['provider'] = md.get('provider')
     
-    md['database'] =  database or md['database']
-    md['schema'] =  schema or md['schema']
-    md['table'] = table or md['table']
-    md['driver'] =  driver or md['driver']
-    md['options'] = options or md['options']
+    d['host'] = host or hostname or md['host'] or md.get('hostname')
+    d['port'] = port or md['port']
+
+    d['service'] = service or md['service']
+    d['format'] = format or md['format']
+
+    d['user'] =  user or username or md['user'] or md.get('username')
+    d['password'] =  password or md['password']
+    
+    d['database'] =  database or md['database']
+    d['schema'] =  schema or md['schema']
+    d['table'] = table or md['table']
+    d['driver'] =  driver or md['driver']
+    d['options'] = merge(md['options'], options)
     
     if database or table:
-        md['path'] = None
+        d['path'] = None
+    
+    return d
 
+def resource_from_dict(d):
+    md = get_default_md()
+    d['path'] = d.get('path') or d.get('url')
+    for k in md.keys():
+        md[k] = d.get(k)
     return md
 
 def resource_from_urn(urn):
@@ -154,12 +165,17 @@ def resource_from_urn(urn):
         md['format'] = 'jdbc'
         return md
     
+    params = dict(urn.params)
+    
     if urn.scheme and urn.scheme[0]=='jdbc':
         service, format = urn.scheme[1], urn.scheme[0]        
     else:
-        _, format = os.path.splitext(urn.path)
-        format = format[1:] if len(format)>1 else ''
         service = urn.scheme[0] if urn.scheme else ''
+        format = get_format({'format':None, 'service': service, 'path': urn.path})
+        
+        compression = get_compression(urn.path)
+        if compression:
+            params['compression'] = compression
     
     md['service'] = service
     md['format'] = format
@@ -171,7 +187,7 @@ def resource_from_urn(urn):
     md['user'] = urn.user
     md['password'] = urn.password
 
-    md['options'] = dict(urn.params)
+    md['options'] = params
     
     for k,v in md.items():
         if not v:
@@ -204,7 +220,7 @@ def to_resource(url_alias=None, *args, **kwargs):
     
     # if a dict, create from dictionary
     if isinstance(url_alias, dict):
-        md = metadata_overrides(get_default_md(), **url_alias)
+        md = resource_from_dict(url_alias)
     
     # if a string, and a metadata profile is loaded, check for aliases
     if metadata.profile():
@@ -239,6 +255,17 @@ def to_resource(url_alias=None, *args, **kwargs):
     
     return md
 
+def get_compression(path):
+    if not path:
+        return None
+    
+    _, ext = os.path.splitext(path)
+    d = {
+        '.gz':'gzip', 
+        '.bz2':'bzip2',
+    }
+    return d.get(ext)
+     
 def get_format(md):
     
     if md['format']:
@@ -257,9 +284,15 @@ def get_format(md):
         return 'jdbc'
     
     # extract the format from file extension
-    _, ext = os.path.splitext(md['path'])
-
-    # default is parquet
+    #‘.gz’, ‘.bz2’, ‘.zip’, ‘.snappy’, '.deflate'
+    path, ext = os.path.splitext(md['path'])
+    if get_compression(md['path']):
+        _, ext = os.path.splitext(path)
+    
+    if ext and ext[0]=='.':
+        ext = ext[1:]
+        
+    # default is None
     return ext or None
 
 def get_driver(service):
@@ -361,16 +394,25 @@ def process_metadata(md):
         md['schema'] = md['schema'] or default_schemas.get(md['service'])
         
         query = get_sql_query(md['table'])
-        if query:
+        if query and not query.endswith('as _query'):
             md['table'] = '( {} ) as _query'.format(query)
 
     md['port'] = md['port'] or get_port(md['service'])
     md['port'] = int(md['port']) if md['port'] else None
     md['url'] = get_url(md)
 
-    md['options'] = md['options'] or {}
+    if not isinstance(md['options'], dict):
+        md['options'] = {}
     
-    h_list = [zlib.crc32(md[k].encode()) for k in ['url', 'format', 'table', 'database'] if md[k]]
+    compression = get_compression(md['path'])
+    if md['format']!='jdbc' and compression:
+        md['options']['compression'] = compression
+    
+    h_list = []
+    for k in ['url', 'format', 'table', 'database']:
+        v = zlib.crc32(md[k].encode()) if md[k] else 0
+        h_list.append(v)
+        
     md['hash'] = functools.reduce(lambda a,b : a^b, h_list)
     md['hash'] = hex(ctypes.c_size_t(md['hash']).value)
     
@@ -412,9 +454,6 @@ def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
     prov = provider_path_or_alias_or_url
     path = path_or_alias_or_url
     
-    prov_is_dict = isinstance(prov, dict)
-    path_is_dict = isinstance(path, dict)
-    
     # get the resource, by alias metadata or by url
     rmd = to_resource(path, host=host, service=service, port=port, 
         user=user, password=password, driver=driver, database=database, 
@@ -426,6 +465,8 @@ def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
     
     # get the provider, by alias metadata or by url
     pmd = to_resource(prov)
+    
+    # check if the provider is a jdbc connection, if so set it
     pmd['database'], pmd['table'], pmd['path'] = path_to_jdbc(pmd, True)
 
     # merge provider and resource metadata

@@ -38,7 +38,7 @@ def to_ordered_dict(d, keys):
 def merge(a, b):
     """
     Hierarchical merge of dictionaries, lists, tuples and sets.
-    If b is falsy, it keeps a, otherwise it merges with a.
+    If b is None, it keeps a, otherwise it merges with a.
     In case of ambiguities, b overrides a
     it returns is a deepcopy, not a reference of the original objects.
     """

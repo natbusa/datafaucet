@@ -48,7 +48,7 @@ def register(cls, alias):
     _engines[cls.__name__] = cls
     _engines[alias] = cls
     
-    print('Registering names ', cls.__name__, alias, ' for class ', cls)
+    logging.info('Registering names ', cls.__name__, alias, ' for class ', cls)
 
 def Engine(engine_type=None, *args, **kwargs):
     global _engines
@@ -60,8 +60,15 @@ def Engine(engine_type=None, *args, **kwargs):
         else:
             print('Could not create the Engine:')
             print('No matching engine type in', ', '.join(_engines.keys()))
-        
-    return _singleton['instance']
+    
+    engine = _singleton['instance']
+    
+    if not engine:
+        logging.error(
+            'No Engine running yet. \n'
+            'try datalabframework.engine(...) or datalabframework.project.load(...)')
+    
+    return engine
 
 def engine(engine_type=None, *args, **kwargs):
     return Engine(engine_type, *args, **kwargs)
@@ -90,7 +97,7 @@ class EngineBase:
     def load(self, *args, **kwargs):
         raise NotImplementedError
 
-    def save(self, *args, **kwargs):
+    def save(self, obj, path=None, provider=None, *args,  mode='error', **kwargs):
         raise NotImplementedError
 
     def copy(self, *args, **kwargs):
