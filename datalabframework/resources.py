@@ -13,6 +13,8 @@ from datalabframework.paths import rootdir
 from datalabframework._utils import merge, to_ordered_dict
 from datalabframework.yaml import YamlDict
 
+from datalabframework.download import download
+
 import datalabframework.logging as log
 
 Urn = namedtuple('Urn', ['scheme', 'user', 'password', 'host', 'port', 'path', 'params', 'query', 'fragment'])
@@ -321,26 +323,28 @@ def get_url(md):
     service = md['service']
     path = md['path']
     
+    host_port = f"{md['host']}:{md['port']}" if md['port'] else md['host']
+    
     if  service in ['local', 'file']:
         url = path
     elif service == 'sqlite':
         url = f"jdbc:sqlite:{path}"
     elif service == 'hdfs':
-        url = f"hdfs://{md['host']}:{md['port']}{md['path']}"
+        url = f"hdfs://{host_port}{md['path']}"
     elif service in ['http', 'https']:
-        url = f"{service}://{md['host']}:{md['port']}{md['path']}"
+        url = f"{service}://{host_port}{md['path']}"
     elif service in ['minio', 's3a']:
         url = f"s3a://{md['path']}'"
     elif service == 'mysql':
-        url = f"jdbc:mysql://{md['host']}:{md['port']}/{md['database']}"
+        url = f"jdbc:mysql://{host_port}/{md['database']}"
     elif service == 'postgres':
-        url = f"jdbc:postgresql://{md['host']}:{md['port']}/{md['database']}"
+        url = f"jdbc:postgresql://{host_port}/{md['database']}"
     elif service == 'mssql':
-        url = f"jdbc:sqlserver://{md['host']}:{md['port']};databaseName={md['database']}"
+        url = f"jdbc:sqlserver://{host_port};databaseName={md['database']}"
     elif service == 'oracle':
-        url = f"jdbc:oracle:thin:@//{md['host']}:{md['port']}/{md['database']}"
+        url = f"jdbc:oracle:thin:@//{host_port}/{md['database']}"
     elif service == 'elastic':
-        url = f"http://{md['host']}:{md['port']}/{md['database']}"
+        url = f"http://{host_port}/{md['database']}"
 
     return url
 
@@ -489,3 +493,12 @@ def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
     md = assemble_metadata(md)
 
     return md
+
+def get_local(md):
+    if md['service'].startswith('http'):
+        md['path']  = download(md['url'], md['format'])
+        md['service'] = 'file'
+        md['url'] = None
+        return Resource(md)
+    else:
+        return md

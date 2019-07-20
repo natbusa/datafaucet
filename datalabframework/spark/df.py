@@ -3,12 +3,18 @@ from datalabframework.decorators import add_method
 
 from pyspark.sql import DataFrame
 
+# monkey patching: try to limit to a minimum
+
+# 2 methods and 3 attributes in total
+# df.save, df.datalabframework
+# df.rows, df.cols, df.data
+
 DataFrame.save = dlf.io.save
-DataFrame.save_csv = dlf.io.save_csv
-DataFrame.save_json = dlf.io.save_json
-DataFrame.save_parquet = dlf.io.save_parquet
-DataFrame.save_jdbc = dlf.io.save_jdbc
 
 @add_method(DataFrame)
 def datalabframework(self):
     print('datalabframework', dlf.__version__)
+
+from .rows import *
+from .cols import *
+from .data import *

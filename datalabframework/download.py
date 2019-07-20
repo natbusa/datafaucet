@@ -27,6 +27,7 @@ def download(url, file_format=None, path=None):
             print(f"Downloaded {bytes_downloaded} bytes")
     except IOError as e:
             print(e)
+            raise(e)
     finally:
         f.close()
         

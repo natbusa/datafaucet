@@ -8,7 +8,7 @@ import logging as python_logging
 from datalabframework import logging
 from datalabframework import elastic
 
-from datalabframework.resources import Resource
+from datalabframework.resources import Resource, get_local
 
 from datalabframework.yaml import YamlDict, to_dict
 
@@ -455,6 +455,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 header=header, 
                 **kwargs)
 
+        # download if necessary
+        md = get_local(md)
+        
         options =  md['options']
         
         # after collecting from metadata, or method call, define csv defaults
@@ -507,6 +510,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 mergeSchema=mergeSchema, 
                 **kwargs)
 
+        # download if necessary
+        md = get_local(md)
+
         options =  md['options']
         
         # after collecting from metadata, or method call, define csv defaults
@@ -552,6 +558,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 format='json',
                 lines=lines, 
                 **kwargs)
+
+        # download if necessary
+        md = get_local(md)
 
         options =  md['options']
         
