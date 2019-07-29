@@ -48,7 +48,7 @@ class Rows:
     def sample(self, n=1000, *cols, random_state=True):
         return _sample(self.df, n, *cols, random_state)
 
-    def pack(self, partition=1, bucket=1, order=None, sample=1.0, ):
+    def pack(self, partition=1, bucket=1, order=None, sample=1.0):
         df = (self.df
                 .select(self.columns)
                 .partitionBy(partition)

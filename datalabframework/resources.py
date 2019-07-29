@@ -103,6 +103,7 @@ def get_default_md():
     f = [
         'service',
         'format',
+        'version',
         
         'host',
         'port',
@@ -125,7 +126,7 @@ def get_default_md():
 
 def metadata_overrides(md, host=None, service=None, port=None, user=None, password=None,
                 driver=None, database=None, schema=None, table=None, format=None, 
-                hostname=None, username=None, **options):
+                version=None, hostname=None, username=None, **options):
     
     d = {}
     d['path'] = md.get('url') or md.get('path')
@@ -136,6 +137,7 @@ def metadata_overrides(md, host=None, service=None, port=None, user=None, passwo
 
     d['service'] = service or md['service']
     d['format'] = format or md['format']
+    d['version'] = version or md['version']
 
     d['user'] =  user or username or md['user'] or md.get('username')
     d['password'] =  password or md['password']
@@ -303,7 +305,8 @@ def get_driver(service):
         'mysql': 'com.mysql.cj.jdbc.Driver',
         'postgres': 'org.postgresql.Driver',
         'mssql': 'com.microsoft.sqlserver.jdbc.SQLServerDriver',
-        'oracle': 'oracle.jdbc.driver.OracleDriver'
+        'oracle': 'oracle.jdbc.driver.OracleDriver',
+        'clickhouse': 'ru.yandex.clickhouse.ClickHouseDriver'
     }
     return drivers.get(service)
 
@@ -314,10 +317,23 @@ def get_port(service):
         'postgres': 5432,
         'mssql': 1433,
         'oracle': 1521,
+        'clickhouse':8123,
         'elastic': 9200,
         's3a':9000
     }
     return ports.get(service)
+
+def get_version(service):
+    versions = {
+        'sqlite': '3.25.2',
+        'mysql': '8.0.12',
+        'postgres': '42.2.5',
+        'mssql': '6.4.0.jre8',
+        'oracle': '12.2.0.1',
+        'clickhouse':'0.1.54',
+        's3a':'3.1.1'
+    }
+    return versions.get(service)
 
 def get_url(md):
     service = md['service']
@@ -339,6 +355,8 @@ def get_url(md):
         url = f"jdbc:mysql://{host_port}/{md['database']}"
     elif service == 'postgres':
         url = f"jdbc:postgresql://{host_port}/{md['database']}"
+    elif service == 'clickhouse':
+        url = f"jdbc:clickhouse://{host_port}/{md['database']}"
     elif service == 'mssql':
         url = f"jdbc:sqlserver://{host_port};databaseName={md['database']}"
     elif service == 'oracle':
@@ -392,6 +410,7 @@ def process_metadata(md):
             'mysql': md['database'],
             'mssql': 'dbo',
             'postgres': 'public',
+            'clickhouse': 'default',
             'oracle': md['user']
         }
         
@@ -400,6 +419,8 @@ def process_metadata(md):
         query = get_sql_query(md['table'])
         if query and not query.endswith('as _query'):
             md['table'] = '( {} ) as _query'.format(query)
+
+    md['version'] = md['version'] or get_version(md['service'])
 
     md['port'] = md['port'] or get_port(md['service'])
     md['port'] = int(md['port']) if md['port'] else None
@@ -427,6 +448,7 @@ def assemble_metadata(md):
         'hash',
         'url',
         'service',
+        'version',
         'format',
         
         'host'
@@ -453,7 +475,7 @@ def assemble_metadata(md):
 def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None, 
         host=None, service=None, port=None, user=None, password=None,
         driver=None, database=None, schema=None, table=None, format=None, 
-        hostname=None, username=None, **options):
+        version=None, hostname=None, username=None, **options):
 
     prov = provider_path_or_alias_or_url
     path = path_or_alias_or_url
@@ -461,8 +483,8 @@ def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
     # get the resource, by alias metadata or by url
     rmd = to_resource(path, host=host, service=service, port=port, 
         user=user, password=password, driver=driver, database=database, 
-        schema=schema, table=table, format=format, hostname=hostname, 
-        username=username, **options)
+        schema=schema, table=table, format=format, version=version, 
+        hostname=hostname, username=username, **options)
     
     # get the provider by reference from the resource, if available
     prov = prov or rmd.get('provider')

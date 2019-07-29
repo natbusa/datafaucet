@@ -2,7 +2,7 @@ import os
 import getpass
 
 from .application import DatalabframeworkApp
-from traitlets import Unicode, Dict
+from traitlets import Unicode, Dict, Bool
 
 from cookiecutter.main import cookiecutter
 
@@ -14,13 +14,20 @@ class DlfInitApp(DatalabframeworkApp):
     config_file = Unicode(u'', help="Load this config file").tag(config=True)
 
     template = Unicode(u'default', help="Project template").tag(config=True)
-    username = Unicode(getpass.getuser(), help="Author name").tag(config=True)
-    name = Unicode(u'datalab-project', help="Project name").tag(config=True)
+    username = Unicode(getpass.getuser(), help="Author username").tag(config=True)
+    fullname = Unicode(getpass.getuser(), help="Author full name").tag(config=True)
+    name = Unicode(u'dlf-project', help="Project name").tag(config=True)
+    desc = Unicode(u'Project scaffolding for ETL and Data Science', help="Project name").tag(config=True)
+
+    prompt = Bool(False, help=u'Suppress cli input via prompt').tag(config=True)
 
     aliases = Dict({
         'template': 'DlfInitApp.template',
         'username': 'DlfInitApp.username',
-        'name': 'DlfInitApp.name'
+        'fullname': 'DlfInitApp.fullname',
+        'name': 'DlfInitApp.name',
+        'desc': 'DlfInitApp.desc',
+        'prompt': 'DlfInitApp.prompt'
     })
 
     flags = Dict()
@@ -39,8 +46,16 @@ class DlfInitApp(DatalabframeworkApp):
 
         filename = '{}'.format(os.path.join(dir_path, self.template))
 
+        # content from cli or prompt (if enabled)
+        extra_context={
+            'username': self.username, 
+            'fullname': self.fullname, 
+            'project_name': self.name, 
+            'project_short_description': self.desc
+        }
+        
         # Create project from the cookiecutter-pypackage/ template
-        cookiecutter(filename, extra_context={'username': self.username, 'project_name': self.name})
+        cookiecutter(filename, no_input=self.prompt, extra_context=extra_context)
 
 
 def main():

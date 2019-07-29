@@ -5,14 +5,10 @@ providers:
         service: file
         path: data
         format: csv
-        read:
-            options:
-                header: True
-                inferSchema: True
-        write:
-            options:
-                header: True
-                mode: overwrite
+        options:
+            header: True
+            inferSchema: True
+            mode: overwrite
 
 resources:
     ascombe:
@@ -25,10 +21,15 @@ resources:
 
 engine:
     type: spark
-    context:
-        master: local[1]
+    master: local[1]
 
 loggers:
-    stream:
-        enable: true
-        severity: info
+    datalabframework:
+        name: dlf
+        stream:
+            enable: true
+            severity: notice
+        file:
+            path: 'dlf.log'
+            enable: true
+            severity: info

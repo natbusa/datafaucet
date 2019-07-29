@@ -123,8 +123,12 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # if service is a string, make a resource out of it
         
         resources = [s if isinstance(s, dict) else Resource(service=s) for s in services ]
-        services = set([r['service'] for r in resources])
-
+        
+        # create a dictionary of services and versions,
+        services = {}
+        for r in resources:
+            services[r['service']] = r['version']
+        
         submit_types = ['jars', 'packages', 'repositories', 'py-files', 'files', 'conf']
 
         submit_objs = dict()
@@ -134,32 +138,47 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         if not services:
             return submit_objs
 
-        services = sorted(list(services))
-
+        services = dict(sorted(services.items()))
+        
         # get hadoop, and configured metadata services
         hadoop_version = self.info['hadoop_version']
+
+        #### submit: repositories
+        repositories = submit_objs['repositories']
 
         #### submit: jars
         jars = submit_objs['jars']
 
-        if 'oracle' in services:
-            jar = 'http://www.datanucleus.org/downloads/maven2/'
-            jar += 'oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar'
-            jars.append(jar)
-
         #### submit: packages
         packages = submit_objs['packages']
 
-        for v in services:
-            if v == 'mysql':
-                packages.append('mysql:mysql-connector-java:8.0.12')
-            elif v == 'sqlite':
-                packages.append('org.xerial:sqlite-jdbc:3.25.2')
-            elif v == 'postgres':
-                packages.append('org.postgresql:postgresql:42.2.5')
-            elif v == 'mssql':
-                packages.append('com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8')
-            elif v == 's3a':
+        for s, v in services.items():
+            if s == 'mysql':
+                packages.append(f'mysql:mysql-connector-java:{v}')
+            elif s == 'sqlite':
+                packages.append(f'org.xerial:sqlite-jdbc:{v}')
+            elif s == 'postgres':
+                packages.append(f'org.postgresql:postgresql:{v}')
+            elif s == 'oracle':
+                vv = v.split('.') if v else [0,0,0,0]
+                
+                repositories.append('http://maven.icm.edu.pl/artifactory/repo/')
+                repositories.append('https://maven.xwiki.org/externals')
+                
+                if vv[0]=='12' and vv[1]=='2':
+                    packages.append(f'com.oracle.jdbc:ojdbc8:{v}')
+                elif vv[0]=='12' and vv[1]=='1':
+                    packages.append(f'com.oracle.jdbc:ojdbc7:{v}')
+                elif vv[0]=='11':
+                    packages.append(f'com.oracle.jdbc:ojdbc6:{v}')
+                else:
+                    logging.warning(f'could not autodetect the oracle '
+                                    'ojdbc driver to install for {s}, version {v}')
+            elif s == 'mssql':
+                packages.append(f'com.microsoft.sqlserver:mssql-jdbc:{v}')
+            elif s == 'clickhouse':
+                packages.append(f'ru.yandex.clickhouse:clickhouse-jdbc:{v}')
+            elif s == 's3a':
                 if hadoop_version:
                     packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
                 else:
@@ -612,7 +631,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options =  md['options']
 
         try:
-            if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
+            if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
                     obj = self.context.read \
                         .format('jdbc') \
                         .option('url', md['url']) \
@@ -933,7 +952,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                                
         try:
             #three approaches: local, cluster, and service
-            if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'oracle']:
+            if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
                 obj.write \
                     .format('jdbc') \
                     .option('url', md['url']) \

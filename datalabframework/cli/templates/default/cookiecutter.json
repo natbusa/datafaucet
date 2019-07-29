@@ -1,10 +1,10 @@
 {
-    "full_name": "",
-    "email": "",
     "username": "",
+    "fullname": "",
     "project_name": "datalab-project",
     "project_short_description": "Project scaffolding for ETL and Data Science",
     "licence":"MIT",
+    
     "_copy_without_render": [
         "*metadata.yml",
         "*data"
