@@ -1,6 +1,6 @@
-from datalabframework.metadata import reader
-from datalabframework import paths
-from datalabframework._utils import Singleton
+from dataloof.metadata import reader
+from dataloof import paths
+from dataloof._utils import Singleton
 
 import os
 from textwrap import dedent

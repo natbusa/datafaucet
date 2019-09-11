@@ -3,10 +3,10 @@ import os
 import pytest
 from testfixtures import TempDirectory
 
-from datalabframework import _project
-from datalabframework import project
-from datalabframework._utils import Singleton
-from datalabframework import paths
+from dataloof import _project
+from dataloof import project
+from dataloof._utils import Singleton
+from dataloof import paths
 
 
 @pytest.fixture()

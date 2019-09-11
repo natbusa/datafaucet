@@ -1,5 +1,5 @@
 #!/usr/bin/env python
 
 """Launch the root jupyter command"""
-from datalabframework.cli.command import main
+from dataloof.cli.command import main
 main()

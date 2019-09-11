@@ -1,6 +1,6 @@
-from datalabframework.metadata import resource
-from datalabframework._utils import merge
-from datalabframework import paths
+from dataloof.metadata import resource
+from dataloof._utils import merge
+from dataloof import paths
 
 import os
 

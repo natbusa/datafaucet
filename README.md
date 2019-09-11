@@ -1,5 +1,5 @@
 
-# Datalabframework
+# Dataloof
 
 Basic example and directory structure.
 
@@ -9,7 +9,7 @@ This ETL/Data Science scaffolding works using a number of elements:
 
   - The introductory python notebook you are reading now (main.ipynb)
   - A directory structure for code and data processing (data)
-  - The datalabframework python package (datalabframework)
+  - The dataloof python package (dataloof)
   - Configuration files (metadata.yml, \__main__.py, Makefile)
 
 ## Principles ##
@@ -64,7 +64,7 @@ The data science project is structured in a way to facilitate the deployment of 
 
 
 ```python
-import datalabframework as dlf
+import dataloof as dlf
 ```
 
 ### Package things
@@ -94,23 +94,23 @@ dlf.__version__
 
 
 
-Check is the datalabframework is loaded in the current python context
+Check is the dataloof is loaded in the current python context
 
 
 ```python
 try:
-    __DATALABFRAMEWORK__
-    print("the datalabframework is loaded")
+    __DATALOOF__
+    print("the dataloof is loaded")
 except NameError:
-    print("the datalabframework is not loaded")
+    print("the dataloof is not loaded")
 ```
 
-    the datalabframework is loaded
+    the dataloof is loaded
 
 
 
 ```python
-#list of modules loaded as `from datalabframework import * ` 
+#list of modules loaded as `from dataloof import * ` 
 dlf.__all__
 ```
 
@@ -123,18 +123,18 @@ dlf.__all__
 
 ### Modules: project
 
-Project is all about setting the correct working directories where to run and find your notebooks, python files and configuration files. When the datalabframework is imported, it starts by searching for a `__main__.py` file, according to python module file naming conventions. All modules and alias paths are all relative to this project root path.
+Project is all about setting the correct working directories where to run and find your notebooks, python files and configuration files. When the dataloof is imported, it starts by searching for a `__main__.py` file, according to python module file naming conventions. All modules and alias paths are all relative to this project root path.
 
 #### Load a project profile
 
-Loading the profile can be done with the `datalabframework.project.load` function call. It will look for files ending with `metadata.yml`. The function can optionally set the current working directory and import the key=values of .env file into the python os environment. if no parameters are specified, the default profile is loaded.
+Loading the profile can be done with the `dataloof.project.load` function call. It will look for files ending with `metadata.yml`. The function can optionally set the current working directory and import the key=values of .env file into the python os environment. if no parameters are specified, the default profile is loaded.
 
 
 ```python
 help(dlf.project.load)
 ```
 
-    Help on function load in module datalabframework.project:
+    Help on function load in module dataloof.project:
     
     load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv=True, factory_defaults=True)
         Performs the following steps:
@@ -182,7 +182,7 @@ help(dlf.project.load)
                 loggers:
                     root:
                         severity: info
-                    datalabframework:
+                    dataloof:
                         name: dlf
                         stream:
                             enable: true
@@ -207,7 +207,7 @@ help(dlf.project.load)
             - loggers
         
         For more information about metadata configuration,
-        type `help(datalabframework.project.metadata)`
+        type `help(dataloof.project.metadata)`
     
 
 
@@ -247,7 +247,7 @@ dlf.project.load()
             loggers:
                 root:
                     severity: info
-                datalabframework:
+                dataloof:
                     name: dlf
                     stream:
                         enable: true
@@ -302,7 +302,7 @@ md
     loggers:
         root:
             severity: info
-        datalabframework:
+        dataloof:
             name: dlf
             stream:
                 enable: true
@@ -317,14 +317,14 @@ md
 
 ## Inspect current project configuration
 
-You can inspect the current project configuration, by calling the `datalabframework.project.config` function.
+You can inspect the current project configuration, by calling the `dataloof.project.config` function.
 
 
 ```python
 help(dlf.project.config)
 ```
 
-    Help on function config in module datalabframework.project:
+    Help on function config in module dataloof.project:
     
     config()
         Returns the current project configuration
@@ -334,7 +334,7 @@ help(dlf.project.config)
 
 #### Project configuration
 
-The current loaded project configuration can be inspected with `datalabframework.project.config()` function call. 
+The current loaded project configuration can be inspected with `dataloof.project.config()` function call. 
 The following information is available in the returned dictionary:
 
 | key                      | explanation                                                                                 | example value                                     |
@@ -352,8 +352,8 @@ The following information is available in the returned dictionary:
 | repository.hash          | last commit short hash (only 7 chars)                                                       | 5e43848                                           |
 | repository.commit        | Last committer full hash                                                                    | 5e4384853398941f4b52cb4102145ee98bdeafa6          |
 | repository.branch        | repo branch name                                                                            | master                                            |
-| repository.url           | url of the repository                                                                       | https://github.com/natbusa/datalabframework.git   |
-| repository.name          | repository name                                                                             | datalabframework.git                              |
+| repository.url           | url of the repository                                                                       | https://github.com/natbusa/dataloof.git   |
+| repository.name          | repository name                                                                             | dataloof.git                              |
 | repository.date          | Date of last commit                                                                         | 2019-03-22T04:21:07+00:00                         |
 | repository.clean         | Repository does not contained modified files, wrt to commited data                          | False                                             |
 | files                    | python, notebooks and configuration files in this project                                   |                                                   |
@@ -484,7 +484,7 @@ Let's start the engine session, by selecting a spark context from the list. Your
 
 
 ```python
-import datalabframework as dlf
+import dataloof as dlf
 engine = dlf.project.engine()
 engine.config()
 ```
@@ -515,7 +515,7 @@ engine.config()
 
 You can quickly inspect the properties of the context by calling the `info()` function
 
-By calling the `context` method, you access the Spark SQL Context directly. The rest of your spark python code is not affected by the initialization of your session with the datalabframework.
+By calling the `context` method, you access the Spark SQL Context directly. The rest of your spark python code is not affected by the initialization of your session with the dataloof.
 
 
 ```python
@@ -684,7 +684,7 @@ This submodules will allow you to export cells and import them in other notebook
 
 
 ```python
-import datalabframework as dlf
+import dataloof as dlf
 dlf.project.load()
 
 from hello import python_version

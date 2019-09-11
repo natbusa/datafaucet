@@ -1,11 +1,11 @@
 [run]
 branch = True
 source =
-    datalabframework
+    dataloof
     tests
 
 [paths]
 source =
-    datalabframework
-    .tox/*/lib/python*/site-packages/datalabframework
-    .tox/pypy/site-packages/datalabframework
+    dataloof
+    .tox/*/lib/python*/site-packages/dataloof
+    .tox/pypy/site-packages/dataloof
