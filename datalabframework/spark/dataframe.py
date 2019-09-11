@@ -23,8 +23,7 @@ def cache(df, cached=False):
     assert isinstance(df, pyspark.sql.dataframe.DataFrame)
     return df.cache() if cached else df
 
-
-def filter_by_date(df, column=None, start=None, end=None, window=None):
+def filter_by_datetime(df, column=None, start=None, end=None, window=None):
     assert isinstance(df, pyspark.sql.dataframe.DataFrame)
     
     if not column:

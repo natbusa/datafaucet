@@ -2,6 +2,8 @@ import sys
 from random import randint
 from pyspark.sql import DataFrame
 
+from datalabframework.spark import dataframe
+
 INT_MAX = sys.maxsize  
 INT_MIN = -sys.maxsize-1
 
@@ -56,7 +58,11 @@ class Rows:
                 .orderBy(order))
         
         return _sample(df, s)
-        
+    
+    def filter_by_date(self, column=None, start=None, end=None, window=None):
+        df = dataframe(self.df, column, start, end, window)
+        return df
+    
     def grid(self, limit=1000, render='qgrid'):
         try:
             from IPython.display import display

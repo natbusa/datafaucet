@@ -265,8 +265,10 @@ def get_compression(path):
     
     _, ext = os.path.splitext(path)
     d = {
-        '.gz':'gzip', 
-        '.bz2':'bzip2',
+        '.lz': 'lz', 
+        '.lzo': 'lzo', 
+        '.gz': 'gzip', 
+        '.bz2': 'bzip2',
     }
     return d.get(ext)
      
@@ -312,6 +314,8 @@ def get_driver(service):
 
 def get_port(service):
     ports = {
+        'http':80,
+        'https':443,
         'hdfs': 8020,
         'mysql': 3306,
         'postgres': 5432,
@@ -325,6 +329,7 @@ def get_port(service):
 
 def get_version(service):
     versions = {
+        'hdfs': '3.1.1',
         'sqlite': '3.25.2',
         'mysql': '8.0.12',
         'postgres': '42.2.5',

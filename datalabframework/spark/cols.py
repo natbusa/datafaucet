@@ -67,8 +67,16 @@ class Cols:
         self.scols = self._getcols(*scols)
         return self
 
-    def rename(self, prefix='', postfix='', mapping=None):
-        d = to_dict(mapping)
+    def rename(self, mapping=None, prefix='', postfix=''):
+        if isinstance(mapping, str):
+            if len(self.scols)==1:
+                d = {self.scols[0]:mapping}
+            else:
+                m = [f'mapping_{c}' for c in range(len(self.scols))]   
+                d = dict(zip(self.scols, m))
+        else:
+            d = to_dict(mapping)
+        
         d = d or dict(zip(self.scols, self.scols))
         
         mapped_cols = set(self.scols) & set(d.keys())
@@ -79,6 +87,13 @@ class Cols:
             df = df.withColumnRenamed(c, prefix+d[c]+postfix)
         
         return df
+    
+    def order(self, *cols, where='start'):
+        
+        ordered = [x for x in cols if x in self.scols]
+        other = [x for x in self.scols if x not in cols]
+        
+        return self.df.select(*ordered, *other)
     
     @property
     def rows(self):

@@ -13,26 +13,77 @@ class Data:
     def columns(self):
         return [x for x in self.df.columns if x in (self.scols + self.gcols)]
     
-    def grid(self, limit=1000, render='qgrid'):
-        try:
-            from IPython.display import display
-        except:
-            display = None
-
-        try:
-            import qgrid
-        except:
-            render = 'default'
-            logging.warning('Install qgrid for better visualisation. Using pandas as fallback.')
-
+    def grid(self, limit=1000, render='pandas'):
         # get the data
         data = self.df.select(self.columns).limit(limit).toPandas()
+        
+        if render=='pandas':
+            return data
+        elif render=='jsgrid':
+            html = """
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.css" />
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid-theme.min.css" />
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
 
-        if render=='qgrid':
-            rendered = qgrid.show_grid(data) 
-        else:
-            rendered = display(data) if display else data
-        return rendered
+<div id="jsGrid"></div>
+
+<script>
+    var clients = [
+        { "Name": "Otto Clay", "Age": 25, "Country": 1, "Address": "Ap #897-1459 Quam Avenue", "Married": false },
+        { "Name": "Connor Johnston", "Age": 45, "Country": 2, "Address": "Ap #370-4647 Dis Av.", "Married": true },
+        { "Name": "Lacey Hess", "Age": 29, "Country": 3, "Address": "Ap #365-8835 Integer St.", "Married": false },
+        { "Name": "Timothy Henson", "Age": 56, "Country": 1, "Address": "911-5143 Luctus Ave", "Married": true },
+        { "Name": "Ramona Benton", "Age": 32, "Country": 3, "Address": "Ap #614-689 Vehicula Street", "Married": false }
+    ];
+    
+    db = []
+    var i;
+    for (i = 0; i < 10; i++) { 
+        db = db.concat(clients)
+    }
+ 
+    var countries = [
+        { Name: "", Id: 0 },
+        { Name: "United States", Id: 1 },
+        { Name: "Canada", Id: 2 },
+        { Name: "United Kingdom", Id: 3 }
+    ];
+ 
+    $("#jsGrid").jsGrid({
+        width: "100%",
+        height: "400px",
+ 
+        heading: true,
+        filtering: true,
+        inserting: false,
+        editing: false,
+        selecting: false,
+        sorting: true,
+        paging: true,
+        pageLoading: false,
+        autoload: true,
+
+        pageSize: 15,
+        pageButtonCount: 3,
+        
+        controller: {
+            loadData: function(filter) {
+                //to do: filtering
+                return db;
+            }
+        },
+
+        fields: [
+            { name: "Name", type: "text", width: 150, validate: "required" },
+            { name: "Age", type: "number", width: 50 },
+            { name: "Address", type: "text", width: 200 },
+            { name: "Country", type: "select", items: countries, valueField: "Id", textField: "Name" },
+            { name: "Married", type: "checkbox", title: "Is Married", sorting: false }
+        ]
+    });
+</script>
+"""
+        return display(HTML(html)) 
 
     def facets(self, n=1000):
         try:
