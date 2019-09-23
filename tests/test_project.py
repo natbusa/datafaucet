@@ -3,10 +3,10 @@ import os
 import pytest
 from testfixtures import TempDirectory
 
-from dataloof import _project
-from dataloof import project
-from dataloof._utils import Singleton
-from dataloof import paths
+from datafaucet import _project
+from datafaucet import project
+from datafaucet._utils import Singleton
+from datafaucet import paths
 
 
 @pytest.fixture()

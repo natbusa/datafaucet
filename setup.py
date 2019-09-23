@@ -3,7 +3,7 @@ from glob import glob
 from setuptools import setup
 
 # the name of the package
-name = 'dataloof'
+name = 'datafaucet'
 submodules = ['cli', 'spark', 'elastic']
 packages = [name] + ['{}.{}'.format(name, sm) for sm in submodules]
 
@@ -19,7 +19,7 @@ setup_args = dict(
     name=name,
     version=version_ns['__version__'],
     description='Productivity Utilities for Data Science with Python Notebooks',
-    url='http://github.com/natbusa/dataloof',
+    url='http://github.com/natbusa/datafaucet',
     author='Natalino Busa',
     author_email='natalino.busa@gmail.com',
     license='MIT',

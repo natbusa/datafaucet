@@ -1,5 +1,5 @@
 
-# Dataloof
+# Datafaucet
 
 Basic example and directory structure.
 
@@ -9,7 +9,7 @@ This ETL/Data Science scaffolding works using a number of elements:
 
   - The introductory python notebook you are reading now (main.ipynb)
   - A directory structure for code and data processing (data)
-  - The dataloof python package (dataloof)
+  - The datafaucet python package (datafaucet)
   - Configuration files (metadata.yml, \__main__.py, Makefile)
 
 ## Principles ##
@@ -64,7 +64,7 @@ The data science project is structured in a way to facilitate the deployment of 
 
 
 ```python
-import dataloof as dlf
+import datafaucet as dfc
 ```
 
 ### Package things
@@ -72,7 +72,7 @@ Package version: package variables `version_info`, `__version__`
 
 
 ```python
-dlf.version_info
+dfc.version_info
 ```
 
 
@@ -84,7 +84,7 @@ dlf.version_info
 
 
 ```python
-dlf.__version__
+dfc.__version__
 ```
 
 
@@ -94,24 +94,24 @@ dlf.__version__
 
 
 
-Check is the dataloof is loaded in the current python context
+Check is the datafaucet is loaded in the current python context
 
 
 ```python
 try:
     __DATALOOF__
-    print("the dataloof is loaded")
+    print("the datafaucet is loaded")
 except NameError:
-    print("the dataloof is not loaded")
+    print("the datafaucet is not loaded")
 ```
 
-    the dataloof is loaded
+    the datafaucet is loaded
 
 
 
 ```python
-#list of modules loaded as `from dataloof import * ` 
-dlf.__all__
+#list of modules loaded as `from datafaucet import * ` 
+dfc.__all__
 ```
 
 
@@ -123,18 +123,18 @@ dlf.__all__
 
 ### Modules: project
 
-Project is all about setting the correct working directories where to run and find your notebooks, python files and configuration files. When the dataloof is imported, it starts by searching for a `__main__.py` file, according to python module file naming conventions. All modules and alias paths are all relative to this project root path.
+Project is all about setting the correct working directories where to run and find your notebooks, python files and configuration files. When the datafaucet is imported, it starts by searching for a `__main__.py` file, according to python module file naming conventions. All modules and alias paths are all relative to this project root path.
 
 #### Load a project profile
 
-Loading the profile can be done with the `dataloof.project.load` function call. It will look for files ending with `metadata.yml`. The function can optionally set the current working directory and import the key=values of .env file into the python os environment. if no parameters are specified, the default profile is loaded.
+Loading the profile can be done with the `datafaucet.project.load` function call. It will look for files ending with `metadata.yml`. The function can optionally set the current working directory and import the key=values of .env file into the python os environment. if no parameters are specified, the default profile is loaded.
 
 
 ```python
-help(dlf.project.load)
+help(dfc.project.load)
 ```
 
-    Help on function load in module dataloof.project:
+    Help on function load in module datafaucet.project:
     
     load(profile='default', rootdir_path=None, search_parent_dirs=True, dotenv=True, factory_defaults=True)
         Performs the following steps:
@@ -182,8 +182,8 @@ help(dlf.project.load)
                 loggers:
                     root:
                         severity: info
-                    dataloof:
-                        name: dlf
+                    datafaucet:
+                        name: dfc
                         stream:
                             enable: true
                             severity: notice
@@ -207,13 +207,13 @@ help(dlf.project.load)
             - loggers
         
         For more information about metadata configuration,
-        type `help(dataloof.project.metadata)`
+        type `help(datafaucet.project.metadata)`
     
 
 
 
 ```python
-dlf.project.load()
+dfc.project.load()
 ```
 
 ### Metadata profiles
@@ -247,8 +247,8 @@ dlf.project.load()
             loggers:
                 root:
                     severity: info
-                dataloof:
-                    name: dlf
+                datafaucet:
+                    name: dfc
                     stream:
                         enable: true
                         severity: notice
@@ -270,7 +270,7 @@ dlf.project.load()
 
 
 ```python
-md = dlf.project.metadata()
+md = dfc.project.metadata()
 md
 ```
 
@@ -302,29 +302,29 @@ md
     loggers:
         root:
             severity: info
-        dataloof:
-            name: dlf
+        datafaucet:
+            name: dfc
             stream:
                 enable: true
                 severity: notice
             kafka:
                 enable: false
                 severity: info
-                topic: dlf
+                topic: dfc
                 hosts: kafka-node1:9092 kafka-node2:9092
 
 
 
 ## Inspect current project configuration
 
-You can inspect the current project configuration, by calling the `dataloof.project.config` function.
+You can inspect the current project configuration, by calling the `datafaucet.project.config` function.
 
 
 ```python
-help(dlf.project.config)
+help(dfc.project.config)
 ```
 
-    Help on function config in module dataloof.project:
+    Help on function config in module datafaucet.project:
     
     config()
         Returns the current project configuration
@@ -334,7 +334,7 @@ help(dlf.project.config)
 
 #### Project configuration
 
-The current loaded project configuration can be inspected with `dataloof.project.config()` function call. 
+The current loaded project configuration can be inspected with `datafaucet.project.config()` function call. 
 The following information is available in the returned dictionary:
 
 | key                      | explanation                                                                                 | example value                                     |
@@ -352,8 +352,8 @@ The following information is available in the returned dictionary:
 | repository.hash          | last commit short hash (only 7 chars)                                                       | 5e43848                                           |
 | repository.commit        | Last committer full hash                                                                    | 5e4384853398941f4b52cb4102145ee98bdeafa6          |
 | repository.branch        | repo branch name                                                                            | master                                            |
-| repository.url           | url of the repository                                                                       | https://github.com/natbusa/dataloof.git   |
-| repository.name          | repository name                                                                             | dataloof.git                              |
+| repository.url           | url of the repository                                                                       | https://github.com/natbusa/datafaucet.git   |
+| repository.name          | repository name                                                                             | datafaucet.git                              |
 | repository.date          | Date of last commit                                                                         | 2019-03-22T04:21:07+00:00                         |
 | repository.clean         | Repository does not contained modified files, wrt to commited data                          | False                                             |
 | files                    | python, notebooks and configuration files in this project                                   |                                                   |
@@ -373,13 +373,13 @@ The following information is available in the returned dictionary:
 
 
 ```python
-dlf.project.config()
+dfc.project.config()
 ```
 
 
 
 
-    dlf_version: 0.7.1
+    dfc_version: 0.7.1
     python_version: 3.6.7
     session_id: '0x8aa0374e4ee811e9'
     profile: default
@@ -437,7 +437,7 @@ Data binding works with the metadata files. It's a good practice to declare the 
 
 
 ```python
-md =dlf.project.resource('ascombe')
+md =dfc.project.resource('ascombe')
 md
 ```
 
@@ -484,8 +484,8 @@ Let's start the engine session, by selecting a spark context from the list. Your
 
 
 ```python
-import dataloof as dlf
-engine = dlf.project.engine()
+import datafaucet as dfc
+engine = dfc.project.engine()
 engine.config()
 ```
 
@@ -515,15 +515,15 @@ engine.config()
 
 You can quickly inspect the properties of the context by calling the `info()` function
 
-By calling the `context` method, you access the Spark SQL Context directly. The rest of your spark python code is not affected by the initialization of your session with the dataloof.
+By calling the `context` method, you access the Spark SQL Context directly. The rest of your spark python code is not affected by the initialization of your session with the datafaucet.
 
 
 ```python
-engine = dlf.project.engine()
+engine = dfc.project.engine()
 spark = engine.context()
 ```
 
-Once again, let's read the csv data again, this time using the spark context. First using the engine `write` utility, then directly using the spark context and the `dlf.data.path` function to localize our labeled dataset.
+Once again, let's read the csv data again, this time using the spark context. First using the engine `write` utility, then directly using the spark context and the `dfc.data.path` function to localize our labeled dataset.
 
 
 ```python
@@ -534,7 +534,7 @@ df = engine.load('ascombe', header=True, inferSchema=True)
 
 ```python
 #read using the engine utility (also from resource metadata)
-md =dlf.project.resource('ascombe')
+md =dfc.project.resource('ascombe')
 df = engine.load(md, header=True, inferSchema=True)
 ```
 
@@ -684,8 +684,8 @@ This submodules will allow you to export cells and import them in other notebook
 
 
 ```python
-import dataloof as dlf
-dlf.project.load()
+import datafaucet as dfc
+dfc.project.load()
 
 from hello import python_version
 ```

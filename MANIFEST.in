@@ -1,5 +1,5 @@
-include dataloof/cli/templates/metadata.ignore.yml
-include dataloof/schemas/default.yml
-include dataloof/schemas/top.yml
-include dataloof/schemas/provider.yml
-include dataloof/schemas/resource.yml
+include datafaucet/cli/templates/metadata.ignore.yml
+include datafaucet/schemas/default.yml
+include datafaucet/schemas/top.yml
+include datafaucet/schemas/provider.yml
+include datafaucet/schemas/resource.yml

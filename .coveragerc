@@ -1,11 +1,11 @@
 [run]
 branch = True
 source =
-    dataloof
+    datafaucet
     tests
 
 [paths]
 source =
-    dataloof
-    .tox/*/lib/python*/site-packages/dataloof
-    .tox/pypy/site-packages/dataloof
+    datafaucet
+    .tox/*/lib/python*/site-packages/datafaucet
+    .tox/pypy/site-packages/datafaucet

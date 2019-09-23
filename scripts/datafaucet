@@ -1,0 +1,5 @@
+#!/usr/bin/env python
+
+"""Launch the root jupyter command"""
+from datafaucet.cli.command import main
+main()

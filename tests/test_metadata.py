@@ -1,6 +1,6 @@
-from dataloof.metadata import reader
-from dataloof import paths
-from dataloof._utils import Singleton
+from datafaucet.metadata import reader
+from datafaucet import paths
+from datafaucet._utils import Singleton
 
 import os
 from textwrap import dedent

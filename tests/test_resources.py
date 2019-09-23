@@ -1,6 +1,6 @@
-from dataloof.metadata import resource
-from dataloof._utils import merge
-from dataloof import paths
+from datafaucet.metadata import resource
+from datafaucet._utils import merge
+from datafaucet import paths
 
 import os
 

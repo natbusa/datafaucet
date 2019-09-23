@@ -1,4 +1,4 @@
-from dataloof import files, paths
+from datafaucet import files, paths
 
 import os
 from textwrap import dedent
@@ -6,7 +6,7 @@ from textwrap import dedent
 import pytest
 from testfixtures import TempDirectory
 
-from dataloof._utils import Singleton
+from datafaucet._utils import Singleton
 
 @pytest.fixture()
 def tempdir():

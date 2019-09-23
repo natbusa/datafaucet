@@ -1,5 +1,0 @@
-#!/usr/bin/env python
-
-"""Launch the root jupyter command"""
-from dataloof.cli.command import main
-main()
