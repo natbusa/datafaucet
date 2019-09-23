@@ -60,7 +60,7 @@ The data science project is structured in a way to facilitate the deployment of 
 
 ```
 
-## Data Lab Framework
+## datafaucet
 
 
 ```python
