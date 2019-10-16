@@ -391,53 +391,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             print(e)
             logging.warning(f'Could not fully stop the {self.engine_type} context')
 
-
-    def load_plus(self, path=None, provider=None, catch_exception=True, **kwargs):
-        md = Resource(path, provider, **kwargs)
-
-        core_start = timer()
-        obj = self.load_dataframe(md, catch_exception, **kwargs)
-        core_end = timer()
-        if obj is None:
-            return obj
-
-        prep_start = timer()
-        #date_column = '_date' if md['date_partition'] else md['date_column']
-        obj = dataframe.filter_by_date(
-            obj,
-            date_column,
-            md['date_start'],
-            md['date_end'],
-            md['date_window'])
-
-        # partition and sorting (hmmm, needed?)
-        if date_column and date_column in obj.columns:
-            obj = obj.repartition(date_column)
-
-        if '_updated' in obj.columns:
-            obj = obj.sortWithinPartitions(F.desc('_updated'))
-
-        num_rows = obj.count()
-        num_cols = len(obj.columns)
-
-        obj = dataframe.cache(obj, md['cache'])
-
-        prep_end = timer()
+    def load_log(self, md, options, ts_start):
+        ts_end = timer()
 
         log_data = {
             'md': md,
-            'mode': kwargs.get('mode', md.get('options', {}).get('mode')),
-            'records': num_rows,
-            'columns': num_cols,
-            'time': prep_end - core_start,
-            'time_core': core_end - core_start,
-            'time_prep': prep_end - prep_start
+            'options': options,
+            'time': ts_end - ts_start
         }
-        logging.info(log_data) if obj is not None else logging.error(log_data)
-
-        obj.__name__ = path
-        return obj
-
+        logging.info('load', extra=log_data)
 
     def load_with_pandas(self, kwargs):
         logging.warning("Fallback dataframe reader")
@@ -475,6 +437,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         local = self.is_spark_local()
 
+        # start the timer for logging
+        ts_start = timer()
         try:
             #three approaches: local, cluster, and service
             if md['service'] == 'file' and local:
@@ -495,13 +459,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
                     extra={'md': to_dict(md)})
-                return obj
 
         except AnalysisException as e:
             logging.error(str(e), extra={'md': md})
         except Exception as e:
             logging.error(e, extra={'md': md})
 
+        self.load_log(md, options, ts_start)
         return obj
 
 
@@ -528,6 +492,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         local = self.is_spark_local()
 
+        # start the timer for logging
+        ts_start = timer()
         try:
             #three approaches: local, cluster, and service
             if md['service'] == 'file' and local:
@@ -545,13 +511,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
                     extra={'md': to_dict(md)})
-                return obj
 
         except AnalysisException as e:
             logging.error(str(e), extra={'md': md})
         except Exception as e:
             logging.error(e, extra={'md': md})
 
+        self.load_log(md, options, ts_start)
         return obj
 
     def load_json(self, path=None, provider=None, *args,
@@ -578,6 +544,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         local = self.is_spark_local()
 
+        # start the timer for logging
+        ts_start = timer()
         try:
             #three approaches: local, cluster, and service
             if md['service'] == 'file' and options['lines']:
@@ -598,13 +566,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
                     extra={'md': to_dict(md)})
-                return obj
 
         except AnalysisException as e:
             logging.error(str(e), extra={'md': md})
         except Exception as e:
             logging.error(e, extra={'md': md})
 
+        self.load_log(md, options, ts_start)
         return obj
 
     def load_jdbc(self, path=None, provider=None, *args, **kwargs):
@@ -619,6 +587,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         options =  md['options']
 
+        # start the timer for logging
+        ts_start = timer()
         try:
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
                     obj = self.context.read \
@@ -642,6 +612,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         except Exception as e:
             logging.error(e, extra={'md': md})
 
+        self.load_log(md, options, ts_start)
         return obj
 
 
@@ -667,61 +638,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     extra={'md': to_dict(md)})
         return None
 
-
-    def save_plus(self, obj, path=None, provider=None, **kwargs):
-        md = Resource(path, provider, **kwargs)
-
-        prep_start = timer()
-        options = md['options'] or {}
-
-        if md['date_partition'] and md['date_column']:
-            tzone = 'UTC' if self._timestamps == 'naive' else self._timezone
-            obj = dataframe.add_datetime_columns(obj, column=md['date_column'], tzone=tzone)
-            kwargs['partitionBy'] = ['_date'] + kwargs.get('partitionBy', options.get('partitionBy', []))
-
-        if md['update_column']:
-            obj = dataframe.add_update_column(obj, tzone=self._timezone)
-
-        if md['hash_column']:
-            obj = dataframe.add_hash_column(obj, cols=md['hash_column'],
-                                            exclude_cols=['_date', '_datetime', '_updated', '_hash', '_state'])
-
-        date_column = '_date' if md['date_partition'] else md['date_column']
-        obj = dataframe.filter_by_date(
-            obj,
-            date_column,
-            md['date_start'],
-            md['date_end'],
-            md['date_window'])
-
-        obj = dataframe.cache(obj, md['cache'])
-
-        num_rows = obj.count()
-        num_cols = len(obj.columns)
-
-        # force 1 file per partition, just before saving
-        obj = obj.repartition(1, *kwargs['partitionBy']) if kwargs.get('partitionBy') else obj.repartition(1)
-        # obj = obj.coalesce(1)
-
-        prep_end = timer()
-
-        core_start = timer()
-        result = self.save_dataframe(obj, md, **kwargs)
-        core_end = timer()
+    def save_log(self, md, options, ts_start):
+        ts_end = timer()
 
         log_data = {
-            'md': dict(md),
-            'mode': kwargs.get('mode', options.get('mode')),
-            'records': num_rows,
-            'columns': num_cols,
-            'time': core_end - prep_start,
-            'time_core': core_end - core_start,
-            'time_prep': prep_end - prep_start
+            'md': md,
+            'options': options,
+            'time': ts_end - ts_start
         }
-
-        logging.info(log_data) if result else logging.error(log_data)
-
-        return result
+        logging.info('save', extra=log_data)
 
     def is_spark_local(self):
         return self.conf.get('spark.master').startswith('local[')
@@ -751,6 +676,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
     def save_parquet(self, obj, path=None, provider=None, *args,
                  mode=None, **kwargs):
 
+        result = True
         md = Resource(
                 path,
                 provider,
@@ -764,6 +690,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         local = self.is_spark_local()
 
+        ts_start = timer()
         try:
             #three approaches: file-local, local+cluster, and service
             if md['service'] == 'file' and local:
@@ -792,18 +719,23 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
                     extra={'md': to_dict(md)})
-                return False
+                result = False
 
         except AnalysisException as e:
             logging.error(str(e), extra={'md': md})
+            result = False
+
         except Exception as e:
             logging.error({'md': md, 'error_msg': str(e)})
             raise e
 
-        return True
+        self.save_log(md, options, ts_start)
+        return result
 
     def save_csv(self, obj, path=None, provider=None, *args,
                  mode=None, sep=None, header=None, **kwargs):
+
+        result = True
 
         md = Resource(
                 path,
@@ -823,6 +755,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         local = self.is_spark_local()
 
+        ts_start = timer()
         try:
             #three approaches: file+local, file+cluster, and service
             if md['service'] == 'file' and local:
@@ -854,19 +787,24 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
                     extra={'md': to_dict(md)})
-                return False
+                result = False
 
         except AnalysisException as e:
             logging.error(str(e), extra={'md': md})
+            result = False
+
         except Exception as e:
             logging.error({'md': md, 'error_msg': str(e)})
             raise e
 
-        return True
+        self.save_log(md, options, ts_start)
+        return result
 
 
     def save_json(self, obj, path=None, provider=None, *args,
                  mode=None, lines=None, **kwargs):
+
+        result = True
 
         md = Resource(
                 path,
@@ -884,6 +822,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         local = self.is_spark_local()
 
+        ts_start = timer()
         try:
             #three approaches: local, cluster, and service
             if local and md['service'] == 'file' and options['lines']:
@@ -916,17 +855,22 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
                     extra={'md': to_dict(md)})
-                return False
+                result = False
 
         except AnalysisException as e:
             logging.error(str(e), extra={'md': md})
+            result = False
+
         except Exception as e:
             logging.error({'md': md, 'error_msg': str(e)})
             raise e
 
-        return True
+        self.save_log(md, options, ts_start)
+        return result
 
     def save_jdbc(self, obj, path=None, provider=None, *args, mode=None, **kwargs):
+
+        result = True
         md = Resource(
                 path,
                 provider,
@@ -939,6 +883,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # after collecting from metadata, or method call, define csv defaults
         options['mode'] = options['mode'] or 'overwrite'
 
+        ts_start = timer()
         try:
             #three approaches: local, cluster, and service
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
@@ -956,15 +901,18 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
                     extra={'md': to_dict(md)})
-                return False
+                result = False
 
         except AnalysisException as e:
             logging.error(str(e), extra={'md': md})
+            result = False
+
         except Exception as e:
             logging.error({'md': md, 'error_msg': str(e)})
             raise e
 
-        return True
+        self.save_log(md, options, ts_start)
+        return result
 
     def save(self, obj, path=None, provider=None, *args, format=None, mode=None, **kwargs):
 
