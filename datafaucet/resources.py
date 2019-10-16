@@ -355,7 +355,7 @@ def get_url(md):
     elif service in ['http', 'https']:
         url = f"{service}://{host_port}{md['path']}"
     elif service in ['minio', 's3a']:
-        url = f"s3a://{md['path']}'"
+        url = f"s3a://{md['path']}"
     elif service == 'mysql':
         url = f"jdbc:mysql://{host_port}/{md['database']}"
     elif service == 'postgres':
