@@ -4,6 +4,13 @@ from pyspark.sql import types as T
 from pyspark.sql import functions as F
 
 import unidecode as ud
+import zlib
+
+def compress(data):
+    return zlib.compress(data, 9)
+
+def decompress(obscured):
+    return zlib.decompress(obscured)
 
 have_arrow = False
 have_pandas = False
@@ -14,28 +21,27 @@ def _unidecode(s):
 try:
     import pyarrow
     import pandas
-    
+
     have_arrow = True
     have_pandas = True
 
     @F.pandas_udf(T.StringType(), F.PandasUDFType.SCALAR)
     def unidecode(series):
         return series.apply(_unidecode(s))
-    
+
 except ImportError:
-    
+
     @F.udf(T.StringType(), T.StringType())
     def unidecode(s):
         return _unidecode(s)
 
-
 def summary(df, cols):
         spark = df.sql_ctx
         types = {x.name:x.dataType for x in list(df.schema) if x.name in cols}
-        
+
         res = pd.DataFrame.from_dict(types, orient='index')
         res.columns = ['datatype']
-        
+
         count  = df.count()
         res['count'] = count
 
@@ -43,9 +49,9 @@ def summary(df, cols):
         d.columns = ['approx_distinct']
         d.index.name = 'index'
         res = res.join(d)
-        
+
         res['unique_ratio'] = res['approx_distinct']/count
-        
+
         sel = []
         for c,v in types.items():
             if isinstance(v, (T.NumericType)):

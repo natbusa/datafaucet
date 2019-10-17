@@ -142,13 +142,47 @@ class Cols:
             df = functions.rand(df, ci, min, max, seed)
         return df
 
-    def hash(self, method='hash'):
-        fmap = {
-            'hash': F.hash,
-            'crc32': F.crc32
-        }
+    def hash(self, preserve_type=True):
+        df = self.df
+        cast = lambda ci: ci
+        for c in self.scols:
+            t = df.schema[c].dataType
 
-        return self.apply(fmap.get(method, F.hash))
+            # keep the hash but preserve original type,
+            # at the cost of more hash clashes (reduced hash space)
+            if preserve_type and isinstance(t, (T.NumericType,  T.StringType)):
+                cast = lambda ci: ci.cast(t)
+
+            df = df.withColumn(c, cast(F.hash(c)))
+
+        return df
+
+    def hashstr(self, method='crc32', salt=''):
+        f = {
+            'crc32': F.crc32,
+            'md5': F.md5,
+            'sha1': F.sha1
+        }.get(method, F.crc32)
+
+        df = self.df
+        for c in self.scols:
+            col = F.col(c).cast(T.StringType)
+            df = df.withColumn(c, f(F.concat(col, F.lit(salt))))
+
+        return df
+
+
+    def obscure(self, password=None):
+        df = self.df
+        for c in self.scols:
+            df = df.withColumn(c, F.col(c))
+        return df
+
+    def unobscure(self, password=None):
+        df = self.df
+        for c in self.scols:
+            df = df.withColumn(c, F.col(c))
+        return df
 
     def lower(self):
         return self.apply(F.lower)
