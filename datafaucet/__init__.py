@@ -23,6 +23,7 @@ from datafaucet.metadata import (
 from datafaucet.io import (
     load,
     save,
+    list
 )
 
 from datafaucet.engines import (
@@ -31,6 +32,6 @@ from datafaucet.engines import (
     engine
 )
 
-# import specific engine directly, 
+# import specific engine directly,
 # if you don't want to use the engine factory
 from datafaucet.spark.engine import SparkEngine

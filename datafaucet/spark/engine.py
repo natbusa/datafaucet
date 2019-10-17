@@ -8,7 +8,7 @@ import logging as python_logging
 from datafaucet import logging
 from datafaucet import elastic
 
-from datafaucet.resources import Resource, get_local
+from datafaucet.resources import Resource, get_local, urnparse
 
 from datafaucet.yaml import YamlDict, to_dict
 
@@ -1051,25 +1051,19 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         logging.notice(log_data) if result else logging.error(log_data)
 
 
-    def list(self, provider, path=''):
+    def list(self, provider, path=None, **kwargs):
         df_schema = T.StructType([
             T.StructField('name', T.StringType(), True),
             T.StructField('type', T.StringType(), True)])
 
-        df_empty = self._ctx.createDataFrame(data=(), schema=df_schema)
+        df_empty = self.context.createDataFrame(data=(), schema=df_schema)
 
-        if isinstance(provider, str):
-            md = resource.metadata(self._rootdir, self._metadata, None, provider)
-        elif isinstance(provider, dict):
-            md = provider
-        else:
-            logging.warning(f'{str(provider)} cannot be used to reference a provider')
-            return df_empty
+        md = Resource(path,provider,**kwargs)
 
         try:
             if md['service'] in ['local', 'file']:
                 lst = []
-                rootpath = os.path.join(md['provider_path'], path)
+                rootpath = md['url']
                 for f in os.listdir(rootpath):
                     fullpath = os.path.join(rootpath, f)
                     if os.path.isfile(fullpath):
@@ -1087,24 +1081,37 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     lst += [(obj_name, obj_type)]
 
                 if lst:
-                    df = self._ctx.createDataFrame(lst, ['name', 'type'])
+                    df = self.context.createDataFrame(lst, ['name', 'type'])
                 else:
                     df = df_empty
 
                 return df
 
-            elif md['service'] in ['hdfs', 'minio', 's3a']:
-                sc = self._ctx._sc
+            elif md['service'] in ['hdfs', 's3a']:
+                sc = self.context._sc
                 URI = sc._gateway.jvm.java.net.URI
                 Path = sc._gateway.jvm.org.apache.hadoop.fs.Path
                 FileSystem = sc._gateway.jvm.org.apache.hadoop.fs.FileSystem
-                fs = FileSystem.get(URI(md['url']), sc._jsc.hadoopConfiguration())
 
-                provider_path = md['provider_path'] if md['service'] == 'hdfs' else '/'
-                obj = fs.listStatus(Path(os.path.join(provider_path, path)))
+                parsed = urnparse(md['url'])
+                if md['service']=='s3a':
+                    path = parsed.path.split('/')
+                    url = 's3a://'+path[0]
+                    path = '/'+ '/'.join(path[1:]) if len(path)>1 else '/'
+
+                if md['service']=='hdfs':
+                    host_port = f"{parsed.host}:{parsed.port}" if parsed.port else parsed.hosts
+                    url = f'hdfs://{host_port}'
+                    path = '/' + parsed.path
+
+                try:
+                    fs = FileSystem.get(URI(url), sc._jsc.hadoopConfiguration())
+                    obj = fs.listStatus(Path(path))
+                except:
+                    logging.error(f'An error occurred accessing {url}{path}')
+                    obj = []
 
                 lst = []
-
                 for i in range(len(obj)):
                     if obj[i].isFile():
                         obj_type = 'FILE'
@@ -1117,7 +1124,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     lst += [(obj_name, obj_type)]
 
                 if lst:
-                    df = self._ctx.createDataFrame(lst, ['name', 'type'])
+                    df = self.context.createDataFrame(lst, ['name', 'type'])
                 else:
                     df = df_empty
 
@@ -1163,12 +1170,12 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                                 ) as query
                                 """
 
-                obj = self._ctx.read \
+                obj = self.context.read \
                     .format('jdbc') \
                     .option('url', md['url']) \
                     .option("dbtable", query) \
                     .option("driver", md['driver']) \
-                    .option("user", md['username']) \
+                    .option("user", md['user']) \
                     .option('password', md['password']) \
                     .load()
 
@@ -1178,7 +1185,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     lst.append((x.TABLE_NAME, x.TABLE_TYPE))
 
                 if lst:
-                    df = self._ctx.createDataFrame(lst, ['name', 'type'])
+                    df = self.context.createDataFrame(lst, ['name', 'type'])
                 else:
                     df = df_empty
 
