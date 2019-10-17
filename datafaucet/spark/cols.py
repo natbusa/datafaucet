@@ -181,7 +181,7 @@ class Cols:
             h = f(F.concat(col, F.lit(salt)))
 
             if method=='crc32':
-                res = F.unhex(h).cast('string')
+                res = F.conv(h.cast('string'), 10, 16)
             elif method=='md5-8':
                 res = F.substring(h, 0, 16)
             elif method=='md5-4':
