@@ -33,8 +33,7 @@ def expand(df, c, n, sep='_'):
 
 def rand(df, c, min=0.0, max=1.0, seed=None):
     range = max-min
-    return = df.withColumn(c, F.rand(seed)*range+min)
+    return df.withColumn(c, F.rand(seed)*range+min)
 
 def randn(df, c, mu=0.0, sigma=1.0, seed=None):
-    range = max-min
-    return = df.withColumn(c, F.randn(seed)*sigma + mu)
+    return df.withColumn(c, F.randn(seed)*sigma + mu)
