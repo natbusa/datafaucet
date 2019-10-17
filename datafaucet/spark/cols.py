@@ -154,7 +154,7 @@ class Cols:
         return self.apply(F.lower)
 
     def upper(self):
-        return self.apply(F.ucase)
+        return self.apply(F.upper)
 
     def translate(self, from, to):
         func = functools.partial(F.translate, from=from, to=to)
