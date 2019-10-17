@@ -156,8 +156,8 @@ class Cols:
     def upper(self):
         return self.apply(F.upper)
 
-    def translate(self, from, to):
-        func = functools.partial(F.translate, from=from, to=to)
+    def translate(self, matching=[], replace=[]):
+        func = functools.partial(F.translate, matching, replace)
         return self.apply(func)
 
     def split(self, pattern):
