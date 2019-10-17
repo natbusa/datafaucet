@@ -1135,8 +1135,28 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
             elif md['format'] == 'jdbc':
                 # remove options from database, if any
+
                 database = md["database"].split('?')[0]
                 schema = md['schema']
+                table = md['table']
+
+                if database and table:
+                    try:
+                        obj = self.context.read \
+                        .format('jdbc') \
+                        .option('url', md['url']) \
+                        .option("dbtable", table) \
+                        .option("driver", md['driver']) \
+                        .option("user", md['user']) \
+                        .option('password', md['password']) \
+                        .load()
+                        info = [(i.name, i.dataType.simpleString()) for i in obj.schema]
+                    except:
+                        info = []
+
+                    if info:
+                        return self.context.createDataFrame(info, ['name', 'type'])
+
                 if md['service'] == 'mssql':
                     query = f"""
                             ( SELECT table_name, table_type

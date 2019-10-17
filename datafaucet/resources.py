@@ -406,9 +406,6 @@ def process_metadata(md):
         # set driver
         md['driver'] = md['driver'] or get_driver(md['service'])
 
-        # if not table, provide no result query
-        md['table'] = md['table'] or 'SELECT 0 as result where 1 = 0'
-
         # if schema is not yet defined,
         # take the default for each service
         default_schemas = {
