@@ -5,18 +5,18 @@ class Data:
     def __init__(self, df, scols=None, gcols=None):
         self.df = df
         self.gcols = gcols or []
-        
+
         self.scols = scols or df.columns
         self.scols = list(set(self.scols) - set(self.gcols))
 
     @property
     def columns(self):
         return [x for x in self.df.columns if x in (self.scols + self.gcols)]
-    
+
     def grid(self, limit=1000, render='pandas'):
         # get the data
         data = self.df.select(self.columns).limit(limit).toPandas()
-        
+
         if render=='pandas':
             return data
         elif render=='jsgrid':
@@ -35,24 +35,24 @@ class Data:
         { "Name": "Timothy Henson", "Age": 56, "Country": 1, "Address": "911-5143 Luctus Ave", "Married": true },
         { "Name": "Ramona Benton", "Age": 32, "Country": 3, "Address": "Ap #614-689 Vehicula Street", "Married": false }
     ];
-    
+
     db = []
     var i;
-    for (i = 0; i < 10; i++) { 
+    for (i = 0; i < 10; i++) {
         db = db.concat(clients)
     }
- 
+
     var countries = [
         { Name: "", Id: 0 },
         { Name: "United States", Id: 1 },
         { Name: "Canada", Id: 2 },
         { Name: "United Kingdom", Id: 3 }
     ];
- 
+
     $("#jsGrid").jsGrid({
         width: "100%",
         height: "400px",
- 
+
         heading: true,
         filtering: true,
         inserting: false,
@@ -65,7 +65,7 @@ class Data:
 
         pageSize: 15,
         pageButtonCount: 3,
-        
+
         controller: {
             loadData: function(filter) {
                 //to do: filtering
@@ -83,14 +83,14 @@ class Data:
     });
 </script>
 """
-        return display(HTML(html)) 
+        return display(HTML(html))
 
     def facets(self, n=1000):
         try:
             from IPython.display import display
         except:
             display = None
-    
+
         if display:
             jsonstr = self.df.select(self.columns).rows.sample(n).data.collect(n, axis=0).to_json(orient='records')
             HTML_TEMPLATE = """
@@ -107,7 +107,7 @@ class Data:
     def one(self, axis=0, as_type='pandas'):
         return self.select(self.columns).collect(1, as_type=as_type)
 
-    def collect(self, n, axis=0, as_type='pandas'):
+    def collect(self, n=1000, axis=0, as_type='pandas'):
         return self.df.select(self.columns).limit(n).toPandas()
 
 def _data(self):
