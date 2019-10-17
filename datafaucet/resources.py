@@ -334,7 +334,7 @@ def get_version(service):
         'mysql': '8.0.12',
         'postgres': '42.2.5',
         'mssql': '6.4.0.jre8',
-        'oracle': '12.2.0.1',
+        'oracle': '19.3.0.0',
         'clickhouse':'0.1.54',
         's3a':'3.1.1'
     }

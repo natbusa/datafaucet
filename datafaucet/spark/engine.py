@@ -65,10 +65,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             spark_session = pyspark.sql.SparkSession.builder.getOrCreate()
             hadoop_version = spark_session.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion()
             hadoop_detect_from = 'spark'
+            self._stop(spark_session)
         except Exception as e:
             pass
-
-        self._stop(spark_session)
 
         if hadoop_version is None:
             hadoop_version = get_hadoop_version_from_system()
@@ -171,6 +170,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 else:
                     logging.warning('The Hadoop installation is not detected. '
                                     'Could not load hadoop-aws (s3a) package ')
+            elif s == 'file':
+                pass
+            elif s == 'hdfs':
+                pass
             else:
                 logging.warning(f'could not autodetect driver to install for {s}, version {v}')
 
