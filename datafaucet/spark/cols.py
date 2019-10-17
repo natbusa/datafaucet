@@ -142,7 +142,12 @@ class Cols:
             df = functions.rand(df, ci, min, max, seed)
         return df
 
-    def hash(self, preserve_type=True):
+    def hash(self, method='hash', preserve_type=True):
+        f = {
+            'crc32': F.crc32,
+            'hash': F.hash
+        }.get(method, F.hash)
+
         df = self.df
         cast = lambda ci: ci
         for c in self.scols:
@@ -153,7 +158,7 @@ class Cols:
             if preserve_type and isinstance(t, (T.NumericType,  T.StringType)):
                 cast = lambda ci: ci.cast(t)
 
-            df = df.withColumn(c, cast(F.hash(c)))
+            df = df.withColumn(c, cast(f(c)))
 
         return df
 
@@ -161,13 +166,26 @@ class Cols:
         f = {
             'crc32': F.crc32,
             'md5': F.md5,
+            'md5-8': F.md5,
+            'md5-4': F.md5,
             'sha1': F.sha1
         }.get(method, F.crc32)
 
         df = self.df
         for c in self.scols:
             col = F.col(c).cast('string')
-            df = df.withColumn(c, f(F.concat(col, F.lit(salt))))
+            h = f(F.concat(col, F.lit(salt)))
+
+            if method=='crc32':
+                res = F.unhex(h)
+            elif method=='md5-8':
+                res = F.substring(h, 0, 16)
+            elif method=='md5-4':
+                res = F.substring(h, 0, 8)
+            else:
+                res = h
+
+            df = df.withColumn(c, res)
 
         return df
 
