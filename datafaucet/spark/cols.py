@@ -155,10 +155,14 @@ class Cols:
 
             # keep the hash but preserve original type,
             # at the cost of more hash clashes (reduced hash space)
+
+            #cast to string if method is crc32
+            col = F.col(c).cast('string') if method=='crc32' else F.col(c)
+
             if preserve_type and isinstance(t, (T.NumericType,  T.StringType)):
                 cast = lambda ci: ci.cast(t)
 
-            df = df.withColumn(c, cast(f(c)))
+            df = df.withColumn(c, cast(f(col)))
 
         return df
 
