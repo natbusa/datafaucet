@@ -166,7 +166,7 @@ class Cols:
 
         df = self.df
         for c in self.scols:
-            col = F.col(c).cast(T.StringType)
+            col = F.col(c).cast('string')
             df = df.withColumn(c, f(F.concat(col, F.lit(salt))))
 
         return df
