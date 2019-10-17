@@ -200,6 +200,9 @@ def resource_from_urn(urn):
     return md
 
 def get_sql_query(s):
+    if not s:
+        return None
+
     # if SQL query is detected,
     # wrap the resource path as a temp table
     sql_query = s
