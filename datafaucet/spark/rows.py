@@ -4,22 +4,22 @@ from pyspark.sql import DataFrame
 
 from datafaucet.spark import dataframe
 
-INT_MAX = sys.maxsize  
+INT_MAX = sys.maxsize
 INT_MIN = -sys.maxsize-1
 
 def sample(df, n=1000, *col, random_state=True):
     # n 0<float<=1 -> fraction of samples
     # n floor(int)>1 -> number of samples
     # n dict of key, value pairs or array of (key, value)
-    
+
     # todo:
     # cols = takes alist of columns for sampling if more than one column is provided
     # if a stratum is not specified, provide equally with what is left over form the total of the other quota
-        
+
     count = df.count()
     fraction = n if n<1 else min(count, (1.2*n)/count)
     seed = randint(INT_MIN, INT_MAX) if random_state==True else 42
-        
+
     if n >= count:
         return df
     else:
@@ -31,7 +31,7 @@ class Rows:
     def __init__(self, df, scols=None, gcols=None):
         self.df = df
         self.gcols = gcols or []
-        
+
         self.scols = scols or df.columns
         self.scols = list(set(self.scols) - set(self.gcols))
 
@@ -53,16 +53,16 @@ class Rows:
     def pack(self, partition=1, bucket=1, order=None, sample=1.0):
         df = (self.df
                 .select(self.columns)
-                .partitionBy(partition)
+                .repartition(partition)
                 .bucketBy(bucket)
                 .orderBy(order))
-        
+
         return _sample(df, s)
-    
+
     def filter_by_date(self, column=None, start=None, end=None, window=None):
-        df = dataframe(self.df, column, start, end, window)
+        df = dataframe.filter_by_datetime(self.df, column, start, end, window)
         return df
-    
+
     def grid(self, limit=1000, render='qgrid'):
         try:
             from IPython.display import display
@@ -79,7 +79,7 @@ class Rows:
         data = self.df.select(self.columns).limit(limit).toPandas()
 
         if render=='qgrid':
-            rendered = qgrid.show_grid(data) 
+            rendered = qgrid.show_grid(data)
         else:
             rendered = display(data) if display else data
         return rendered
