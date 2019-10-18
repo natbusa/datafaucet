@@ -54,7 +54,6 @@ class Rows:
         df = (self.df
                 .select(self.columns)
                 .repartition(partition)
-                .bucketBy(bucket)
                 .orderBy(order))
 
         return _sample(df, s)
