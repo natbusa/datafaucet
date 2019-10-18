@@ -7,23 +7,21 @@ from datafaucet.spark import dataframe
 INT_MAX = sys.maxsize
 INT_MIN = -sys.maxsize-1
 
-def sample(df, n=1000, *col, random_state=True):
+def sample(df, n=1000, *col, seed=None):
     # n 0<float<=1 -> fraction of samples
     # n floor(int)>1 -> number of samples
-    # n dict of key, value pairs or array of (key, value)
 
     # todo:
+    # n dict of key, value pairs or array of (key, value)
     # cols = takes alist of columns for sampling if more than one column is provided
     # if a stratum is not specified, provide equally with what is left over form the total of the other quota
 
-    count = df.count()
-    fraction = n if n<1 else min(count, (1.2*n)/count)
-    seed = randint(INT_MIN, INT_MAX) if random_state==True else 42
-
-    if n >= count:
-        return df
+    if n>1:
+        count = df.count()
+        fraction = n/count
+        return df if fraction>1 else df.sample(False, fraction, seed=seed)
     else:
-        return df.sample(False, fraction, seed=seed).limit(n)
+        return df.sample(False, n, seed=seed)
 
 _sample = sample
 
