@@ -229,9 +229,6 @@ class Cols:
     def collect(self, n, as_type='pandas'):
         return self.df.select(self.scols).limit(n).toPandas().T
 
-    def grid(self, limit=1000, render='qgrid'):
-        return self.rows.grid(limit, render)
-
     def summary(self):
         return utils.summary(self, self._cols)
 

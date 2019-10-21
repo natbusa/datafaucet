@@ -60,27 +60,6 @@ class Rows:
         df = dataframe.filter_by_datetime(self.df, column, start, end, window)
         return df
 
-    def grid(self, limit=1000, render='qgrid'):
-        try:
-            from IPython.display import display
-        except:
-            display = None
-
-        try:
-            import qgrid
-        except:
-            render = 'default'
-            logging.warning('Install qgrid for better visualisation. Using pandas as fallback.')
-
-        # get the data
-        data = self.df.select(self.columns).limit(limit).toPandas()
-
-        if render=='qgrid':
-            rendered = qgrid.show_grid(data)
-        else:
-            rendered = display(data) if display else data
-        return rendered
-
     def one(self, as_type='pandas'):
         return self.collect(1, as_type=as_type)
 
