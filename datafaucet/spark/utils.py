@@ -6,6 +6,8 @@ from pyspark.sql import functions as F
 import unidecode as ud
 import zlib
 
+from faker import Faker
+
 def compress(data):
     return zlib.compress(data, 9)
 
@@ -17,8 +19,6 @@ have_pandas = False
 
 def _unidecode(s):
     return s if not s else ud.unidecode(s)
-
-import Faker
 
 def fake(t):
     @F.udf(T.StringType(), T.StringType())
