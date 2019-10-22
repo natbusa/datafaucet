@@ -30,7 +30,8 @@ setup_args = dict(
     keywords=['Interactive', 'Interpreter', 'Shell', 'Web'],
     classifiers=[
         'Intended Audience :: Developers',
-        'Intended Audience :: System Administrators',
+        'Intended Audience :: Data Engineers',
+        'Intended Audience :: Data Scientists',
         'Intended Audience :: Science/Research'],
 )
 
@@ -42,7 +43,7 @@ install_requires = [
     'ruamel.yaml',
     'jinja2',
     'cookiecutter',
-    'elasticsearch',
+    'faker',
     'gitpython',
     'jsonschema',
     'python-dateutil',
@@ -53,6 +54,7 @@ install_requires = [
 ]
 
 try:
+    #if pyspark is already installed skip pyspark
     import pyspark
 except:
     install_requires += ['pyspark', 'pyarrow']

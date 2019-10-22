@@ -20,13 +20,6 @@ have_pandas = False
 def _unidecode(s):
     return s if not s else ud.unidecode(s)
 
-def fake(generator):
-    @F.udf(T.StringType(), T.StringType())
-    def fake_generator(s):
-        faker = Faker()
-        return getattr(faker, generator)()
-    return fake_generator
-
 try:
     import pyarrow
     import pandas
@@ -36,13 +29,29 @@ try:
 
     @F.pandas_udf(T.StringType(), F.PandasUDFType.SCALAR)
     def unidecode(series):
-        return series.apply(_unidecode(s))
+        return series.apply(lambda s: _unidecode(s))
+
+    def fake(generator, *args, **kwargs):
+        @F.udf(T.StringType(), F.PandasUDFType.SCALAR)
+        def fake_generator(series):
+            faker = Faker()
+            f = getattr(faker, generator)(*args, **kwargs)
+            return series.apply(lambda s: f(s))
+        return fake_generator
 
 except ImportError:
 
     @F.udf(T.StringType(), T.StringType())
     def unidecode(s):
         return _unidecode(s)
+
+    def fake(generator, *args, **kwargs):
+        @F.udf(T.StringType(), T.StringType())
+        def fake_generator(s):
+            faker = Faker()
+            return getattr(faker, generator)(*args, **kwargs)
+        return fake_generator
+
 
 def summary(df, cols):
         spark = df.sql_ctx
