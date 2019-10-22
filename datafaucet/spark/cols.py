@@ -143,7 +143,7 @@ class Cols:
         return df
 
     def fake(self, generator):
-        return self.apply(utils.fake, generator=generator)
+        return self.apply(utils.fake(generator))
 
     def hash(self, method='hash', preserve_type=True):
         f = {
