@@ -18,6 +18,15 @@ have_pandas = False
 def _unidecode(s):
     return s if not s else ud.unidecode(s)
 
+import Faker
+
+def fake(t):
+    @F.udf(T.StringType(), T.StringType())
+    def fake_generator(s):
+        faker = Faker()
+        return getattr(faker, t)()
+    return fake_generator
+
 try:
     import pyarrow
     import pandas

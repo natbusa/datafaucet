@@ -142,6 +142,9 @@ class Cols:
             df = functions.rand(df, ci, min, max, seed)
         return df
 
+    def fake(self, generator):
+        return self.apply(utils.fake, generator=generator)
+
     def hash(self, method='hash', preserve_type=True):
         f = {
             'crc32': F.crc32,
