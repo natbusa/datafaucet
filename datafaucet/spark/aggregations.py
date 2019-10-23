@@ -9,29 +9,29 @@ class topn:
     def __init__(self, n = 3, others = None):
         self.n = n
         self.others = others
-    
+
     def __call__(self, df, c, by=None):
         return dataframe.topn(df, c, by, self.n, self.others)
 
 class topn_count:
     def __init__(self, n = 3):
         self.n = n
-    
+
     def __call__(self, df, c, by=None):
         return dataframe.topn_count(df, c, by, self.n)
 
 class percentiles:
     def __init__(self, p=[10, 25, 75, 90]):
         self.p = p
-    
+
     def __call__(self, df, c, by=None):
         return dataframe.percentiles(df, c, by, self.p)
-    
+
 class typeof:
     def __call__(self, df, c, by=None):
-        _gcols = [by] if isinstance(by, str) and by else by or [] 
-        t = df.select(c).schema.fields[0].dataType
-        return df.select(c, *_gcols).groupby(*_gcols).agg(F.lit(c).alias('colname'), F.lit(str(t)).alias('result'))
+        _gcols = [by] if isinstance(by, str) and by else by or []
+        t = df.select(c).schema.fields[0].dataType.simpleString()
+        return df.select(c, *_gcols).groupby(*_gcols).agg(F.lit(c).alias('colname'), F.lit(t).alias('result'))
 
 df_functions = (typeof, topn, topn_count, percentiles)
 
@@ -57,6 +57,7 @@ avg = F.avg
 stddev = F.stddev
 skewness = F.skewness
 kurtosis = F.kurtosis
+first = F.first
 
 digits_only = lambda c: F.sum((F.length(F.translate(c, '0123456789', ''))<F.length(c)).cast('int'))
 spaces_only = lambda c: F.sum(((F.length(F.translate(c, ' \t', ''))==0) & (F.length(c)>0)).cast('int'))
