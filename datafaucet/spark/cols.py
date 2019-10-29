@@ -58,6 +58,15 @@ class Cols:
         self.scols = dataframe.columns(self.df,*by_regex, by_type=by_type, by_func=by_func)
         return self
 
+    def create(self, *colnames, t='string'):
+        df = self.df
+
+        for c in colnames:
+            df = df.withColumn(c, F.lit(None).cast(t))
+
+        self.scols = self._getcols(*colnames)
+        return self
+
     def groupby(self, *colnames):
         #set group by list
         self.gcols = self._getcols(*colnames)
@@ -128,6 +137,12 @@ class Cols:
         df = self.df
         for ci in self.scols:
             df = functions.expand(df, ci, n, sep)
+        return df
+
+    def randint(self, min=0, max=1, seed=None):
+        df = self.df
+        for ci in self.scols:
+            df = functions.randint(df, ci, min, max, seed)
         return df
 
     def randn(self, mu=0.0, sigma=1.0, seed=None):
