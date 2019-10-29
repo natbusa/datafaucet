@@ -35,8 +35,8 @@ def rand(df, c, min=0.0, max=1.0, seed=None):
     range = max-min
     return df.withColumn(c, F.rand(seed)*range+min)
 
-def randint(df, c, min=0, max=1, seed=None):
-    return rand(df, c, min, max, seed).withColumn(c, F.col(c).cast('int'))
+def randint(df, c, min=0, max=2, seed=None, as_type='int'):
+    return rand(df, c, min, max, seed).withColumn(c, F.col(c).cast('as_type'))
 
 def randn(df, c, mu=0.0, sigma=1.0, seed=None):
     return df.withColumn(c, F.randn(seed)*sigma + mu)
