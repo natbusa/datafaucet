@@ -58,11 +58,9 @@ class Cols:
         self.scols = dataframe.columns(self.df,*by_regex, by_type=by_type, by_func=by_func)
         return self
 
-    def create(self, *colnames, t='string'):
-        df = self.df
-
+    def create(self, *colnames, as_type='string'):
         for c in colnames:
-            df = df.withColumn(c, F.lit(None).cast(t))
+            self.df = self.df.withColumn(c, F.lit(None).cast(as_type))
 
         self.scols = self._getcols(*colnames)
         return self
