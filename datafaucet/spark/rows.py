@@ -60,6 +60,9 @@ class Rows:
         df = dataframe.filter_by_datetime(self.df, column, start, end, window)
         return df
 
+    def filter(self, *args, **kwargs):
+        return self.df.filter(*args, **kwargs)
+
     def one(self, as_type='pandas'):
         return self.collect(1, as_type=as_type)
 

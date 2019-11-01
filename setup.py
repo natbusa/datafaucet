@@ -50,7 +50,8 @@ install_requires = [
     'kafka-python',
     'pandas',
     'numpy',
-    'python-dotenv'
+    'python-dotenv',
+    'HLL'
 ]
 
 try:

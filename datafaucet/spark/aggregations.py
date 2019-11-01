@@ -4,6 +4,7 @@ import pyspark.sql.types as T
 
 from datafaucet import logging
 from datafaucet.spark import dataframe
+from datafaucet.spark import utils
 
 class topn:
     def __init__(self, n = 3, others = None):
@@ -62,6 +63,9 @@ first = F.first
 digits_only = lambda c: F.sum((F.length(F.translate(c, '0123456789', ''))<F.length(c)).cast('int'))
 spaces_only = lambda c: F.sum(((F.length(F.translate(c, ' \t', ''))==0) & (F.length(c)>0)).cast('int'))
 
+hll_init_agg = utils.hll_init_agg
+hll_merge = utils.hll_merge
+
 all = {
     'type': typeof(),
     'integer': integer,
@@ -86,4 +90,8 @@ all = {
     'sum_neg': sum_neg,
     'digits_only': digits_only,
     'spaces_only': spaces_only,
+    
+    # PyArrow only
+    'hll_init_agg': hll_init_agg(),
+    'hll_merge': hll_merge(), 
 }

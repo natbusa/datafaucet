@@ -74,10 +74,12 @@ class Cols:
         self.scols = self._getcols(*scols)
         return self
 
-    def rename(self, mapping=None, prefix='', postfix=''):
+    def rename(self, mapping=None, target=None, prefix='', postfix=''):
         if isinstance(mapping, str):
             if len(self.scols)==1:
                 d = {self.scols[0]:mapping}
+            elif target and self._getcols(mapping):
+                d = {self._getcols(mapping)[0]:target}
             else:
                 m = [f'mapping_{c}' for c in range(len(self.scols))]
                 d = dict(zip(self.scols, m))
@@ -113,17 +115,21 @@ class Cols:
         return Data(self.df, self.scols, self.gcols)
 
     ### actions
-    def drop(self):
+    def drop(self, *colnames):
         df = self.df
-        for c in self.scols:
+        cols = self._getcols(*colnames) or self.scols
+        for c in cols:
             df = df.drop(c)
 
         return df
 
-    def apply(self, f, prefix='', postfix=''):
+    def apply(self, f, prefix='', postfix='', alias=None):
         input_cols = self.scols
         output_cols = [f'{prefix}{c}{postfix}' for c in input_cols]
-
+        
+        if len(input_cols)==1 and alias:
+            output_cols = [f'{prefix}{alias}{postfix}']
+        
         df = self.df
 
         for ci, co in zip(input_cols, output_cols):
@@ -137,10 +143,13 @@ class Cols:
             df = functions.expand(df, ci, n, sep)
         return df
 
-    def randint(self, min=0, max=1, seed=None):
+    def randchoice(self, lst=[0,1], p=None, seed=None, dtype=None):
+        return self.apply(utils.randchoice(lst, p, seed, dtype))
+
+    def randint(self, min=0, max=2, seed=None, dtype='int'):
         df = self.df
         for ci in self.scols:
-            df = functions.randint(df, ci, min, max, seed)
+            df = functions.randint(df, ci, min, max, seed, dtype)
         return df
 
     def randn(self, mu=0.0, sigma=1.0, seed=None):
@@ -155,8 +164,8 @@ class Cols:
             df = functions.rand(df, ci, min, max, seed)
         return df
 
-    def fake(self, generator):
-        return self.apply(utils.fake(generator))
+    def fake(self, generator, *args, **kwargs):
+        return self.apply(utils.fake(generator, *args, **kwargs))
 
     def hash(self, method='hash', preserve_type=True):
         f = {
@@ -209,6 +218,13 @@ class Cols:
 
         return df
 
+    def hll_init(self, k=12, alias=None):
+        logging.warning("Consider using hll_init_agg instead: "
+                        "ex: .groupby('g').agg(A.hll_init_agg())")
+        return self.apply(functions.hll_init(k), alias=alias)
+
+    def hll_count(self, k=12, alias=None):
+        return self.apply(functions.hll_count(k), alias=alias)
 
     def obscure(self, password=None):
         df = self.df

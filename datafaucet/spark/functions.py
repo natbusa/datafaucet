@@ -5,6 +5,7 @@ from pyspark.sql import functions as F
 import pyspark.sql.types as T
 
 from datafaucet import logging
+from datafaucet.spark import utils
 
 array_avg = F.udf( lambda x: sum(x)/len(x))
 array_sum = F.udf( lambda x: sum(x))
@@ -35,8 +36,14 @@ def rand(df, c, min=0.0, max=1.0, seed=None):
     range = max-min
     return df.withColumn(c, F.rand(seed)*range+min)
 
-def randint(df, c, min=0, max=2, seed=None, as_type='int'):
-    return rand(df, c, min, max, seed).withColumn(c, F.col(c).cast('as_type'))
+def randint(df, c, min=0, max=2, seed=None, dtype='int'):
+    return rand(df, c, min, max, seed).withColumn(c, F.col(c).cast(dtype))
 
 def randn(df, c, mu=0.0, sigma=1.0, seed=None):
     return df.withColumn(c, F.randn(seed)*sigma + mu)
+
+def hll_init(k=12):
+    return utils.hll_init(k)
+
+def hll_count(k=12):
+    return utils.hll_count(k)
