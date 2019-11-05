@@ -9,17 +9,30 @@ import zlib
 
 from faker import Faker
 from numpy import random
+import binascii
 
 import decimal
 import datetime
 
 from HLL import HyperLogLog
 
-def compress(data):
-    return zlib.compress(data, 9)
+def xor(s, t):
+    tl = len(t)
+    return bytes([s[i] ^ t[i%tl] for i in range(len(s))])
 
-def decompress(obscured):
-    return zlib.decompress(obscured)
+def xor_b64encode(data, key=None, encoding='utf-8'):
+    s = data.encode(encoding)
+    key = key or str(len(s)**2)
+
+    t = key.encode(encoding)
+    r = binascii.b2a_base64(xor(s, t), newline=False)
+    return r.decode('ascii', 'ignore')
+
+def xor_b64decode(data, key=None, encoding='utf-8'):
+    s = binascii.a2b_base64(data)
+    key = key or str(len(s)**2)
+    t = key.encode(encoding)
+    return xor(s,t).decode(encoding)
 
 have_arrow = False
 have_pandas = False
@@ -106,7 +119,8 @@ try:
             zero = hll.registers()
             def regs(x):
                 hll.set_registers(zero); 
-                hll.add(str(x)); 
+                if x is not None:
+                    hll.add(str(x)); 
                 return hll.registers()
             return v.apply(lambda x: regs(x))
         return _hll_init
@@ -120,7 +134,7 @@ try:
                 if isinstance(x, (bytes, bytearray)):
                     hll.set_registers(bytearray(x))
                     hll_res.merge(hll)
-                else:
+                elif x is not None:
                     hll_res.add(str(x))
             return hll_res.registers()
         return _hll_init_agg
@@ -145,6 +159,18 @@ try:
                 hll_res.merge(hll)
             return hll_res.registers()
         return _hll_merge
+
+    def obscure(key=None, encoding='utf-8'):
+        @F.udf(T.StringType(), T.StringType())
+        def _obscure(data):
+            return xor_b64encode(data, key, encoding)
+        return _obscure
+    
+    def unravel(key=None, encoding='utf-8'):
+        @F.udf(T.StringType(), T.StringType())
+        def _unravel(data):
+            return xor_b64decode(data, key,encoding)
+        return _unravel
     
 except ImportError:
 
@@ -174,70 +200,16 @@ except ImportError:
         raise NotImplementedError('Only available with PyArrow')
     def hll_count(k=12):
         raise NotImplementedError('Only available with PyArrow')
+        
+    def obscure(key=None, encoding='utf-8'):
+        @F.udf(T.StringType(), T.StringType())
+        def _obscure(data):
+            return xor_b64encode(data, key, encoding)
+        return _obscure
+    
+    def unravel(key=None, encoding='utf-8'):
+        @F.udf(T.StringType(), T.StringType())
+        def _unravel(data):
+            return xor_b64decode(data, key,encoding)
+        return _unravel
 
-def summary(df, cols):
-        spark = df.sql_ctx
-        types = {x.name:x.dataType for x in list(df.schema) if x.name in cols}
-
-        res = pd.DataFrame.from_dict(types, orient='index')
-        res.columns = ['datatype']
-
-        count  = df.count()
-        res['count'] = count
-
-        d= df.select([F.approx_count_distinct(c).alias(c) for c in cols]).toPandas().T
-        d.columns = ['approx_distinct']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        res['unique_ratio'] = res['approx_distinct']/count
-
-        sel = []
-        for c,v in types.items():
-            if isinstance(v, (T.NumericType)):
-                sel += [F.mean(c).alias(c)]
-            else:
-                sel += [F.min(F.lit(None)).alias(c)]
-        d = df.select(sel).toPandas().T
-        d.columns = ['mean']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        d= df.select([F.min(c).alias(c) for c in cols]).toPandas().T
-        d.columns = ['min']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        d= df.select([F.max(c).alias(c) for c in cols]).toPandas().T
-        d.columns = ['max']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        d= df.select([F.count(F.when(F.isnull(c), c)).alias(c) for c in cols]).toPandas().T
-        d.columns = ['null']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        sel = []
-        for c,v in types.items():
-            if isinstance(v, (T.NumericType)):
-                sel += [F.count(F.when(F.isnan(c), c)).alias(c)]
-            else:
-                sel += [F.min(F.lit(0)).alias(c)]
-        d = df.select(sel).toPandas().T
-        d.columns = ['nan']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        sel = []
-        for c,v in types.items():
-            if isinstance(v, (T.StringType)):
-                sel += [F.count(F.when(F.col(c).isin(''), c)).alias(c)]
-            else:
-                sel += [F.min(F.lit(0)).alias(c)]
-        d = df.select(sel).toPandas().T
-        d.columns = ['empty']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        return res

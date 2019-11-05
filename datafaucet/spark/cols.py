@@ -226,17 +226,11 @@ class Cols:
     def hll_count(self, k=12, alias=None):
         return self.apply(functions.hll_count(k), alias=alias)
 
-    def obscure(self, password=None):
-        df = self.df
-        for c in self.scols:
-            df = df.withColumn(c, F.col(c))
-        return df
+    def obscure(self, key=None, encoding='utf-8', alias=None):
+        return self.apply(utils.obscure(key,encoding) , alias=alias)
 
-    def unobscure(self, password=None):
-        df = self.df
-        for c in self.scols:
-            df = df.withColumn(c, F.col(c))
-        return df
+    def unravel(self, key=None, encoding='utf-8', alias=None):
+        return self.apply(utils.unravel(key,encoding), alias=alias)
 
     def lower(self):
         return self.apply(F.lower)
@@ -264,38 +258,73 @@ class Cols:
     def summary(self):
         return utils.summary(self, self._cols)
 
-    def agg(self, *args):
-
+    def agg(self, func, index='colname', stack=True):
+        # if stack is True:
+        #  equivalent to pandas agg(...).stack(0)
+        #  index is the name of the column to stack the original column names
+        # if stack is false the column name is prepended to the aggregation name
         funcs = {}
-        for arg in args:
-            if isinstance(arg, (list, tuple)):
-                for e in arg:
-                    funcs[str(e)] = e
-            elif isinstance(arg, dict):
-                funcs.update(arg)
-            elif isinstance(arg, str):
-                funcs[arg] = arg
+        
+        def string2func(func):
+            if isinstance(func, str):
+                f = A.all.get(func)
+                if f:
+                    return (func,f)
+                else:
+                    raise ValueError(f'function {func} not found')
+            elif isinstance(func, (type(lambda x: x), type(max))):
+                return (func.__name__, func)
             else:
-                funcs[str(arg)] = arg
+                raise ValueError('Invalid aggregation function')
+            
+        def parse_single_func(func):
+            if isinstance(func, (str, type(lambda x: x), type(max))):
+                return string2func(func)
+            elif isinstance(func, (tuple)):
+                if len(func)==2:
+                    return (func[0], string2func(func[1])[1])
+                else:
+                    raise ValueError('Invalid list/tuple')
+            else:
+                raise ValueError(f'Invalid aggregation item {func}')
+        
+        def parse_list_func(func):
+            func = [func] if type(func)!=list else func
+            return [parse_single_func(x) for x in func]
 
-        for k,v in funcs.items():
-            if k in A.all:
-                funcs[k] = A.all[k]
+        def parse_dict_func(func):
+            func = {0: func} if not isinstance(func, dict) else func
+            return {x[0]:parse_list_func(x[1]) for x in func.items()}
 
+        funcs  = parse_dict_func(func)
         df = self.df
 
-        aggs = []
         def grouped(c):
             g = df.select(c, *self.gcols)
             return g if not self.gcols else g.groupby(*self.gcols)
 
-        for c in self.scols:
+        # either for all columns
+        # or run specific functions for selected columns
 
+        all_cols = set()
+        for k, v in funcs.items():
+            all_cols = all_cols.union(( x[0] for x in v ))
+        
+        aggs = []
+        for c in self.scols:
+            
+            agg_funcs = funcs.get(0, funcs.get(c))
+            if agg_funcs is None:
+                continue
+            agg_cols  = set([x[0] for x in agg_funcs])
+            null_cols = all_cols - agg_cols 
+            
             groupeddata_funcs = []
             dataframe_funcs = []
+            null_funcs = []
 
             agg_gdf = []
-            for n,f in funcs.items():
+            for n,f in agg_funcs:
                 if not isinstance(f, A.df_functions):
                     groupeddata_funcs.append(f(F.col(c)).alias(n))
 
@@ -303,25 +332,31 @@ class Cols:
                 agg_gdf = [grouped(c).agg(F.lit(c).alias('colname'), *groupeddata_funcs)]
 
             agg_dff = []
-            for n,f in funcs.items():
+            for n,f in agg_funcs:
                 if isinstance(f, A.df_functions):
                     agg = f(df, c, by=self.gcols).withColumnRenamed('result', n)
                     agg_dff.append(agg)
 
+            agg_null = []
+            for n in null_cols:
+                null_funcs.append(F.lit(None).alias(n))
+            
+            if null_funcs:
+                agg_null = [grouped(c).agg(F.lit(c).alias('colname'), *null_funcs)]
+            
             join_cols = self.gcols + ['colname']
-            dfs = agg_gdf + agg_dff
+            dfs = agg_gdf + agg_dff + agg_null
 
             agg = functools.reduce( lambda a, b: a.join(b, on=join_cols, how='outer'), dfs)
             aggs.append(agg)
-
-        return functools.reduce( lambda a, b: a.union(b), aggs)
-
-    def featurize(self, funcs):
-        d = self.agg(funcs)
-        all = [F.first(c).alias(f'{c}') for c in set(d.columns) - {*self.gcols, 'colname'}]
-        r = d.groupby(*self.gcols).pivot('colname').agg(*all)
-        return r
-
+            
+        res= functools.reduce( lambda a, b: a.unionByName(b), aggs)
+        
+        if not stack:
+            all = [F.first(c).alias(f'{c}') for c in set(res.columns) - {*self.gcols, 'colname'}]
+            res = res.groupby(*self.gcols).pivot('colname').agg(*all)
+        
+        return res
 
 def _cols(self):
     return Cols(self)

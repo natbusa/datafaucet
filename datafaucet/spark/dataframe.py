@@ -164,77 +164,6 @@ def add_hash_column(obj, cols=True, hash_colname = '_hash', exclude_cols=[]):
 def empty(df):
     return df.sql_ctx.createDataFrame([],df.schema)
 
-def summary(df, datatypes=None):
-        spark = df.sql_ctx
-        types = {x.name:x.dataType for x in list(df.schema)}
-        
-        #filter datatypes
-        if datatypes is not None:
-            types  = {k:v for k,v in types.items() if any([x in datatypes for x in [v, str(v), v.simpleString()]]) }
-        
-        res = pd.DataFrame.from_dict(types, orient='index')
-        res.columns = ['datatype']
-        
-        count  = df.count()
-        res['count'] = count
-
-        d= df.select([F.approx_count_distinct(c).alias(c) for c in df.columns]).toPandas().T
-        d.columns = ['approx_distinct']
-        d.index.name = 'index'
-        res = res.join(d)
-        
-        res['unique_ratio'] = res['approx_distinct']/count
-        
-        sel = []
-        for c,v in types.items():
-            if isinstance(v, (T.NumericType)):
-                sel += [F.mean(c).alias(c)]
-            else:
-                sel += [F.min(F.lit(None)).alias(c)]
-        d = df.select(sel).toPandas().T
-        d.columns = ['mean']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        d= df.select([F.min(c).alias(c) for c in df.columns]).toPandas().T
-        d.columns = ['min']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        d= df.select([F.max(c).alias(c) for c in df.columns]).toPandas().T
-        d.columns = ['max']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        d= df.select([F.count(F.when(F.isnull(c), c)).alias(c) for c in df.columns]).toPandas().T
-        d.columns = ['null']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        sel = []
-        for c,v in types.items():
-            if isinstance(v, (T.NumericType)):
-                sel += [F.count(F.when(F.isnan(c), c)).alias(c)]
-            else:
-                sel += [F.min(F.lit(0)).alias(c)]
-        d = df.select(sel).toPandas().T
-        d.columns = ['nan']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        sel = []
-        for c,v in types.items():
-            if isinstance(v, (T.StringType)):
-                sel += [F.count(F.when(F.col(c).isin(''), c)).alias(c)]
-            else:
-                sel += [F.min(F.lit(0)).alias(c)]
-        d = df.select(sel).toPandas().T
-        d.columns = ['empty']
-        d.index.name = 'index'
-        res = res.join(d)
-
-        return res
-
 def select(df, mapping):
     select = [F.col(x).alias(mapping[x]) for x in df.columns if x in mapping.keys()]
     return df.select(*select)
@@ -256,7 +185,6 @@ def apply(df, f, cols=None):
         df = df.withColumn(col, f(col))
     
     return df
-
 
 def columns(df, *by_regex, by_type=None, by_func=None):
     by_type = by_type if isinstance(by_type, (list, tuple)) else [by_type] if by_type else []
@@ -335,7 +263,7 @@ def topn_values(df, c, by=None, n=3):
 
     return r
 
-def topn(df, c, by=None, n = 3, others = None):
+def topn(df, c, by=None, n = 3, others = False):
     cnt = f'{c}##cnt'
     cnt_tot = f'{c}##tot'
     cnt_top = f'{c}##top'
