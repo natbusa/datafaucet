@@ -198,7 +198,7 @@ except ImportError:
         raise NotImplementedError('Only available with PyArrow')
     def hll_count(k=12):
         raise NotImplementedError('Only available with PyArrow')
-    def hll_count(k=12):
+    def hll_merge(k=12):
         raise NotImplementedError('Only available with PyArrow')
         
     def obscure(key=None, encoding='utf-8'):

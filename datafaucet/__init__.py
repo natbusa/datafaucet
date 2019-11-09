@@ -1,5 +1,5 @@
 import builtins
-builtins.__DATALOOF__ = True
+builtins.__DATAFAUCET__ = True
 
 from ._version import version_info, __version__
 
