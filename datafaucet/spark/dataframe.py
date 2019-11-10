@@ -25,10 +25,10 @@ def cache(df, cached=False):
 
 def filter_by_datetime(df, column=None, start=None, end=None, window=None):
     assert isinstance(df, pyspark.sql.dataframe.DataFrame)
-    
+
     if not column:
         return df
-    
+
     #to datetime and datedelta
     date_window = pd.to_timedelta(window) if window else None
     date_end = dp.isoparse(end) if end else None
@@ -44,7 +44,7 @@ def filter_by_datetime(df, column=None, start=None, end=None, window=None):
     if column in df.columns:
         df = df.filter(F.col(column) < date_end) if date_end else df
         df = df.filter(F.col(column) >= date_start) if date_start else df
-    
+
     return df
 
 def common_columns(df_a, df_b=None, exclude_cols=[]):
@@ -80,22 +80,22 @@ def view(df, state_col='_state', updated_col='_updated', hash_col='_hash'):
     """
 
     c = set(df.columns).difference({state_col, updated_col, hash_col})
-    colnames = [x for x in df.columns if x in c] 
+    colnames = [x for x in df.columns if x in c]
 
     if updated_col not in df.columns:
         return df
-    
+
     if state_col not in df.columns:
         return df
-    
+
     selected_columns = colnames + ['_last.*']
     groupby_columns = colnames
-    
+
     # groupby hash_col first if available
     if hash_col in df.columns:
         selected_columns = selected_columns + [hash_col]
         groupby_columns = [hash_col] + groupby_columns
-    
+
     row_groups = df.groupBy(groupby_columns)
     get_sorted_array = F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))),asc = False)
     df_view = row_groups.agg(get_sorted_array.getItem(0).alias('_last')).select(*selected_columns)
@@ -119,13 +119,13 @@ def diff(df_a, df_b, exclude_cols=[]):
 
     # get columns
     colnames = common_columns(df_a, df_b, exclude_cols)
-    
+
     # return diff
     if df_b.count():
         return df_a.select(colnames).subtract(df_b.select(colnames))
     else:
         return df_a.select(colnames)
-    
+
 def to_timestamp(obj, column, tzone='UTC'):
     f = F.col(column)
     datecol_type = obj.select(column).dtypes[0][1]
@@ -154,10 +154,10 @@ def add_hash_column(obj, cols=True, hash_colname = '_hash', exclude_cols=[]):
     # add the _updated timestamp
     if isinstance(cols, bool) and cols:
         cols =obj.columns
-        
+
     colnames = (set(obj.columns) & set(cols)) - set(exclude_cols)
     cols = [x for x in cols if x in colnames]
-    
+
     obj = obj.withColumn(hash_colname, F.hash(*cols))
     return obj
 
@@ -171,25 +171,25 @@ def select(df, mapping):
 def columns_format(df, prefix='', postfix='', sep='_'):
     if not prefix and not postfix:
         return df
-    
+
     select = [F.col(x).alias(sep.join([prefix,x,postfix])) for x in df.columns]
     return df.select(*select)
 
 def apply(df, f, cols=None):
-    
+
     #select column where to apply the function f
     cols = df.columns if cols is None else cols
     cols = [x for x in df.columns if x in cols]
-    
+
     for col in cols:
         df = df.withColumn(col, f(col))
-    
+
     return df
 
 def columns(df, *by_regex, by_type=None, by_func=None):
     by_type = by_type if isinstance(by_type, (list, tuple)) else [by_type] if by_type else []
     cols = {x.name:x.dataType for x in list(df.schema)}
-        
+
     if len(by_regex):
         c = {}
         for r in by_regex:
@@ -203,13 +203,13 @@ def columns(df, *by_regex, by_type=None, by_func=None):
         for k,v in cols.items():
             if str(v) in by_type:
                 d.update({k:v})
-            
+
             if any([x in [t.typeName() for t in type(v).mro() if issubclass(t, type(T.DataType()))] for x in by_type]):
                 d.update({k:v})
-           
+
             if any([isinstance(v,type(x)) for x in by_type if isinstance(x, T.DataType)]):
                 d.update({k:v})
-                    
+
         cols = d
 
     if by_func is not None:
@@ -222,13 +222,13 @@ def one(df):
     return df.head(1)[0].asDict()
 
 # def approx_quantiles(df, c, by=None, probs=[0.25, 0.75]):
-#     _gcols = [by] if isinstance(by, str) and by else by or [] 
- 
+#     _gcols = [by] if isinstance(by, str) and by else by or []
+
 def _topn(df, c, by=None, n=3):
     cnt = f'{c}##cnt'
     rnk = f'{c}##rnk'
 
-    _gcols = [by] if isinstance(by, str) and by else by or [] 
+    _gcols = [by] if isinstance(by, str) and by else by or []
     s = df.select(*_gcols, c).groupby(*_gcols, c).agg(F.count(F.col(c)).alias(cnt))
 
     # calculate topn
@@ -239,38 +239,38 @@ def _topn(df, c, by=None, n=3):
 
     return a.select(*_gcols, c, cnt)
 
-def topn_count(df, c, by=None, n=3):
+def topn_count(df, c, by=None, n=3, index='_idx', result='_res'):
     cnt = f'{c}##cnt'
-    _gcols = [by] if isinstance(by, str) and by else by or [] 
+    _gcols = [by] if isinstance(by, str) and by else by or []
 
     r = _topn(df, c, _gcols, n)
-    r = r.groupby(*_gcols).agg(F.sum(cnt).alias('result'))
-    
+    r = r.groupby(*_gcols).agg(F.sum(cnt).alias(result))
+
     # the following forces colname to be nullable
-    r = r.withColumn('colname', F.udf(lambda x: x, T.StringType())(F.lit(c)))
+    r = r.withColumn(index, F.udf(lambda x: x, T.StringType())(F.lit(c)))
 
     return r
 
-def topn_values(df, c, by=None, n=3):
+def topn_values(df, c, by=None, n=3, index='_idx', result='_res'):
     cnt = f'{c}##cnt'
-    _gcols = [by] if isinstance(by, str) and by else by or [] 
+    _gcols = [by] if isinstance(by, str) and by else by or []
 
     r = _topn(df, c, _gcols, n)
-    r = r.groupby(*_gcols).agg(F.collect_list(F.col(c)).alias('result'))
-    
+    r = r.groupby(*_gcols).agg(F.collect_list(F.col(c)).alias(result))
+
     # the following forces colname to be nullable
-    r = r.withColumn('colname', F.udf(lambda x: x, T.StringType())(F.lit(c)))
+    r = r.withColumn(index, F.udf(lambda x: x, T.StringType())(F.lit(c)))
 
     return r
 
-def topn(df, c, by=None, n = 3, others = False):
+def topn(df, c, by=None, n = 3, others = False, index='_idx', result='_res'):
     cnt = f'{c}##cnt'
     cnt_tot = f'{c}##tot'
     cnt_top = f'{c}##top'
 
-    _gcols = [by] if isinstance(by, str) and by else by or [] 
+    _gcols = [by] if isinstance(by, str) and by else by or []
     r = _topn(df, c, _gcols, n)
-    
+
     if others:
         # colculate total topn and total
         o = a.groupby(_gcols).agg(F.sum(cnt).alias(cnt_top))
@@ -282,38 +282,38 @@ def topn(df, c, by=None, n = 3, others = False):
         # collect to list
         r = r.union(
                 o.select(
-                    *_gcols, 
-                    F.lit(others).alias(c), 
+                    *_gcols,
+                    F.lit(others).alias(c),
                     (F.col(cnt_tot)-F.col(cnt_top)).alias(cnt)
                 )
             )
-    
+
     r = r.groupby(
             *_gcols
         ).agg(
             F.map_from_arrays(F.collect_list(F.col(c)), F.collect_list(F.col(cnt))
-        ).alias('result'))
-    
+        ).alias(result))
+
     # the following forces colname to be nullable
-    r = r.withColumn('colname', F.udf(lambda x: x, T.StringType())(F.lit(c)))
+    r = r.withColumn(index, F.udf(lambda x: x, T.StringType())(F.lit(c)))
 
     return r
 
-   
-def percentiles(df, c, by=None, p=[10, 25, 50, 75, 90]):
-    _gcols = [by] if isinstance(by, str) and by else by or [] 
+
+def percentiles(df, c, by=None, p=[10, 25, 50, 75, 90], index='_idx', result='_res'):
+    _gcols = [by] if isinstance(by, str) and by else by or []
     ptile = f'{c}##p'
 
     # percentiles per row
     w =  Window.partitionBy(*_gcols).orderBy(c)
     d = df.select(c, *_gcols, F.floor(100*(F.percent_rank().over(w))).alias(ptile))
-    
+
     # aggregate
     agg_keys  = F.array(*[F.lit(x) for x in p])
     agg_values = F.array(*[F.max(F.when(F.col(ptile) < x, F.col(c))) for x in p])
-    r = d.groupby(*_gcols).agg(F.map_from_arrays(agg_keys, agg_values).alias('result'))
+    r = d.groupby(*_gcols).agg(F.map_from_arrays(agg_keys, agg_values).alias(result))
 
     # add colname
-    r = r.withColumn('colname', F.lit(c))
-    
+    r = r.withColumn(index, F.lit(c))
+
     return r

@@ -6,7 +6,6 @@ import textwrap
 import logging as python_logging
 
 from datafaucet import logging
-from datafaucet import elastic
 
 from datafaucet.resources import Resource, get_local, urnparse
 
