@@ -50,17 +50,17 @@ class Cols:
 
         return [x for x in colnames if x in self.df.columns]
 
-    def get(self, *colnames, sort=None):
+    def get(self, *colnames):
         self.scols = self._getcols(*colnames)
         return self
 
-    def find(self, *by_regex, by_type=None, by_func=None, sort=None):
+    def find(self, *by_regex, by_type=None, by_func=None):
         self.scols = dataframe.columns(self.df,*by_regex, by_type=by_type, by_func=by_func)
         return self
 
-    def create(self, *colnames, as_type='string'):
+    def create(self, *colnames, dtype='string'):
         for c in colnames:
-            self.df = self.df.withColumn(c, F.lit(None).cast(as_type))
+            self.df = self.df.withColumn(c, F.lit(None).cast(dtype))
 
         self.scols = self._getcols(*colnames)
         return self
