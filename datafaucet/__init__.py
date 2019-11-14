@@ -35,3 +35,4 @@ from datafaucet.engines import (
 # import specific engine directly,
 # if you don't want to use the engine factory
 from datafaucet.spark.engine import SparkEngine
+from datafaucet.pandas.engine import PandasEngine
