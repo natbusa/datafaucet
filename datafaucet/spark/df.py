@@ -13,7 +13,7 @@ DataFrame.save = dfc.io.save
 
 @add_method(DataFrame)
 def datafaucet(self):
-    print('datafaucet', dfc.__version__)
+    return {'object': 'dataframe', 'type': 'spark', 'version':dfc.__version__}
 
 from .rows import *
 from .cols import *

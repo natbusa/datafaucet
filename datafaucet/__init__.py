@@ -23,7 +23,8 @@ from datafaucet.metadata import (
 from datafaucet.io import (
     load,
     save,
-    list
+    list,
+    range
 )
 
 from datafaucet.engines import (
@@ -36,3 +37,7 @@ from datafaucet.engines import (
 # if you don't want to use the engine factory
 from datafaucet.spark.engine import SparkEngine
 from datafaucet.pandas.engine import PandasEngine
+from datafaucet.dask.engine import DaskEngine
+
+from datafaucet import web
+from datafaucet import crypto

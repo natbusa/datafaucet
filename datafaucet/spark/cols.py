@@ -132,23 +132,13 @@ class Cols:
         cols = self._getcols(colnames)
         return self.df
 
-
-    def apply(self, f, prefix='', postfix='', alias=None, rename=None):
+    def apply(self, f, prefix='', postfix=''):
         input_cols = self.scols
         output_cols = [f'{prefix}{c}{postfix}' for c in input_cols]
 
-        if len(input_cols)==1 and alias:
-            co = f'{prefix}{alias}{postfix}'
-            ci = input_cols[0]
-            df = self.df.withColumn(co, f(F.col(ci)))
-        elif len(input_cols)==1 and rename:
-            co = f'{prefix}{alias}{postfix}'
-            ci = input_cols[0]
-            df = self.df.withColumnRenamed(co, f(F.col(ci)))
-        else:
-            df = self.df
-            for ci, co in zip(input_cols, output_cols):
-                df = df.withColumn(co, f(F.col(ci)))
+        df = self.df
+        for ci, co in zip(input_cols, output_cols):
+            df = df.withColumn(co, f(F.col(ci)))
 
         return df
 
@@ -157,6 +147,17 @@ class Cols:
         for ci in self.scols:
             df = functions.expand(df, ci, n, sep)
         return df
+
+    def cast(self, dtype):
+        f = lambda c: c.cast(utils.get_type(dtype))
+        return self.apply(f)
+
+    def tr(self, m, r):
+        f = lambda c: F.translate(c, m, r)
+        return self.apply(f)
+
+    def mask(self, s, e, c):
+        return self.apply(utils.mask(s, e, c))
 
     def randchoice(self, lst=[0,1], p=None, seed=None, dtype=None):
         return self.apply(utils.randchoice(lst, p, seed, dtype))
@@ -206,7 +207,7 @@ class Cols:
 
         return df
 
-    def hashstr(self, method='crc32', salt=''):
+    def hashstr(self, method='crc32'):
         f = {
             'crc32': F.crc32,
             'md5': F.md5,
@@ -218,7 +219,7 @@ class Cols:
         df = self.df
         for c in self.scols:
             col = F.col(c).cast('string')
-            h = f(F.concat(col, F.lit(salt)))
+            h = f(col)
 
             if method=='crc32':
                 res = F.conv(h.cast('string'), 10, 16)
@@ -233,19 +234,25 @@ class Cols:
 
         return df
 
-    def hll_init(self, k=12, alias=None):
+    def hll_init(self, k=12):
         logging.warning("Consider using hll_init_agg instead: "
                         "ex: .groupby('g').agg(A.hll_init_agg())")
-        return self.apply(functions.hll_init(k), alias=alias)
+        return self.apply(functions.hll_init(k))
 
-    def hll_count(self, k=12, alias=None, rename=None):
-        return self.apply(functions.hll_count(k), alias=alias, rename=rename)
+    def hll_count(self, k=12):
+        return self.apply(functions.hll_count(k))
 
-    def obscure(self, key=None, encoding='utf-8', alias=None):
-        return self.apply(utils.obscure(key,encoding) , alias=alias)
+    def encrypt(self, key, encoding='utf-8'):
+        return self.apply(utils.encrypt(key,encoding))
 
-    def unravel(self, key=None, encoding='utf-8', alias=None):
-        return self.apply(utils.unravel(key,encoding), alias=alias)
+    def decrypt(self, key, encoding='utf-8'):
+        return self.apply(utils.decrypt(key,encoding))
+
+    def obscure(self, key=None, encoding='utf-8', compressed=True):
+        return self.apply(utils.obscure(key,encoding, compressed))
+
+    def unravel(self, key=None, encoding='utf-8', compressed=True):
+        return self.apply(utils.unravel(key,encoding, compressed))
 
     def lower(self):
         return self.apply(F.lower)
@@ -263,12 +270,6 @@ class Cols:
 
     def unidecode(self, pre='', post=''):
         return self.apply(utils.unidecode, pre=pre, post=post)
-
-    def one(self, as_type='pandas'):
-        return self.collect(1, as_type=as_type)
-
-    def collect(self, n, as_type='pandas'):
-        return self.df.select(self.scols).limit(n).toPandas().T
 
     def summary(self):
         return utils.summary(self, self._cols)

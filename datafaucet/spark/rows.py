@@ -43,18 +43,10 @@ class Rows:
 
     def append(self, data):
         df = self.df
-        return df.unionAll(df.sql_ctx.createDataFrame(data, df.schema))
+        return df.unionByName(df.sql_ctx.createDataFrame(data, df.schema))
 
     def sample(self, n=1000, *cols, random_state=True):
         return _sample(self.df, n, *cols, random_state)
-
-    def pack(self, partition=1, bucket=1, order=None, sample=1.0):
-        df = (self.df
-                .select(self.columns)
-                .repartition(partition)
-                .orderBy(order))
-
-        return _sample(df, s)
 
     def filter_by_date(self, column=None, start=None, end=None, window=None):
         df = dataframe.filter_by_datetime(self.df, column, start, end, window)
@@ -62,12 +54,6 @@ class Rows:
 
     def filter(self, *args, **kwargs):
         return self.df.filter(*args, **kwargs)
-
-    def one(self, as_type='pandas'):
-        return self.collect(1, as_type=as_type)
-
-    def collect(self, n, as_type='pandas'):
-        return self.df.select(self.columns).limit(n).toPandas()
 
     @property
     def cols(self):

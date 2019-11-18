@@ -5,31 +5,40 @@ from pyspark.sql import types as T
 from pyspark.sql import functions as F
 
 import unidecode as ud
-import zlib
 
 from faker import Faker
 from numpy import random
 import binascii
+import zlib
 
 import decimal
 import datetime
 
 from HLL import HyperLogLog
+from datafaucet import crypto
 
 def xor(s, t):
     tl = len(t)
     return bytes([s[i] ^ t[i%tl] for i in range(len(s))])
 
-def xor_b64encode(data, key=None, encoding='utf-8'):
+def xor_b64encode(data, key=None, encoding='utf-8', compressed=True):
     s = data.encode(encoding)
     key = key or str(len(s)**2)
 
     t = key.encode(encoding)
-    r = binascii.b2a_base64(xor(s, t), newline=False)
+    r = xor(s, t)
+    if compressed:
+        c = zlib.compressobj(wbits=-15)
+        c.compress(r)
+        r = c.flush()
+    r = binascii.b2a_base64(r, newline=False)
     return r.decode('ascii', 'ignore')
 
-def xor_b64decode(data, key=None, encoding='utf-8'):
+def xor_b64decode(data, key=None, encoding='utf-8', compressed=True):
     s = binascii.a2b_base64(data)
+    if compressed:
+        c = zlib.decompressobj(wbits=-15)
+        s = c.decompress(s)
     key = key or str(len(s)**2)
     t = key.encode(encoding)
     return xor(s,t).decode(encoding)
@@ -78,9 +87,6 @@ def get_type(obj):
     if obj is None:
         return T.NullType()
 
-    # if isinstance(obj, class):
-    #     return python_type_mappings.get(obj.__name__)()
-
     if type(obj)==type(type):
         return python_type_mappings.get(obj)()
 
@@ -88,6 +94,44 @@ def get_type(obj):
         return string_type_mapping.get(obj)()
 
     raise TypeError('type ', type(obj), 'cannot be mapped')
+
+def encrypt(key, encoding='utf-8'):
+    @F.udf(T.StringType(), T.StringType())
+    def _encrypt(data):
+        fernet_func  = crypto.generate_fernet(key)
+        s = data.encode(encoding)
+        token = crypto.encrypt(s, fernet_func)
+        r = binascii.b2a_base64(token, newline=False)
+        return r.decode('ascii', 'ignore')
+    return _encrypt
+
+def decrypt(key, encoding='utf-8'):
+    @F.udf(T.StringType(), T.StringType())
+    def _decrypt(data):
+        fernet_func  = crypto.generate_fernet(key)
+        s = binascii.a2b_base64(data)
+        msg = crypto.decrypt(s, fernet_func)
+        return msg.decode(encoding)
+    return _decrypt
+
+def obscure(key=None, encoding='utf-8', compressed=True):
+    @F.udf(T.StringType(), T.StringType())
+    def _obscure(data):
+        return xor_b64encode(data, key, encoding, compressed)
+    return _obscure
+
+def unravel(key=None, encoding='utf-8', compressed=True):
+    @F.udf(T.StringType(), T.StringType())
+    def _unravel(data):
+        return xor_b64decode(data, key,encoding, compressed)
+    return _unravel
+
+def mask(s, e, c):
+    @F.udf(T.StringType(), T.StringType())
+    def _mask(d):
+        return d[0:s]+len(d[s:e])*c+d[e:]
+    return _mask
+
 
 try:
     import pyarrow
@@ -165,18 +209,6 @@ try:
             return hll_res.registers()
         return _hll_merge
 
-    def obscure(key=None, encoding='utf-8'):
-        @F.udf(T.StringType(), T.StringType())
-        def _obscure(data):
-            return xor_b64encode(data, key, encoding)
-        return _obscure
-
-    def unravel(key=None, encoding='utf-8'):
-        @F.udf(T.StringType(), T.StringType())
-        def _unravel(data):
-            return xor_b64decode(data, key,encoding)
-        return _unravel
-
 except ImportError:
 
     @F.udf(T.StringType(), T.StringType())
@@ -208,15 +240,3 @@ except ImportError:
         raise NotImplementedError('Only available with PyArrow')
     def hll_merge(k=12):
         raise NotImplementedError('Only available with PyArrow')
-
-    def obscure(key=None, encoding='utf-8'):
-        @F.udf(T.StringType(), T.StringType())
-        def _obscure(data):
-            return xor_b64encode(data, key, encoding)
-        return _obscure
-
-    def unravel(key=None, encoding='utf-8'):
-        @F.udf(T.StringType(), T.StringType())
-        def _unravel(data):
-            return xor_b64decode(data, key,encoding)
-        return _unravel

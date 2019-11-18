@@ -8,108 +8,41 @@ import logging as python_logging
 from datafaucet import logging
 
 from datafaucet.resources import Resource, get_local, urnparse
-
 from datafaucet.yaml import YamlDict, to_dict
-
-from datafaucet._utils import python_version, get_hadoop_version_from_system
-from datafaucet._utils import get_tool_home, run_command, str_join, merge
+from datafaucet._utils import python_version, str_join, merge
 
 import pandas as pd
-from datafaucet.spark import dataframe
+import dask
+from dask import dataframe as dd
 
 from datafaucet.engines import EngineSingleton, EngineBase
 
 from timeit import default_timer as timer
-
-import pyspark.sql.functions as F
-import pyspark.sql.types as T
-
-from pyspark.sql.utils import AnalysisException
 
 # purpose of engines
 # abstract engine init, data read and data write
 # and move this information to metadata
 
 # it does not make the code fully engine agnostic though.
+from pandas.io.json._normalize import nested_to_record
+def get_options(m, lvl='options'):
+    deprecated = ['use_inf_as_null']
+    m = getattr(m,lvl)
+    if type(m) == type(pd.options):
+        d = {}
+        for e in dir(m):
+            if e not in deprecated:
+                d[e] = get_options(m,e)
+        return d
+    else:
+        return m
 
-import pyspark
-
-class SparkEngine(EngineBase, metaclass=EngineSingleton):
-
-    @staticmethod
-    def set_conf_timezone(conf, timezone=None):
-        assert(type(conf) == pyspark.conf.SparkConf)
-
-        # if timezone set to 'naive',
-        # force UTC to override local system and spark defaults
-        # This will effectively avoid any conversion of datetime object to/from spark
-
-        if timezone == 'naive':
-            timezone = 'UTC'
-
-        if timezone:
-            os.environ['TZ'] = timezone
-            time.tzset()
-            conf.set('spark.sql.session.timeZone', timezone)
-            conf.set('spark.driver.extraJavaOptions', f'-Duser.timezone={timezone}')
-            conf.set('spark.executor.extraJavaOptions', f'-Duser.timezone={timezone}')
-        else:
-            # use spark and system defaults
-            pass
+class DaskEngine(EngineBase, metaclass=EngineSingleton):
 
     def set_info(self):
-        hadoop_version = None
-        hadoop_detect_from = None
-        try:
-            spark_session = pyspark.sql.SparkSession.builder.getOrCreate()
-            hadoop_version = spark_session.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion()
-            hadoop_detect_from = 'spark'
-            self._stop(spark_session)
-        except Exception as e:
-            pass
-
-        if hadoop_version is None:
-            hadoop_version = get_hadoop_version_from_system()
-            hadoop_detect_from = 'system'
-
-        if hadoop_version is None:
-            logging.warning('Could not find a valid hadoop install.')
-
-        hadoop_home = get_tool_home('hadoop', 'HADOOP_HOME', 'bin')[0]
-        spark_home = get_tool_home('spark-submit', 'SPARK_HOME', 'bin')[0]
-
-        spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
-        spark_dist_classpath_source = 'env'
-
-        if not spark_dist_classpath:
-            spark_dist_classpath_source = os.path.join(spark_home, 'conf/spark-env.sh')
-            if os.path.isfile(spark_dist_classpath_source):
-                with open(spark_dist_classpath_source) as s:
-                    for line in s:
-                        pattern = 'SPARK_DIST_CLASSPATH='
-                        pos = line.find(pattern)
-                        if pos >= 0:
-                            spark_dist_classpath = line[pos + len(pattern):].strip()
-                            spark_dist_classpath = run_command(f'echo {spark_dist_classpath}')[0]
-
-        if hadoop_detect_from == 'system' and (not spark_dist_classpath):
-            logging.warning(textwrap.dedent("""
-                        SPARK_DIST_CLASSPATH not defined and spark installed without hadoop
-                        define SPARK_DIST_CLASSPATH in $SPARK_HOME/conf/spark-env.sh as follows:
-
-                           export SPARK_DIST_CLASSPATH=$(hadoop classpath)
-
-                        for more info refer to:
-                        https://spark.apache.org/docs/latest/hadoop-provided.html
-                    """))
 
         self.info['python_version'] = python_version()
-        self.info['hadoop_version'] = hadoop_version
-        self.info['hadoop_detect'] = hadoop_detect_from
-        self.info['hadoop_home'] = hadoop_home
-        self.info['spark_home'] = spark_home
-        self.info['spark_classpath'] = spark_dist_classpath.split(':') if spark_dist_classpath else None
-        self.info['spark_classpath_source'] = spark_dist_classpath_source
+        self.info['dask_version'] = dask.__version__
 
         return
 
@@ -138,9 +71,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         services = dict(sorted(services.items()))
 
-        # get hadoop, and configured metadata services
-        hadoop_version = self.info['hadoop_version']
-
         #### submit: repositories
         repositories = submit_objs['repositories']
 
@@ -150,89 +80,25 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         #### submit: packages
         packages = submit_objs['packages']
 
-        for s, v in services.items():
-            if s == 'mysql':
-                packages.append(f'mysql:mysql-connector-java:{v}')
-            elif s == 'sqlite':
-                packages.append(f'org.xerial:sqlite-jdbc:{v}')
-            elif s == 'postgres':
-                packages.append(f'org.postgresql:postgresql:{v}')
-            elif s == 'oracle':
-                packages.append(f'com.oracle.ojdbc:ojdbc8:{v}')
-            elif s == 'mssql':
-                packages.append(f'com.microsoft.sqlserver:mssql-jdbc:{v}')
-            elif s == 'clickhouse':
-                packages.append(f'ru.yandex.clickhouse:clickhouse-jdbc:{v}')
-            elif s == 's3a':
-                if hadoop_version:
-                    packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
-                else:
-                    logging.warning('The Hadoop installation is not detected. '
-                                    'Could not load hadoop-aws (s3a) package ')
-            elif s == 'file':
-                pass
-            elif s == 'hdfs':
-                pass
-            else:
-                logging.warning(f'could not autodetect driver to install for {s}, version {v}')
-
         #### submit: packages
         conf = submit_objs['conf']
-
-        for v in resources:
-            if v['service'] == 's3a':
-                service_url = 'http://{}:{}'.format(v['host'], v['port'])
-                s3a = "org.apache.hadoop.fs.s3a.S3AFileSystem"
-
-                conf.append(("spark.hadoop.fs.s3a.endpoint", service_url))
-                conf.append(("spark.hadoop.fs.s3a.access.key", v['user']))
-                conf.append(("spark.hadoop.fs.s3a.secret.key", v['password']))
-                conf.append(("spark.hadoop.fs.s3a.impl", s3a))
-                conf.append(("spark.hadoop.fs.s3a.path.style.access", "true"))
-                break
 
         return submit_objs
 
     def set_submit_args(self):
-        submit_args = ''
-
-        for k in self.submit.keys() - {'conf'}:
-            s = ",".join(self.submit[k])
-            submit_args += f' --{k} {s}' if s else ''
-
-        # submit config options one by one
-        for c in self.submit['conf']:
-            submit_args += f' --conf {c[0]}={c[1]}'
-
-        #### print debug
-        for k in self.submit.keys():
-            if self.submit[k]:
-                print(f'Configuring {k}:')
-                for e in self.submit[k]:
-                    v = e
-                    if isinstance(e, tuple):
-                        if len(e)>1 and str(e[0]).endswith('.key'):
-                            e = (e[0], '****** (redacted)')
-                        v = ' : '.join(list([str(x) for x in e]))
-                    print(f'  -  {v}')
-
-        # set PYSPARK_SUBMIT_ARGS env variable
-        submit_args = '{} pyspark-shell'.format(submit_args)
-        os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args
+        pass
 
     def set_env_variables(self):
-        for e in ['PYSPARK_PYTHON', 'PYSPARK_DRIVER_PYTHON']:
-            if sys.executable and not os.environ.get(e):
-                os.environ[e] = sys.executable
+        pass
 
-    def __init__(self, session_name=None, session_id=0, master = 'local[*]',
+    def __init__(self, session_name=None, session_id=0, master = None,
                  timezone=None, jars=None, packages=None, pyfiles=None, files=None,
                  repositories = None, services=None, conf=None) :
 
         #call base class
         # stop the previous instance,
         # register self a the new instance
-        super().__init__('spark', session_name, session_id)
+        super().__init__('dask', session_name, session_id)
 
         # bundle all submit in a dictionary
         self.submit= {
@@ -243,9 +109,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             'repositories': [repositories] if isinstance(repositories, str) else repositories or [],
             'conf': [conf] if isinstance(conf, tuple) else conf or [],
         }
-
-        # suppress INFO logging for java_gateway
-        python_logging.getLogger('py4j.java_gateway').setLevel(python_logging.ERROR)
 
         # collect info
         self.set_info()
@@ -260,82 +123,52 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         #set submit args via env variable
         self.set_submit_args()
 
-        # set other spark-related environment variables
+        # set other environment variables
         self.set_env_variables()
 
         # set spark conf object
-        print(f"Connecting to spark master: {master}")
-
-        conf = pyspark.SparkConf()
-        self.set_conf_timezone(conf, timezone)
-
-        # set session name
-        conf.setAppName(session_name)
-
-        # set master
-        conf.setMaster(master)
+        print(f"Setting context to dask.")
 
         # config passed through the api call go via the config
         for c in self.submit['conf']:
             k,v,*_ = list(c)+['']
             if isinstance(v, (bool, int, float, str)):
-                conf.set(k, v)
+                #todo:
+                #conf.set(k, v)
+                pass
 
         # stop the current session if running
         self._stop()
 
         # start spark
-        spark_session = self.start_context(conf)
+        session = self.start_context(conf)
 
         # record the data in the engine object for debug and future references
-        self.conf = YamlDict(dict(conf.getAll()))
+        self.conf = YamlDict(nested_to_record(get_options(pd))
+)
 
-        if spark_session:
-            self.conf = dict(dict(spark_session.sparkContext.getConf().getAll()))
-
-            # set version if spark is loaded
-            self._version = spark_session.version
-            print(f'Engine context {self.engine_type}:{self.version} successfully started')
-
-            # store the spark session
-            self.context = spark_session
-
-            # session is running
-            self.stopped = False
-
-    def initialize_spark_sql_context(self, spark_session, spark_context):
-        try:
-            del pyspark.sql.SQLContext._instantiatedContext
-        except:
-            pass
-
-        if spark_context is None:
-            spark_context = spark_session.sparkContext
-
-        pyspark.sql.SQLContext._instantiatedContext = None
-        sql_ctx = pyspark.sql.SQLContext(spark_context, spark_session)
-        return sql_ctx
-
-
-    def start_context(self, conf):
-        try:
-            # init the spark session
-            session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
-
-            # fix SQLContext for back compatibility
-            self.initialize_spark_sql_context(session, session.sparkContext)
-
-            # pyspark set log level method
-            # (this will not suppress WARN before starting the context)
-            session.sparkContext.setLogLevel("ERROR")
-
+        if session:
             # set the engine version
-            self.version = session.version
+            self.version = dask.__version__
 
             # set environment
             self.env = self.get_environment()
 
-            return session
+            # record the data in the engine object for debug and future references
+            self.conf = YamlDict(nested_to_record(get_options(pd)))
+
+            # set version if spark is loaded
+            print(f'Engine context {self.engine_type}:{self.version} successfully started')
+
+            # store the spark session
+            self.context = session
+
+            # session is running
+            self.stopped = False
+
+    def start_context(self, conf):
+        try:
+            return dask.dataframe
         except Exception as e:
             print(e)
             logging.error('Could not start the engine context')
@@ -345,56 +178,18 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
     def get_environment(self):
         vars = [
             'SPARK_HOME',
-            'HADOOP_HOME',
             'JAVA_HOME',
-            'PYSPARK_PYTHON',
-            'PYSPARK_DRIVER_PYTHON',
-            'PYTHONPATH',
-            'PYSPARK_SUBMIT_ARGS',
-            'SPARK_DIST_CLASSPATH',
+            'PYTHONPATH'
         ]
 
         return YamlDict({v: os.environ.get(v) for v in vars})
 
 
     def _stop(self, spark_session=None):
-        self.stopped = True
-        try:
-            sc_from_session = spark_session.sparkContext if spark_session else None
-            sc_from_engine = self.context.sparkContext if self.context else None
-            sc_from_module = pyspark.SparkContext._active_spark_context or None
-
-            scs = [
-                sc_from_session,
-                sc_from_engine,
-                sc_from_module
-            ]
-
-            if self.context:
-                self.context.stop()
-
-            if spark_session:
-                spark_session.stop()
-
-            cls = pyspark.SparkContext
-
-            for sc in scs:
-                if sc:
-                    try:
-                        sc.stop()
-                        sc._gateway.shutdown()
-                    except Exception as e:
-                        pass
-
-            cls._active_spark_context = None
-            cls._gateway = None
-            cls._jvm = None
-        except Exception as e:
-            print(e)
-            logging.warning(f'Could not fully stop the {self.engine_type} context')
+        pass
 
     def range(self, *args):
-        return self.context.range(*args)
+        return dd.from_pandas(pd.DataFrame(range(*args), columns=['id']), npartitions=dask.system.cpu_count())
 
     def load_log(self, md, options, ts_start):
         ts_end = timer()
@@ -417,8 +212,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         return kwargs
 
-    def load_csv(self, path=None, provider=None, *args,
-                 sep=None, header=None, **kwargs):
+    def load_csv(self, path=None, provider=None, *args, sep=None, header=None, **kwargs):
 
         #return None
         obj = None
@@ -474,8 +268,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         return obj
 
 
-    def load_parquet(self, path=None, provider=None, *args,
-                 mergeSchema=None, **kwargs):
+    def load_parquet(self, path=None, provider=None, *args, mergeSchema=None, **kwargs):
 
         #return None
         obj = None
@@ -525,8 +318,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.load_log(md, options, ts_start)
         return obj
 
-    def load_json(self, path=None, provider=None, *args,
-                 lines=True, **kwargs):
+    def load_json(self, path=None, provider=None, *args, lines=True, **kwargs):
 
         #return None
         obj = None

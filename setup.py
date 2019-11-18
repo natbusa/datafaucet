@@ -4,7 +4,7 @@ from setuptools import setup
 
 # the name of the package
 name = 'datafaucet'
-submodules = ['cli', 'spark', 'elastic']
+submodules = ['cli', 'web', 'pandas', 'spark', 'dask']
 packages = [name] + ['{}.{}'.format(name, sm) for sm in submodules]
 
 pjoin = os.path.join
@@ -36,29 +36,52 @@ setup_args = dict(
 )
 
 install_requires = [
-    'unidecode',
-    'requests',
+    # cli
     'traitlets',
-    'ipykernel',
+    'cookiecutter',
+
+    #datafaucet
+    'numpy',
+    'pandas',
+    'dask[complete]',
+
+    #datafaucet io
+    'pyarrow',
+    'fastparquet',
+    'sqlalchemy',
+    's3fs',
+
+    # datafaucet visualization
+    'bokeh',
+    'seaborn',
+
+    # dataframe methods
+    'HLL',
+    'unidecode',
+    'faker',
+    'requests',
+
+    # datafaucet project
     'ruamel.yaml',
     'jinja2',
-    'cookiecutter',
-    'faker',
-    'gitpython',
     'jsonschema',
-    'python-dateutil',
-    'kafka-python',
-    'pandas',
-    'numpy',
+    'ipykernel',
     'python-dotenv',
-    'HLL'
+
+    # datafaucet logging
+    'gitpython',
+    'kafka-python',
+
+    # utils
+    'python-dateutil'
 ]
 
 try:
     #if pyspark is already installed skip pyspark
     import pyspark
 except:
-    install_requires += ['pyspark', 'pyarrow']
+    install_requires.append('pyspark')
+
 
 setup_args['include_package_data'] = True
 

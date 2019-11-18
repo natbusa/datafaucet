@@ -1,7 +1,7 @@
 import datafaucet as dfc
 from datafaucet.decorators import add_method
 
-from pandas import DataFrame
+from dask import dataframe as dd
 
 # monkey patching: try to limit to a minimum
 
@@ -9,11 +9,11 @@ from pandas import DataFrame
 # df.save, df.datafaucet
 # df.rows, df.cols, df.data
 
-DataFrame.save = dfc.io.save
+(dd.DataFrame).save = dfc.io.save
 
-@add_method(DataFrame)
+@add_method(dd.DataFrame)
 def datafaucet(self):
-    return {'object': 'dataframe', 'type': 'pandas', 'version':dfc.__version__}
+    return {'object': 'dataframe', 'type': 'dask', 'version':dfc.__version__}
 
 from .rows import *
 from .cols import *

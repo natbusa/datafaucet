@@ -1,5 +1,5 @@
 """
-# how methods to classes 
+# how methods to classes
 # and attributes to fucntions
 
 Example:
@@ -47,7 +47,3 @@ def add_attr(cls):
             return f
         setattr(cls, func.__name__, wrapper)
     return decorator
-
-
-
-

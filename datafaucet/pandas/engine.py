@@ -133,7 +133,7 @@ class PandasEngine(EngineBase, metaclass=EngineSingleton):
                 #todo:
                 #conf.set(k, v)
                 pass
-                
+
         # stop the current session if running
         self._stop()
 
@@ -184,6 +184,9 @@ class PandasEngine(EngineBase, metaclass=EngineSingleton):
 
     def _stop(self, spark_session=None):
         pass
+
+    def range(self, *args):
+        return pd.DataFrame(range(*args), columns=['id'])
 
     def load_log(self, md, options, ts_start):
         ts_end = timer()

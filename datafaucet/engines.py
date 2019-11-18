@@ -106,5 +106,8 @@ class EngineBase:
     def list(self, provider, path):
         raise NotImplementedError
 
+    def range(self, provider, path):
+        raise NotImplementedError
+
     def _stop(self):
         self.stopped = True

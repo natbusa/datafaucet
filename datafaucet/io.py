@@ -12,6 +12,12 @@ def save(obj, path=None, provider=None, *args, format=None, mode=None, **kwargs)
 def list(provider, path=None, **kwargs):
     return Engine().list(provider, path, **kwargs)
 
+def dataframe(data=None, columns=None):
+    return Engine().dataframe(data=data, columns=columns)
+
+def range(*args):
+    return Engine().range(*args)
+
 # csv specific load/save
 def load_csv(
     #resource generic params
