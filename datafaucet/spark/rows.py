@@ -4,27 +4,6 @@ from pyspark.sql import DataFrame
 
 from datafaucet.spark import dataframe
 
-INT_MAX = sys.maxsize
-INT_MIN = -sys.maxsize-1
-
-def sample(df, n=1000, *col, seed=None):
-    # n 0<float<=1 -> fraction of samples
-    # n floor(int)>1 -> number of samples
-
-    # todo:
-    # n dict of key, value pairs or array of (key, value)
-    # cols = takes alist of columns for sampling if more than one column is provided
-    # if a stratum is not specified, provide equally with what is left over form the total of the other quota
-
-    if n>1:
-        count = df.count()
-        fraction = n/count
-        return df if fraction>1 else df.sample(False, fraction, seed=seed)
-    else:
-        return df.sample(False, n, seed=seed)
-
-_sample = sample
-
 class Rows:
     def __init__(self, df, scols=None, gcols=None):
         self.df = df
@@ -46,7 +25,7 @@ class Rows:
         return df.unionByName(df.sql_ctx.createDataFrame(data, df.schema))
 
     def sample(self, n=1000, *cols, random_state=True):
-        return _sample(self.df, n, *cols, random_state)
+        return dataframe.sample(self.df, n, *cols, random_state)
 
     def filter_by_date(self, column=None, start=None, end=None, window=None):
         df = dataframe.filter_by_datetime(self.df, column, start, end, window)

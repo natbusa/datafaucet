@@ -11,41 +11,36 @@ import pytz
 import pandas as pd
 import dateutil.parser as dp
 
-def repartition(df, repartition=None):
-    assert isinstance(df, pyspark.sql.dataframe.DataFrame)
-    return df.repartition(repartition) if repartition else df
+def columns(df, *by_regex, by_type=None, by_func=None):
+    by_type = by_type if isinstance(by_type, (list, tuple)) else [by_type] if by_type else []
+    cols = {x.name:x.dataType for x in list(df.schema)}
 
-def coalesce(df, coalesce=None):
-    assert isinstance(df, pyspark.sql.dataframe.DataFrame)
-    return df.coalesce(coalesce) if coalesce else df
+    if len(by_regex):
+        c = {}
+        for r in by_regex:
+            regex = re.compile(r)
+            c.update({k:v for k,v in cols.items() if regex.search(k)})
+        cols = c
 
-def cache(df, cached=False):
-    assert isinstance(df, pyspark.sql.dataframe.DataFrame)
-    return df.cache() if cached else df
+    #filter datatypes
+    if by_type:
+        d= {}
+        for k,v in cols.items():
+            if str(v) in by_type:
+                d.update({k:v})
 
-def filter_by_datetime(df, column=None, start=None, end=None, window=None):
-    assert isinstance(df, pyspark.sql.dataframe.DataFrame)
+            if any([x in [t.typeName() for t in type(v).mro() if issubclass(t, type(T.DataType()))] for x in by_type]):
+                d.update({k:v})
 
-    if not column:
-        return df
+            if any([isinstance(v,type(x)) for x in by_type if isinstance(x, T.DataType)]):
+                d.update({k:v})
 
-    #to datetime and datedelta
-    date_window = pd.to_timedelta(window) if window else None
-    date_end = dp.isoparse(end) if end else None
-    date_start = dp.isoparse(start) if start else None
+        cols = d
 
-    # calculate begin and end
-    if date_start and date_window and not date_end:
-        date_end = date_start + date_window
+    if by_func is not None:
+        cols = {k:v for k,v in cols.items() if by_func(k)}
 
-    if date_end and date_window and not date_start:
-        date_start = date_end - date_window
-
-    if column in df.columns:
-        df = df.filter(F.col(column) < date_end) if date_end else df
-        df = df.filter(F.col(column) >= date_start) if date_start else df
-
-    return df
+    return list(cols.keys())
 
 def common_columns(df_a, df_b=None, exclude_cols=[]):
     """
@@ -126,6 +121,30 @@ def diff(df_a, df_b, exclude_cols=[]):
     else:
         return df_a.select(colnames)
 
+def filter_by_datetime(df, column=None, start=None, end=None, window=None):
+    assert isinstance(df, pyspark.sql.dataframe.DataFrame)
+
+    if not column:
+        return df
+
+    #to datetime and datedelta
+    date_window = pd.to_timedelta(window) if window else None
+    date_end = dp.isoparse(end) if end else None
+    date_start = dp.isoparse(start) if start else None
+
+    # calculate begin and end
+    if date_start and date_window and not date_end:
+        date_end = date_start + date_window
+
+    if date_end and date_window and not date_start:
+        date_start = date_end - date_window
+
+    if column in df.columns:
+        df = df.filter(F.col(column) < date_end) if date_end else df
+        df = df.filter(F.col(column) >= date_start) if date_start else df
+
+    return df
+
 def to_timestamp(obj, column, tzone='UTC'):
     f = F.col(column)
     datecol_type = obj.select(column).dtypes[0][1]
@@ -164,59 +183,6 @@ def add_hash_column(obj, cols=True, hash_colname = '_hash', exclude_cols=[]):
 def empty(df):
     return df.sql_ctx.createDataFrame([],df.schema)
 
-def select(df, mapping):
-    select = [F.col(x).alias(mapping[x]) for x in df.columns if x in mapping.keys()]
-    return df.select(*select)
-
-def columns_format(df, prefix='', postfix='', sep='_'):
-    if not prefix and not postfix:
-        return df
-
-    select = [F.col(x).alias(sep.join([prefix,x,postfix])) for x in df.columns]
-    return df.select(*select)
-
-def apply(df, f, cols=None):
-
-    #select column where to apply the function f
-    cols = df.columns if cols is None else cols
-    cols = [x for x in df.columns if x in cols]
-
-    for col in cols:
-        df = df.withColumn(col, f(col))
-
-    return df
-
-def columns(df, *by_regex, by_type=None, by_func=None):
-    by_type = by_type if isinstance(by_type, (list, tuple)) else [by_type] if by_type else []
-    cols = {x.name:x.dataType for x in list(df.schema)}
-
-    if len(by_regex):
-        c = {}
-        for r in by_regex:
-            regex = re.compile(r)
-            c.update({k:v for k,v in cols.items() if regex.search(k)})
-        cols = c
-
-    #filter datatypes
-    if by_type:
-        d= {}
-        for k,v in cols.items():
-            if str(v) in by_type:
-                d.update({k:v})
-
-            if any([x in [t.typeName() for t in type(v).mro() if issubclass(t, type(T.DataType()))] for x in by_type]):
-                d.update({k:v})
-
-            if any([isinstance(v,type(x)) for x in by_type if isinstance(x, T.DataType)]):
-                d.update({k:v})
-
-        cols = d
-
-    if by_func is not None:
-        cols = {k:v for k,v in cols.items() if by_func(k)}
-
-    return list(cols.keys())
-
 def sample(df, n=1000, *col, seed=None):
     # n 0<float<=1 -> fraction of samples
     # n floor(int)>1 -> number of samples
@@ -232,9 +198,6 @@ def sample(df, n=1000, *col, seed=None):
         return df if fraction>1 else df.sample(False, fraction, seed=seed)
     else:
         return df.sample(False, n, seed=seed)
-
-# def approx_quantiles(df, c, by=None, probs=[0.25, 0.75]):
-#     _gcols = [by] if isinstance(by, str) and by else by or []
 
 def _topn(df, c, by=None, n=3):
     cnt = f'{c}##cnt'
@@ -310,7 +273,6 @@ def topn(df, c, by=None, n = 3, others = False, index='_idx', result='_res'):
     r = r.withColumn(index, F.udf(lambda x: x, T.StringType())(F.lit(c)))
 
     return r
-
 
 def percentiles(df, c, by=None, p=[10, 25, 50, 75, 90], index='_idx', result='_res'):
     _gcols = [by] if isinstance(by, str) and by else by or []

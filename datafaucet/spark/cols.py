@@ -1,16 +1,17 @@
 import functools
 
 from pyspark.sql import DataFrame
-
 from datafaucet import logging
-import pyspark
+
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 
 from datafaucet.spark import dataframe
-from datafaucet.spark import aggregations as A
-from datafaucet.spark import utils
 from datafaucet.spark import functions
+from datafaucet.spark import types
+
+import re
+import unidecode as ud
 
 def to_dict(d=None):
     m = d or {}
@@ -20,17 +21,18 @@ def to_dict(d=None):
         m = {}
         for e in d:
             if isinstance(e, (list, tuple)):
-                if len(e)>1:
-                    m[e[0]]=e[1]
-                elif len(e)>0:
+                if len(e) > 1:
+                    m[e[0]] = e[1]
+                elif len(e) > 0:
                     m[e[0]] = e[0]
             elif isinstance(e, str):
-                m[e]=e
+                m[e] = e
     elif isinstance(d, str):
         m = dict(d, d)
     else:
         m = {}
     return m
+
 
 class Cols:
     def __init__(self, df, scols=None, gcols=None):
@@ -40,22 +42,23 @@ class Cols:
         self.scols = scols or df.columns
         self.scols = [x for x in self.scols if x not in self.gcols]
 
-    @property
-    def columns(self):
-        return [x for x in self.df.columns if x in (self.scols + self.gcols)]
-
     def _getcols(self, *colnames):
         for c in set(colnames) - set(self.df.columns):
             logging.warning(f'Column not found: {c}')
 
         return [x for x in colnames if x in self.df.columns]
 
+    ## columns get/find/create/alias/drop
+    @property
+    def columns(self):
+        return [x for x in self.df.columns if x in (self.scols + self.gcols)]
+
     def get(self, *colnames):
         self.scols = self._getcols(*colnames)
         return self
 
     def find(self, *by_regex, by_type=None, by_func=None):
-        self.scols = dataframe.columns(self.df,*by_regex, by_type=by_type, by_func=by_func)
+        self.scols = dataframe.columns(self.df, *by_regex, by_type=by_type, by_func=by_func)
         return self
 
     def create(self, *colnames, dtype='string'):
@@ -65,48 +68,30 @@ class Cols:
         self.scols = self._getcols(*colnames)
         return self
 
-    def groupby(self, *colnames):
-        #set group by list
-        self.gcols = self._getcols(*colnames)
-
-        #update select list
-        self.scols = [x for x in self.scols if x not in self.gcols]
+    def alias(self, old, new):
+        cols = self.df.columns
+        idx = cols.index(old)
+        a = cols[:idx + 1]
+        b = cols[idx + 1:]
+        self.df = self.df.select(*a, F.col(old).alias(new), *b)
+        self.scols = [new]
         return self
 
-    def rename(self, mapping=None, target=None, prefix='', postfix=''):
-        # parsing
-        if isinstance(mapping, str) and isinstance(target, str):
-           d = {self._getcols(mapping)[0]:target}
-
-        elif isinstance(mapping or target, str):
-           colname = mapping or target
-           m = [f'{colname}_{c}' for c in range(len(self.scols))]
-           if len(self.scols)==1:
-               d = {self.scols[0]:colname}
-           else:
-               d = dict(zip(self.scols, m))
-        else:
-            d = to_dict(mapping)
-
-        # nothing to do if no rename
-        if not d:
-            return self.df
-
-        mapped_cols = set(self.scols) & set(d.keys())
+    def drop(self, *cols):
+        cols = self._getcols(*cols) if cols else self.scols
 
         df = self.df
-
-        for c in mapped_cols:
-            df = df.withColumnRenamed(c, prefix+d[c]+postfix)
-
+        for c in cols:
+            df = df.drop(c)
         return df
 
-    def order(self, *cols, where='start'):
+    def groupby(self, *colnames):
+        # set group by list
+        self.gcols = self._getcols(*colnames)
 
-        ordered = [x for x in cols if x in self.scols]
-        other = [x for x in self.scols if x not in cols]
-
-        return self.df.select(*ordered, *other)
+        # update select list
+        self.scols = [x for x in self.scols if x not in self.gcols]
+        return self
 
     @property
     def rows(self):
@@ -119,18 +104,76 @@ class Cols:
         return Data(self.df, self.scols, self.gcols)
 
     ### actions
-    def drop(self, *colnames):
+    def alter(self, *mods):
         df = self.df
-        cols = self._getcols(*colnames) or self.scols
-        for c in cols:
-            df = df.drop(c)
+        for c in self.scols:
+            ci = c
+            for t in mods:
+                t = (t, None, None) if isinstance(t, str) else tuple(t)
+                if t[0] == 'unidecode':
+                    c = ud.unidecode(c)
+                elif t[0] == 'alnum':
+                    regex = re.compile('[^a-zA-Z0-9_]')
+                    c = regex.sub('', c)
+                elif t[0] == 'num':
+                    regex = re.compile('[^0-9_]')
+                    c = regex.sub('', c)
+                elif t[0] == 'alpha':
+                    regex = re.compile('[^a-zA-Z_]')
+                    c = regex.sub('', c)
+                elif t[0] == 'lower':
+                    c = c.lower()
+                elif t[0] == 'capitalize':
+                    c = c.capitalize()
+                elif t[0] == 'upper':
+                    c = c.upper()
+                elif t[0] == 'slice':
+                    c = c[t[1]:t[2]] if t[2] else t[1]
+                elif t[0] == 'translate':
+                    c = c.translate(str.maketrans(t[1], t[2]))
+                else:
+                    pass
+            df = df.withColumnRenamed(ci, c)
+        return df
+
+    def rename(self, mapping=None, target=None, prefix='', postfix=''):
+        if not (mapping or target):
+            return self.df
+
+        if isinstance(mapping, str) and isinstance(target, str):
+            old, new = (self._getcols(mapping)[0], target)
+            return self.df.withColumnRenamed(old, prefix + new + postfix)
+
+        if target:
+            raise ValueError('mapping/target combination not allowed')
+
+        if isinstance(mapping, str):
+            colname = mapping
+            m = [f'{colname}_{c}' for c in range(len(self.scols))]
+            if len(self.scols) == 1:
+                d = {self.scols[0]: colname}
+            else:
+                d = dict(zip(self.scols, m))
+        else:
+            d = to_dict(mapping)
+
+        mapped_cols = set(self.scols) & set(d.keys())
+
+        df = self.df
+        for c in mapped_cols:
+            df = df.withColumnRenamed(c, prefix + d[c] + postfix)
 
         return df
 
-    def dup(self, colnames):
-        df = self.df
-        cols = self._getcols(colnames)
-        return self.df
+    def order(self, *cols, append_right=False):
+        cols = self._getcols(*cols) or sorted(self.scols)
+        ordered = [x for x in cols if x in self.scols]
+        other = [x for x in self.scols if x not in cols]
+
+        if append_right:
+            return self.df.select(*other, *ordered)
+        else:
+            return self.df.select(*ordered, *other)
 
     def apply(self, f, prefix='', postfix=''):
         input_cols = self.scols
@@ -149,7 +192,7 @@ class Cols:
         return df
 
     def cast(self, dtype):
-        f = lambda c: c.cast(utils.get_type(dtype))
+        f = lambda c: c.cast(types.get_type(dtype))
         return self.apply(f)
 
     def tr(self, m, r):
@@ -157,10 +200,10 @@ class Cols:
         return self.apply(f)
 
     def mask(self, s, e, c):
-        return self.apply(utils.mask(s, e, c))
+        return self.apply(functions.mask(s, e, c))
 
-    def randchoice(self, lst=[0,1], p=None, seed=None, dtype=None):
-        return self.apply(utils.randchoice(lst, p, seed, dtype))
+    def randchoice(self, lst=[0, 1], p=None, seed=None, dtype=None):
+        return self.apply(functions.randchoice(lst, p, seed, dtype))
 
     def randint(self, min=0, max=2, seed=None, dtype='int'):
         df = self.df
@@ -181,7 +224,7 @@ class Cols:
         return df
 
     def fake(self, generator, *args, **kwargs):
-        return self.apply(utils.fake(generator, *args, **kwargs))
+        return self.apply(functions.fake(generator, *args, **kwargs))
 
     def hash(self, method='hash', preserve_type=True):
         f = {
@@ -197,10 +240,10 @@ class Cols:
             # keep the hash but preserve original type,
             # at the cost of more hash clashes (reduced hash space)
 
-            #cast to string if method is crc32
-            col = F.col(c).cast('string') if method=='crc32' else F.col(c)
+            # cast to string if method is crc32
+            col = F.col(c).cast('string') if method == 'crc32' else F.col(c)
 
-            if preserve_type and isinstance(t, (T.NumericType,  T.StringType)):
+            if preserve_type and isinstance(t, (T.NumericType, T.StringType)):
                 cast = lambda ci: ci.cast(t)
 
             df = df.withColumn(c, cast(f(col)))
@@ -221,11 +264,11 @@ class Cols:
             col = F.col(c).cast('string')
             h = f(col)
 
-            if method=='crc32':
+            if method == 'crc32':
                 res = F.conv(h.cast('string'), 10, 16)
-            elif method=='md5-8':
+            elif method == 'md5-8':
                 res = F.substring(h, 0, 16)
-            elif method=='md5-4':
+            elif method == 'md5-4':
                 res = F.substring(h, 0, 8)
             else:
                 res = h
@@ -243,16 +286,16 @@ class Cols:
         return self.apply(functions.hll_count(k))
 
     def encrypt(self, key, encoding='utf-8'):
-        return self.apply(utils.encrypt(key,encoding))
+        return self.apply(functions.encrypt(key, encoding))
 
     def decrypt(self, key, encoding='utf-8'):
-        return self.apply(utils.decrypt(key,encoding))
+        return self.apply(functions.decrypt(key, encoding))
 
     def obscure(self, key=None, encoding='utf-8', compressed=True):
-        return self.apply(utils.obscure(key,encoding, compressed))
+        return self.apply(functions.obscure(key, encoding, compressed))
 
     def unravel(self, key=None, encoding='utf-8', compressed=True):
-        return self.apply(utils.unravel(key,encoding, compressed))
+        return self.apply(functions.unravel(key, encoding, compressed))
 
     def lower(self):
         return self.apply(F.lower)
@@ -269,10 +312,10 @@ class Cols:
         return self.apply(func)
 
     def unidecode(self, pre='', post=''):
-        return self.apply(utils.unidecode, pre=pre, post=post)
+        return self.apply(functions.unidecode, pre=pre, post=post)
 
     def summary(self):
-        return utils.summary(self, self._cols)
+        return functions.summary(self, self._cols)
 
     def agg(self, func, stack=None):
         # if stack is True, o:
@@ -288,7 +331,7 @@ class Cols:
             if isinstance(func, str):
                 f = A.all.get(func)
                 if f:
-                    return (func,f)
+                    return (func, f)
                 else:
                     raise ValueError(f'function {func} not found')
             elif isinstance(func, (type(lambda x: x), type(max))):
@@ -300,7 +343,7 @@ class Cols:
             if isinstance(func, (str, type(lambda x: x), type(max))):
                 return string2func(func)
             elif isinstance(func, (tuple)):
-                if len(func)==2:
+                if len(func) == 2:
                     return (func[0], string2func(func[1])[1])
                 else:
                     raise ValueError('Invalid list/tuple')
@@ -308,14 +351,14 @@ class Cols:
                 raise ValueError(f'Invalid aggregation item {func}')
 
         def parse_list_func(func):
-            func = [func] if type(func)!=list else func
+            func = [func] if type(func) != list else func
             return [parse_single_func(x) for x in func]
 
         def parse_dict_func(func):
             func = {0: func} if not isinstance(func, dict) else func
-            return {x[0]:parse_list_func(x[1]) for x in func.items()}
+            return {x[0]: parse_list_func(x[1]) for x in func.items()}
 
-        funcs  = parse_dict_func(func)
+        funcs = parse_dict_func(func)
         df = self.df
 
         def grouped(c):
@@ -336,12 +379,12 @@ class Cols:
 
             # for this column
             agg_funcs = funcs.get(0, funcs.get(c))
-            agg_cols  = set([x[0] for x in agg_funcs])
+            agg_cols = set([x[0] for x in agg_funcs])
 
             agg_dff = []
             groupeddata_funcs = []
             for agg_name in all_agg_cols:
-                f = [f for (n,f) in agg_funcs if n == agg_name]
+                f = [f for (n, f) in agg_funcs if n == agg_name]
                 f = f[0] if f else None
                 if not f:
                     groupeddata_funcs.append(F.lit(None).alias(agg_name))
@@ -355,15 +398,15 @@ class Cols:
 
             if agg_dff:
                 join_cols = self.gcols + [stack_col]
-                dfs  = [agg_gdf] + agg_dff
-                agg = functools.reduce( lambda a, b: a.join(b, on=join_cols, how='outer'), dfs)
-                agg = agg.select(*(join_cols+all_agg_cols))
+                dfs = [agg_gdf] + agg_dff
+                agg = functools.reduce(lambda a, b: a.join(b, on=join_cols, how='outer'), dfs)
+                agg = agg.select(*(join_cols + all_agg_cols))
             else:
                 agg = agg_gdf
 
             aggs.append(agg)
 
-        res= functools.reduce( lambda a, b: a.union(b), aggs)
+        res = functools.reduce(lambda a, b: a.union(b), aggs)
 
         if not stack:
             all = [F.first(c).alias(f'{c}') for c in all_agg_cols]
@@ -371,7 +414,9 @@ class Cols:
 
         return res
 
+
 def _cols(self):
     return Cols(self)
+
 
 DataFrame.cols = property(_cols)

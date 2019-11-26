@@ -1,13 +1,13 @@
 test:
 	py.test tests --tb=short
 
-develop:
+dev:
 	pip install --editable .
 
-tox-test:
+tox:
 	@tox
 
-release:
+clean:
 	find . -name '.ipython' -exec rm -rf  {} +
 	find . -name '.jupyter' -exec rm -rf  {} +
 	find . -name '.config' -exec rm -rf  {} +
@@ -16,4 +16,4 @@ release:
 	find . -name '.ipynb_checkpoints' -exec rm -rf  {} +
 	find . -name 'spark-warehouse' -exec rm -rf {} +
 
-.PHONY: test
+.PHONY: test tox
