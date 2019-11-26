@@ -15,5 +15,6 @@ clean:
 	find . -name '.ivy2' -exec rm -rf  {} +
 	find . -name '.ipynb_checkpoints' -exec rm -rf  {} +
 	find . -name 'spark-warehouse' -exec rm -rf {} +
+	rm -rf 'datafaucet.egg-info'
 
 .PHONY: test tox
