@@ -1,5 +1,7 @@
 from pyspark.sql import DataFrame
 
+import datafaucet as dfc
+
 from datafaucet.io import save
 from datafaucet.decorators import add_method
 from datafaucet.engines import register

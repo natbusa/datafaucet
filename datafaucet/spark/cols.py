@@ -329,7 +329,7 @@ class Cols:
 
         def string2func(func):
             if isinstance(func, str):
-                f = A.all.get(func)
+                f = functions.all.get(func)
                 if f:
                     return (func, f)
                 else:
@@ -389,7 +389,7 @@ class Cols:
                 if not f:
                     groupeddata_funcs.append(F.lit(None).alias(agg_name))
                 else:
-                    if not isinstance(f, A.df_functions):
+                    if not isinstance(f, functions.df_functions):
                         groupeddata_funcs.append(f(F.col(c)).alias(agg_name))
                     else:
                         agg_dff.append(f(df, c, by=self.gcols, index=stack_col, result=agg_name))
