@@ -110,7 +110,6 @@ def encrypt(key, encoding='utf-8'):
 
     return _encrypt
 
-
 def decrypt(key, encoding='utf-8'):
     @F.udf(T.StringType(), T.StringType())
     def _decrypt(data):
@@ -303,6 +302,16 @@ first = F.first
 
 digits_only = lambda c: F.sum((F.length(F.translate(c, '0123456789', '')) < F.length(c)).cast('int'))
 spaces_only = lambda c: F.sum(((F.length(F.translate(c, ' \t', '')) == 0) & (F.length(c) > 0)).cast('int'))
+
+def strip(chars):
+    return lambda c: lstrip(chars)(rstrip(chars)(c))
+
+def rstrip(chars):
+    return lambda c: F.regex_replace(c, f'[{chars}]*^', '')
+
+def lstrip(chars):
+    return lambda c: F.regex_replace(c, f'$[{chars}]*', '')
+
 
 all = {
     'typeof': typeof(),

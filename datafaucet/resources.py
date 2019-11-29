@@ -10,7 +10,7 @@ from copy import deepcopy
 
 from datafaucet import metadata
 from datafaucet.paths import rootdir
-from datafaucet._utils import merge, to_ordered_dict
+from datafaucet.utils import merge, to_ordered_dict
 from datafaucet.yaml import YamlDict
 
 from datafaucet.download import download
@@ -374,6 +374,19 @@ def get_url(md):
 
     return url
 
+def hash(md):
+    md = deepcopy(md)
+
+    h_list = []
+    for k in ['url', 'format', 'table', 'database']:
+        e = md.get(k)
+        v = zlib.crc32(e.encode()) if e else 0
+        h_list.append(v)
+
+    md['hash'] = functools.reduce(lambda a,b : a^b, h_list)
+    md['hash'] = hex(ctypes.c_size_t(md['hash']).value)
+
+    return md
 
 def process_metadata(md):
 
@@ -438,13 +451,7 @@ def process_metadata(md):
     if md['format']!='jdbc' and compression:
         md['options']['compression'] = compression
 
-    h_list = []
-    for k in ['url', 'format', 'table', 'database']:
-        v = zlib.crc32(md[k].encode()) if md[k] else 0
-        h_list.append(v)
-
-    md['hash'] = functools.reduce(lambda a,b : a^b, h_list)
-    md['hash'] = hex(ctypes.c_size_t(md['hash']).value)
+    md = hash(md)
 
     return md
 

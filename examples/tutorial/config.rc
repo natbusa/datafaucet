@@ -1,0 +1,7 @@
+# list here the docker compose modules
+# required for this demo
+# the list of available modules can be retrieved with `make list-components`
+
+DEMO_REPO_URL=
+DEMO_COMPONENTS=(jupyter)
+# mssql mysql postgres oracle clickhouse minio hdfs kafka spark)

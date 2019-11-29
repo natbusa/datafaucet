@@ -1,5 +1,5 @@
 from datafaucet.metadata import resource
-from datafaucet._utils import merge
+from datafaucet.utils import merge
 from datafaucet import paths
 
 import os

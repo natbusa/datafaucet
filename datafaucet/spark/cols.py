@@ -137,7 +137,7 @@ class Cols:
         return df
 
     def rename(self, mapping=None, target=None, prefix='', postfix=''):
-        if not (mapping or target):
+        if not (mapping or target or prefix or postfix):
             return self.df
 
         if isinstance(mapping, str) and isinstance(target, str):
@@ -147,6 +147,10 @@ class Cols:
         if target:
             raise ValueError('mapping/target combination not allowed')
 
+        # default to all columns
+        d = dict(zip(self.scols, self.scols))
+
+        # custom mapping
         if isinstance(mapping, str):
             colname = mapping
             m = [f'{colname}_{c}' for c in range(len(self.scols))]
@@ -154,11 +158,14 @@ class Cols:
                 d = {self.scols[0]: colname}
             else:
                 d = dict(zip(self.scols, m))
-        else:
-            d = to_dict(mapping)
 
+        if isinstance(mapping, (dict, list)):
+            d = dict(mapping)
+
+        # force colname to be in the list of available columns
         mapped_cols = set(self.scols) & set(d.keys())
 
+        # renaming time!
         df = self.df
         for c in mapped_cols:
             df = df.withColumnRenamed(c, prefix + d[c] + postfix)

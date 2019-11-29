@@ -17,7 +17,8 @@ from datafaucet.resources import Resource
 
 #utils
 from datafaucet.yaml import YamlDict
-from datafaucet._utils import Singleton, repo_data, to_ordered_dict, python_version, relpath, abspath
+from datafaucet.utils import Singleton, to_ordered_dict, python_version, relpath, abspath
+from datafaucet.git import repo_data
 
 import uuid
 

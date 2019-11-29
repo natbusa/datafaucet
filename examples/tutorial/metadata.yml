@@ -1,0 +1,163 @@
+---
+profile: default
+
+variables:
+
+    a: hello
+    b: "{{ variables.a }} world"
+    c: "{{ env('SHELL') }}"
+    d: "{{ env('ENV_VAR_NOT_DEFINED', 'foo') }}"
+    e: "{{ now() }}"
+    f: "{{ now(tz='UTC', format='%Y-%m-%d') }}"
+
+    my_string_var: "Hi There!"
+    my_env_var: "{{ env('USER', 'guest') }}"
+    my_date_var: "{{ now(format='%Y-%m-%d') }}"
+    my_string_concat_var1: "{{ engine.type }} running at {{ engine.master }}"
+    my_string_concat_var2: "{{ variables.my_string_var }}: the current date is {{ variables.my_date_var }}"
+
+providers:
+    localfs:
+        service: file
+        path: data
+        format: csv
+        options:
+            header: True
+            inferSchema: True
+
+resources:
+    ascombe:
+        path: ascombe.csv
+        provider: localfs
+
+    r_test:
+        path: abc.avro
+        options:
+            overwrite_option: overwritten
+            a: True
+            
+    correlation:
+        path: correlation.csv
+        provider: localfs
+
+engine:
+    type: spark
+    master: local[*]
+    timezone: naive
+
+loggers:
+    root:
+        severity: info
+
+    datafaucet:
+        name: dfc
+        stdout:
+            enable: true
+            severity: notice
+        file:
+            enable: true
+            severity: notice
+        kafka:
+            enable: false
+            severity: info
+            hosts:
+                - kafka-node1:9092
+                - kafka-node2:9092
+            topic: dfc
+---
+profile: saveload
+providers:
+
+    hdfs:
+        service: hdfs
+        hostname: hdfs-namenode
+        path: /
+        format: parquet
+        options:
+            header: True
+            inferSchema: True
+
+    test:
+        path: 'hdfs://hdfs-namenode:8020/wanna/dance/with/somebody'
+        format: delta
+        options:
+            overwrite_option: a
+            b: True
+
+    minio:
+        service: minio
+        hostname: minio
+        username: minio-username
+        password: "{{ env('MINIO_USER_PASSWORD') }}"
+        path: data
+        format: parquet
+        options:
+            header: True
+            inferSchema: True
+
+    pagila:
+        service: postgres
+        hostname: postgres
+        username: postgres
+        password: "{{ env('POSTGRES_USER_PASSWORD') }}"
+        path: pagila
+        format: jdbc
+
+    sakila:
+        service: mysql
+        hostname: mysql
+        username: sakila
+        password: "{{ env('MYSQL_USER_PASSWORD') }}"
+        path: sakila
+        format: jdbc
+
+    school:
+        service: mssql
+        hostname: mssql
+        username: sa
+        password: "{{ env('MSSQL_USER_PASSWORD') }}"
+        path: School
+        format: jdbc
+
+    human_resources:
+        service: oracle
+        hostname: oracle
+        username: hr
+        password: "{{ env('ORACLE_USER_PASSWORD') }}"
+        path: ORCLCDB.localdomain
+        format: jdbc
+
+    taxes:
+        service: clickhouse
+        hostname: clickhouse
+        username: default
+        password: "{{ env('CLICKHOUSE_USER_PASSWORD') }}"
+        path: tax_bills
+        format: jdbc
+---
+profile: prod
+engine:
+    type: spark
+    master: spark://spark-master:7077
+
+---
+profile: minimal
+providers:
+    localfs:
+        service: file
+        path: data
+        format: csv
+        options:
+            header: True
+            inferSchema: True
+loggers:
+    root:
+        severity: info
+
+    datafaucet:
+        name: dfc
+        stdout:
+            enable: true
+            severity: notice
+
+            

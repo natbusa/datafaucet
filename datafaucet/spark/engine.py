@@ -10,9 +10,7 @@ from datafaucet import logging
 from datafaucet.resources import Resource, get_local, urnparse
 
 from datafaucet.yaml import YamlDict, to_dict
-
-from datafaucet._utils import python_version, get_hadoop_version_from_system
-from datafaucet._utils import get_tool_home, run_command, str_join, merge
+from datafaucet.utils import python_version, get_tool_home, run_command
 
 import pandas as pd
 from datafaucet.spark import dataframe
@@ -33,6 +31,16 @@ from pyspark.sql.utils import AnalysisException
 # it does not make the code fully engine agnostic though.
 
 import pyspark
+
+def get_hadoop_version_from_system():
+    hadoop_home = get_tool_home('hadoop', 'HADOOP_HOME', 'bin')[0]
+    hadoop_abspath = os.path.join(hadoop_home, 'bin', 'hadoop')
+
+    try:
+        output = run_command(f'{hadoop_abspath}', 'version')
+        return output[0].split()[1]
+    except:
+        return ''
 
 class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
@@ -620,6 +628,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.load_log(md, options, ts_start)
         return obj
 
+    def load_scd(self, path, provider, format=None, merge_on=None, **kwargs):
+        obj = self.load(path, provider, format=format, **kwargs)
+        return dataframe.view(obj, merge_col=merge_on)
 
     def load(self, path=None, provider=None, *args, format=None, **kwargs):
 
@@ -628,6 +639,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 provider,
                 format=format,
                 **kwargs)
+
+        format, _, storage_format = md['format'].partition(':')
+        if format == 'scd':
+            return self.load_scd(path, provider, format=storage_format, **kwargs)
 
         if md['format'] == 'csv':
             return self.load_csv(path, provider, **kwargs)
@@ -890,7 +905,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         ts_start = timer()
         try:
-            #three approaches: local, cluster, and service
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
                 obj.write \
                     .format('jdbc') \
@@ -928,6 +942,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 mode=mode,
                 **kwargs)
 
+        format, _, storage_format = md['format'].partition(':')
+        if format=='scd':
+            return self.save_scd(obj, path, provider, format=storage_format, mode=mode, **kwargs)
+
         if md['format'] == 'csv':
             return self.save_csv(obj, path, provider, mode=mode, **kwargs)
         elif md['format'] == 'tsv':
@@ -945,116 +963,67 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             logging.error(f'Unknown format "{md["service"]}"', extra={'md':md})
             return False
 
-    def copy(self, md_src, md_trg, mode='append'):
-        # timer
-        timer_start = timer()
+    def save_scd(self, obj, path=None, provider=None, *args, format=None, mode=None, merge_on=None, where=None, **kwargs):
 
-        # src dataframe
-        df_src = self.load(md_src)
+        result = True
+        md = Resource(
+                path,
+                provider,
+                format=format,
+                mode=mode,
+                **kwargs)
 
-        # if not path on target, get it from src
-        if not md_trg['resource_path']:
-            md_trg = resource.metadata(
-                self._rootdir,
-                self._metadata,
-                md_src['resource_path'],
-                md_trg['provider_alias'])
+        options = md['options']
 
-        # logging
-        log_data = {
-            'src_hash': md_src['hash'],
-            'src_path': md_src['resource_path'],
-            'trg_hash': md_trg['hash'],
-            'trg_path': md_trg['resource_path'],
-            'mode': mode,
-            'updated': False,
-            'records_read': 0,
-            'records_add': 0,
-            'records_del': 0,
-            'columns': 0,
-            'time': timer() - timer_start
-        }
+        # after collecting from metadata, or method call, define csv defaults
+        options['mode'] = options['mode'] or 'overwrite'
+        format = md['format'] or 'parquet'
 
-        # could not read source, log error and return
-        if df_src is None:
-            logging.error(log_data)
-            return
+        ts_start = timer()
 
-        num_rows = df_src.count()
-        num_cols = len(df_src.columns)
+        num_rows = obj.count()
+        num_cols = len(obj.columns)
 
         # empty source, log notice and return
         if num_rows == 0 and mode == 'append':
-            log_data['time'] = timer() - timer_start
-            logging.notice(log_data)
-            return
+            return True
 
         # overwrite target, save, log notice/error and return
         if mode == 'overwrite':
-            if md_trg['state_column']:
-                df_src = df_src.withColumn('_state', F.lit(0))
+            obj = obj.withColumn('_state', F.lit(0))
+            obj = dataframe.add_update_column(obj, '_updated')
 
-            result = self.save(df_src, md_trg, mode=mode)
+            result = self.save(obj, md, mode='overwrite')
+            return True
 
-            log_data['time'] = timer() - timer_start
-            log_data['records_read'] = num_rows
-            log_data['records_add'] = num_rows
-            log_data['columns'] = num_cols
+        # append
 
-            logging.notice(log_data) if result else logging.error(log_data)
-            return
-
+        df_src = obj
         # trg dataframe (if exists)
         try:
-            df_trg = self.load(md_trg, catch_exception=False)
+            df_trg = self.load(md, format=format, catch_exception=False)
         except:
             df_trg = dataframe.empty(df_src)
-
-        # de-dup (exclude the _updated column)
 
         # create a view from the extracted log
         df_trg = dataframe.view(df_trg)
 
         # capture added records
-        df_add = dataframe.diff(df_src, df_trg, ['_date', '_datetime', '_updated', '_hash', '_state'])
-        rows_add = df_add.count()
+        df_add = dataframe.diff(df_src, df_trg, ['_updated', '_state'])
 
         # capture deleted records
-        rows_del = 0
-        if md_trg['state_column']:
-            df_del = dataframe.diff(df_trg, df_src, ['_date', '_datetime', '_updated', '_hash', '_state'])
-            rows_del = df_del.count()
+        df_del = dataframe.diff(df_trg, df_src, ['_updated', '_state'])
 
-        updated = (rows_add + rows_del) > 0
+        df_add = df_add.withColumn('_state', F.lit(0))
+        df_del = df_del.withColumn('_state', F.lit(1))
 
-        num_cols = len(df_add.columns)
-        num_rows = max(df_src.count(), df_trg.count())
+        df = df_add.union(df_del)
+        df = dataframe.add_update_column(df, '_updated')
 
-        # save diff
-        if updated:
-            if md_trg['state_column']:
-                df_add = df_add.withColumn('_state', F.lit(0))
-                df_del = df_del.withColumn('_state', F.lit(1))
+        result = self.save(df, md, mode='append', format=format)
 
-                df = df_add.union(df_del)
-            else:
-                df = df_add
-
-            result = self.save(df, md_trg, mode=mode)
-        else:
-            result = True
-
-        log_data.update({
-            'updated': updated,
-            'records_read': num_rows,
-            'records_add': rows_add,
-            'records_del': rows_del,
-            'columns': num_cols,
-            'time': timer() - timer_start
-        })
-
-        logging.notice(log_data) if result else logging.error(log_data)
-
+        self.save_log(md, options, ts_start)
+        return result
 
     def list(self, provider, path=None, **kwargs):
         df_schema = T.StructType([

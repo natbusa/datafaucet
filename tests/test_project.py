@@ -5,7 +5,7 @@ from testfixtures import TempDirectory
 
 from datafaucet import _project
 from datafaucet import project
-from datafaucet._utils import Singleton
+from datafaucet.utils import Singleton
 from datafaucet import paths
 
 

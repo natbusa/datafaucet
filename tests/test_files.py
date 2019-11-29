@@ -6,7 +6,7 @@ from textwrap import dedent
 import pytest
 from testfixtures import TempDirectory
 
-from datafaucet._utils import Singleton
+from datafaucet.utils import Singleton
 
 @pytest.fixture()
 def tempdir():

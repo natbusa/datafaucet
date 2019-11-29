@@ -357,7 +357,7 @@ from datafaucet import files
 from datafaucet import logging
 
 from datafaucet.yaml import yaml, YamlDict
-from datafaucet._utils import Singleton, abspath, merge, to_ordered_dict
+from datafaucet.utils import Singleton, abspath, merge, to_ordered_dict
 
 import json
 import jsonschema

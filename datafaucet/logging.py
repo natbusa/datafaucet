@@ -21,7 +21,9 @@ from collections import MutableMapping
 from datafaucet import paths
 from datafaucet import files
 
-from datafaucet._utils import repo_data, merge
+from datafaucet.utils import merge
+from datafaucet.git import repo_data
+
 
 def func_name(level=1):
     try:

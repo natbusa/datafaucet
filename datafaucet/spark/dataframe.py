@@ -67,14 +67,14 @@ def common_columns(df_a, df_b=None, exclude_cols=[]):
     # as provided by df_b or df_a column method
     return [x for x in cols if x in c]
 
-def view(df, state_col='_state', updated_col='_updated', hash_col='_hash'):
+def view(df, state_col='_state', updated_col='_updated', merge_col=None):
     """
     Calculate a view from a log of events by performing the following actions:
         - squashing the events for each entry record to the last one
         - remove deleted record from the list
     """
 
-    c = set(df.columns).difference({state_col, updated_col, hash_col})
+    c = set(df.columns).difference({state_col, updated_col})
     colnames = [x for x in df.columns if x in c]
 
     if updated_col not in df.columns:
@@ -86,15 +86,14 @@ def view(df, state_col='_state', updated_col='_updated', hash_col='_hash'):
     selected_columns = colnames + ['_last.*']
     groupby_columns = colnames
 
-    # groupby hash_col first if available
-    if hash_col in df.columns:
-        selected_columns = selected_columns + [hash_col]
-        groupby_columns = [hash_col] + groupby_columns
+    # groupby merge_col first if available
+    if merge_col in df.columns:
+        groupby_columns = [merge_col]
 
     row_groups = df.groupBy(groupby_columns)
-    get_sorted_array = F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))),asc = False)
+    get_sorted_array = F.sort_array(F.collect_list(F.struct( F.col(updated_col), F.col(state_col))), asc = False)
     df_view = row_groups.agg(get_sorted_array.getItem(0).alias('_last')).select(*selected_columns)
-    df_view = df_view.filter("{} = 0".format(state_col))
+    df_view = df_view.filter(f"{state_col} = 0").select(*colnames)
 
     return df_view
 

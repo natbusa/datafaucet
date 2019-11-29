@@ -1,6 +1,6 @@
 from datafaucet.metadata import reader
 from datafaucet import paths
-from datafaucet._utils import Singleton
+from datafaucet.utils import Singleton
 
 import os
 from textwrap import dedent

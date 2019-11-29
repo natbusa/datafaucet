@@ -1,4 +1,4 @@
-from datafaucet._utils import merge
+from datafaucet.utils import merge
 
 def test_merge():
     a = {'a': 1, 'b': 4, 'c': {'merge1': 2}}

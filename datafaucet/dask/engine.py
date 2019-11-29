@@ -9,7 +9,7 @@ from datafaucet import logging
 
 from datafaucet.resources import Resource, get_local, urnparse
 from datafaucet.yaml import YamlDict, to_dict
-from datafaucet._utils import python_version, str_join, merge
+from datafaucet.utils import python_version, str_join, merge
 
 import pandas as pd
 import dask
