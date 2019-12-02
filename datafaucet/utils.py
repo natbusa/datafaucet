@@ -1,6 +1,5 @@
 import os
 import sys
-import git
 
 from copy import deepcopy
 
@@ -61,47 +60,6 @@ def merge(a, b):
     return deepcopy(a if b is None else b)
 
 
-def repo_data(rootdir=None, search_parent_directories=True):
-    """
-    :param rootdir: the root directory where to look for the repo. (default is current working dir)
-    :param search_parent_directories: repo search upwards for a valid .git directory object
-    :return: a dictionary with git repository info, if available
-    """
-
-    if rootdir is None:
-        rootdir = os.getcwd()
-
-    msg = {
-            'type': None,
-            'committer': '',
-            'hash': 0,
-            'commit': 0,
-            'branch': '',
-            # How to get url
-            'url': '',
-            'name': '',
-            # How to get humanable time
-            'date': '',
-            'clean': False
-        }
-
-    try:
-        repo = git.Repo(rootdir, search_parent_directories=search_parent_directories)
-        (commit, branch) = repo.head.object.name_rev.split(' ')
-        msg['type'] = 'git'
-        msg['committer'] = repo.head.object.committer.name
-        msg['hash'] = commit[:7]
-        msg['commit'] = commit
-        msg['branch'] = branch
-        msg['url'] = repo.remotes.origin.url
-        msg['name'] = repo.remotes.origin.url.split('/')[-1]
-        msg['date'] = repo.head.object.committed_datetime.isoformat()
-        msg['clean'] = len(repo.index.diff(None)) == 0
-    except:
-        pass
-
-    return msg
-
 def find(filename, directory):
     for dirpath, dirnames, files in os.walk(directory):
         for name in files:
@@ -150,16 +108,6 @@ def get_tool_home(command, env_variable, subpath='bin'):
         return (get_home_dirname(command_abspath, subpath), 'PATH')
     except:
         return ('','')
-
-def get_hadoop_version_from_system():
-    hadoop_home = get_tool_home('hadoop', 'HADOOP_HOME', 'bin')[0]
-    hadoop_abspath = os.path.join(hadoop_home,'bin', 'hadoop')
-    
-    try:
-        output = run_command(f'{hadoop_abspath}','version')
-        return output[0].split()[1]
-    except:
-        return ''
 
 def run_command(*args):
     process = Popen(' '.join(args), shell='/bin/bash', stdout=PIPE)

@@ -1,6 +1,4 @@
-import sys
-from random import randint
-from pyspark.sql import DataFrame
+from dask import dataframe as dd
 
 from datafaucet.spark import dataframe
 
@@ -72,4 +70,4 @@ class Rows:
 def _rows(self):
     return Rows(self)
 
-DataFrame.rows = property(_rows)
+dd.DataFrame.rows = property(_rows)

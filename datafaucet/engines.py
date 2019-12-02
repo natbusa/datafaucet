@@ -10,10 +10,10 @@ class EngineSingleton(type):
         global _singleton
 
         if not _singleton['instance']:
-            print('created', cls.__name__)
             _singleton['instance'] = super(EngineSingleton, cls).__call__(*args, **kwargs)
             _singleton['args']   = args
             _singleton['kwargs'] = kwargs
+            logging.info('Engine created', cls.__name__)
             return _singleton['instance']
 
         # a different Engine or Engine Configuration?
@@ -24,7 +24,7 @@ class EngineSingleton(type):
         diff_kwargs = _singleton['kwargs'] != kwargs
 
         if diff_engine or diff_args or diff_kwargs:
-            #print(f"Factory: Stop the current {_singleton['instance'].__class__.__name__} instance" )
+            logging.info(f"Factory: Stop the current {_singleton['instance'].__class__.__name__} instance" )
 
             _singleton['instance']._stop()
             del _singleton['instance']
@@ -58,8 +58,8 @@ def Engine(engine_type=None, *args, **kwargs):
             cls = _engines[engine_type]
             cls(*args, **kwargs)
         else:
-            print('Could not create the Engine:')
-            print('No matching engine type in', ', '.join(_engines.keys()))
+            logging.error('Could not create the Engine:')
+            logging.error('No matching engine type in', ', '.join(_engines.keys()))
 
     engine = _singleton['instance']
 
@@ -84,7 +84,7 @@ class EngineBase:
         self.session_id = session_id
 
         # print statement
-        print(f'Init engine "{self.engine_type}"')
+        logging.info(f'Init engine "{self.engine_type}"')
 
         self.submit = dict()
         self.info = dict()

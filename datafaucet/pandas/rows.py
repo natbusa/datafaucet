@@ -1,6 +1,4 @@
-import sys
-from random import randint
-from pyspark.sql import DataFrame
+from pandas import DataFrame
 
 from datafaucet.spark import dataframe
 

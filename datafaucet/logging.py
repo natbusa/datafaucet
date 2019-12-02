@@ -1,7 +1,7 @@
 import logging
 
 # extend logging with custom level 'NOTICE'
-NOTICE_LEVELV_NUM = 25 
+NOTICE_LEVELV_NUM = 25
 logging.addLevelName(NOTICE_LEVELV_NUM, "NOTICE")
 
 try:
@@ -24,25 +24,27 @@ from datafaucet import files
 from datafaucet.utils import merge
 from datafaucet.git import repo_data
 
+import inspect
+import ntpath
 
 def func_name(level=1):
     try:
-        name = sys._getframe(level).f_code.co_name
-        if name=='<module>':
-            name = sys._getframe(level+1).f_code.co_name
-            
-        return name 
+        frame = inspect.stack(context=0)[level]
+        return f'{ntpath.basename(frame.filename)}:{frame.function}'
     except:
         return '-'
 
+
 # logging object is a singleton
 _logger = None
+
 
 def getLogger():
     global _logger
     if not _logger:
         init()
     return _logger
+
 
 class LoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
@@ -64,7 +66,7 @@ class LoggerAdapter(logging.LoggerAdapter):
             'dfc_funcname': None,
             'dfc_data': {}
         }
-        
+
         self.extra.update(extra)
 
     def process(self, msg, kwargs):
@@ -78,7 +80,7 @@ class LoggerAdapter(logging.LoggerAdapter):
         """
         d = self.extra
         d.update({'dfc_funcname': func_name(5)})
-        
+
         if isinstance(msg, MutableMapping):
             merged = merge(msg, kwargs.get('extra', {}))
             d.update({'dfc_data': merged})
@@ -87,7 +89,7 @@ class LoggerAdapter(logging.LoggerAdapter):
             d.update({'dfc_data': kwargs.get('extra', {})})
         else:
             raise ValueError('log message must be a str or a dict')
-            
+
         kwargs["extra"] = d
         return msg, kwargs
 
@@ -143,7 +145,8 @@ class JsonFormatter(logging.Formatter):
         }
 
         return json.dumps(log_record, default=_json_default)
-    
+
+
 class KafkaLoggingHandler(logging.Handler):
 
     def __init__(self, topic, bootstrap_servers):
@@ -174,62 +177,67 @@ levels = {
     'critical': logging.CRITICAL
 }
 
+
 def init_kafka(logger, level, md):
-    p = md['datafaucet']['kafka'] 
+    p = md['datafaucet']['kafka']
     if p and p['enable'] and KafkaProducer:
         level = levels.get(p['severity'] or level)
         topic = p['topic'] or 'dfc'
         hosts = p['hosts']
     else:
         return
-    
+
     if not hosts:
         logging.warning('Logging on kafka: no hosts defined')
         return
 
     # disable logging for 'kafka.KafkaProducer', kafka.conn
-    for i in ['kafka.KafkaProducer','kafka.conn']:
+    for i in ['kafka.KafkaProducer', 'kafka.conn']:
         kafka_logger = logging.getLogger(i)
         kafka_logger.propagate = False
         kafka_logger.handlers = []
-            
+
     formatter = JsonFormatter()
     handlerKafka = KafkaLoggingHandler(topic, hosts)
     handlerKafka.setLevel(level)
     handlerKafka.setFormatter(formatter)
     logger.addHandler(handlerKafka)
 
-def init_stdout(logger, level, md):    
+
+def init_stdout(logger, level, md):
     p = md['datafaucet']['stdout']
-    
+
     # legacy param
     p = p or md['datafaucet']['stream']
-    
+
     if p and p['enable']:
         level = levels.get(p['severity'] or level)
     else:
         return
-    
-    #'%(asctime)s',
-    #'%(levelname)s',
-    #'%(dfc_sid)s',
-    #'%(dfc_repohash)s',
-    #'%(dfc_reponame)s',
-    #'%(dfc_filepath)s',
-    #'%(dfc_funcname)s'
-    #'%(message)s'
-    #'%(dfc_data)s')
-    
+
+    # '%(asctime)s',
+    # '%(levelname)s',
+    # '%(dfc_sid)s',
+    # '%(dfc_repohash)s',
+    # '%(dfc_reponame)s',
+    # '%(dfc_filepath)s',
+    # '%(dfc_funcname)s'
+    # '%(message)s'
+    # '%(dfc_data)s')
+
     # create console handler and set level to debug
-    formatter = logging.Formatter('%(levelname)s:%(name)s:%(dfc_funcname)s %(message)s')
+    formatter = logging.Formatter('%(levelname)s %(name)s %(dfc_funcname)s %(message)s')
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(level)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+
 file_handler = None
-def init_file(logger, level, md):    
+
+
+def init_file(logger, level, md):
     global file_handler
 
     p = md['datafaucet']['file']
@@ -242,7 +250,7 @@ def init_file(logger, level, md):
     try:
         if file_handler:
             file_handler.close()
-            
+
         file_handler = open(path, 'w')
         formatter = JsonFormatter()
         handler = logging.StreamHandler(file_handler)
@@ -252,15 +260,15 @@ def init_file(logger, level, md):
     except e:
         print(e)
         print(f'Cannot open log file {path} for writing.')
-        
+
+
 def init(
-    md=None, 
-    sid=None, 
-    username=None, 
-    filepath=None, 
-    reponame=None, 
-    repohash=None):
-    
+        md=None,
+        sid=None,
+        username=None,
+        filepath=None,
+        reponame=None,
+        repohash=None):
     global _logger
 
     if not md:
@@ -270,21 +278,21 @@ def init(
     # root logger
     level = levels.get(md['root']['severity'] or 'info')
     logging.basicConfig(level=level)
-    
+
     # dfc logger
     logger_name = md['datafaucet']['name'] or 'dfc'
     logger = logging.getLogger(logger_name)
     logger.setLevel(level)
     logger.handlers = []
-    
+
     # init handlers
     init_kafka(logger, level, md)
     init_stdout(logger, level, md)
     init_file(logger, level, md)
-    
+
     # stream replaces higher handlers, setting propagate to false
     logger.propagate = False
-    
+
     # configure context
     dfc_extra = {
         'dfc_sid': sid,
@@ -293,32 +301,45 @@ def init(
         'dfc_username': username,
         'dfc_filepath': filepath
     }
-    
+
     # setup adapter
     adapter = LoggerAdapter(logger, dfc_extra)
-    
-    #set global _logger
+
+    # set global _logger
     _logger = adapter
 
-def _notice(msg, *args, **kwargs):
+
+def _notice(msg, extra=None, **kwargs):
     logger = getLogger()
     if logger.isEnabledFor(NOTICE_LEVELV_NUM):
-        logger.log(NOTICE_LEVELV_NUM, msg, *args, **kwargs) 
+        logger.log(NOTICE_LEVELV_NUM, msg, extra=extra, **kwargs)
 
-def debug(msg, *args, **kwargs):
-    getLogger().debug(msg, *args, **kwargs)
 
-def info(msg, *args, **kwargs):
-    getLogger().info(msg, *args, **kwargs)
+def debug(*args, extra=None, **kwargs):
+    msg = ' '.join(map(str, args))
+    getLogger().debug(msg, extra=extra, **kwargs)
 
-def notice(msg, *args, **kwargs):     
-    _notice(msg, *args, **kwargs)
 
-def warning(msg, *args, **kwargs):
-    getLogger().warning(msg, *args, **kwargs)
+def info(*args, extra=None, **kwargs):
+    msg = ' '.join(map(str, args))
+    getLogger().info(msg, extra=extra, **kwargs)
 
-def error(msg, *args, **kwargs):
-    getLogger().error(msg, *args, **kwargs)
 
-def critical(msg, *args, **kwargs):
-    getLogger().critical(msg, *args, **kwargs)
+def notice(*args, extra=None, **kwargs):
+    msg = ' '.join(map(str, args))
+    _notice(msg, extra=extra, **kwargs)
+
+
+def warning(*args, extra=None, **kwargs):
+    msg = ' '.join(map(str, args))
+    getLogger().warning(msg, extra=extra, **kwargs)
+
+
+def error(*args, extra=None, **kwargs):
+    msg = ' '.join(map(str, args))
+    getLogger().error(msg, extra=extra, **kwargs)
+
+
+def critical(*args, extra=None, **kwargs):
+    msg = ' '.join(map(str, args))
+    getLogger().critical(msg, extra=extra, **kwargs)

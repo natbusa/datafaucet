@@ -15,38 +15,43 @@ from datafaucet import engines
 from datafaucet import metadata
 from datafaucet.resources import Resource
 
-#utils
+# utils
 from datafaucet.yaml import YamlDict
 from datafaucet.utils import Singleton, to_ordered_dict, python_version, relpath, abspath
 from datafaucet.git import repo_data
 
 import uuid
 
-class Project(metaclass = Singleton):
+
+class Project(metaclass=Singleton):
 
     def __init__(self):
-        #object variables
+        # object variables
         self._profile = None
         self._metadata = {}
         self._engine = None
         self._session_id = 0
         self._username = None
         self._repo = {}
-        
+
         self._filepath = None
         self._dotenv_path = None
         self._metadata_files = {}
         self._notebook_files = {}
         self._python_files = {}
-        
+
         self.loaded = False
         self._no_reload = False
-    
+
+        self._script_path = None
+        self._session_name = None
+        self._profile_name = None
+
     def load(self, profile='default', rootpath=None):
         """
         Performs the following steps:
-            - set rootdir for the given project
-            - import variables from  <rootdir>/.env (if present),
+            - set rootpath for the given project
+            - import variables from  <rootpath>/.env (if present),
             - load the `profile` from the metadata files
             - setup and start the data engine
 
@@ -93,38 +98,38 @@ class Project(metaclass = Singleton):
         For more information about metadata configuration,
         type `help(datafaucet.project.metadata)`    
         """
-        
+
         if self.loaded and self._no_reload:
             logging.notice(
-                f"Profile {self._profile} already loaded. " 
-                 "Skipping project.load()")
+                f"Profile {self._profile} already loaded. "
+                "Skipping project.load()")
             return self
-        
+
         # set rootpath
         paths.set_rootdir(rootpath)
 
         # set loaded to false
         self.loaded = False
-        
+
         # set username
         self._username = getpass.getuser()
-        
+
         # get repo data
         self._repo = repo_data()
-        
+
         # set session name
         L = [self._profile, self._repo.get('name')]
         self._session_name = '-'.join([x for x in L if x])
 
         # set session id
-        self._session_id  = hex(uuid.uuid1().int>>64)
+        self._session_id = hex(uuid.uuid1().int >> 64)
 
         # get currently running script path
         self._script_path = files.get_script_path(paths.rootdir())
-        
+
         # set dotenv default file, check the file exists
         self._dotenv_path = files.get_dotenv_path(paths.rootdir())
-        
+
         # get files
         self._metadata_files = files.get_metadata_files(paths.rootdir())
         self._notebook_files = files.get_jupyter_notebook_files(paths.rootdir())
@@ -139,70 +144,70 @@ class Project(metaclass = Singleton):
         try:
             md_paths = default_md_files + project_md_files
             dotenv_path = abspath(self._dotenv_path, paths.rootdir())
-            
-            metadata.load(profile,md_paths,dotenv_path)
+
+            metadata.load(profile, md_paths, dotenv_path)
         except ValueError as e:
             print(e)
-            
+
         # bail if no metadata
         if metadata.profile is None:
             raise ValueError('No valid metadata to load.')
-            
+
         # set profile from metadata
         self._profile_name = metadata.info()['active']
 
-        # add roothpath to the list of python sys paths
-        if paths.rootdir() not in sys.path:
-            sys.path.append(paths.rootdir())
-        
-        # stop existing engine
-        if self._engine:
-            self._engine.stop()
-
-        #services
-        services = dict()
-        
-        all_aliases  = list(metadata.profile()['providers'].keys())
-        
-        # get services from aliases
-        for alias in all_aliases:
-            r = Resource(alias)
-            services[r['service']] = r
-        
-        # get one service from each type to 
-        # load drivers, jars etc via the engine init
-        services = list(services.values())
-        
-        #initialize the engine
-        md = metadata.profile()['engine']
-        engines.Engine(
-            md['type'],
-            session_name=self._session_name, 
-            session_id=self._session_id,
-            master = md['master'], 
-            timezone=md['timezone'], 
-            jars=md['submit']['jars'], 
-            packages=md['submit']['packages'], 
-            pyfiles=md['submit']['pyfiles'], 
-            files=md['submit']['files'], 
-            repositories = md['submit']['repositories'], 
-            conf=md['submit']['conf'],
-            services=services 
-        )
-
         # initialize logging
         logging.init(
-            metadata.profile()['loggers'], 
+            metadata.profile()['loggers'],
             self._session_id,
             self._username,
             self._script_path,
             self._repo['name'],
             self._repo['hash']
         )
-        
+
+        # add rootpath to the list of python sys paths
+        if paths.rootdir() not in sys.path:
+            sys.path.append(paths.rootdir())
+
+        # stop existing engine
+        if self._engine:
+            self._engine.stop()
+
+        # services
+        services = dict()
+
+        all_aliases = list(metadata.profile()['providers'].keys())
+
+        # get services from aliases
+        for alias in all_aliases:
+            r = Resource(alias)
+            services[r['service']] = r
+
+        # get one service from each type to 
+        # load drivers, jars etc via the engine init
+        services = list(services.values())
+
+        # initialize the engine
+        md = metadata.profile()['engine']
+        engines.Engine(
+            md['type'],
+            session_name=self._session_name,
+            session_id=self._session_id,
+            master=md['master'],
+            timezone=md['timezone'],
+            jars=md['submit']['jars'],
+            packages=md['submit']['packages'],
+            pyfiles=md['submit']['pyfiles'],
+            files=md['submit']['files'],
+            repositories=md['submit']['repositories'],
+            conf=md['submit']['conf'],
+            services=services
+        )
+
         # set loaded to True
         self.loaded = True
-        
+
         # return object
         return self
 
@@ -212,7 +217,7 @@ class Project(metaclass = Singleton):
                 "No project profile loaded. " +
                 "Execute datafaucet.project.load(...) first.")
             return None
-        
+
         return YamlDict({
             'version': __version__,
             'username': self._username,
@@ -227,9 +232,11 @@ class Project(metaclass = Singleton):
             'metadata_files': self._metadata_files,
             'repository': self._repo
         })
-        
+
+
 def info():
     return Project().info()
+
 
 def load(profile='default', rootpath=None):
     return Project().load(profile, rootpath)

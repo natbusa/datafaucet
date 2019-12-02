@@ -215,14 +215,14 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         #### print debug
         for k in self.submit.keys():
             if self.submit[k]:
-                print(f'Configuring {k}:')
+                loggin.notice(f'Configuring {k}:')
                 for e in self.submit[k]:
                     v = e
                     if isinstance(e, tuple):
                         if len(e)>1 and str(e[0]).endswith('.key'):
                             e = (e[0], '****** (redacted)')
                         v = ' : '.join(list([str(x) for x in e]))
-                    print(f'  -  {v}')
+                    logging.notice(f'  -  {v}')
 
         # set PYSPARK_SUBMIT_ARGS env variable
         submit_args = '{} pyspark-shell'.format(submit_args)
@@ -272,7 +272,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.set_env_variables()
 
         # set spark conf object
-        print(f"Connecting to spark master: {master}")
+        logging.notice(f"Connecting to spark master: {master}")
 
         conf = pyspark.SparkConf()
         self.set_conf_timezone(conf, timezone)
@@ -303,7 +303,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
             # set version if spark is loaded
             self._version = spark_session.version
-            print(f'Engine context {self.engine_type}:{self.version} successfully started')
+            logging.notice(f'Engine context {self.engine_type}:{self.version} successfully started')
 
             # store the spark session
             self.context = spark_session
@@ -628,9 +628,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.load_log(md, options, ts_start)
         return obj
 
-    def load_scd(self, path, provider, format=None, merge_on=None, **kwargs):
+    def load_scd(self, path, provider, format=None, merge_on=None, version=None, **kwargs):
         obj = self.load(path, provider, format=format, **kwargs)
-        return dataframe.view(obj, merge_col=merge_on)
+        return dataframe.view(obj, merge_on=merge_on, version=version)
 
     def load(self, path=None, provider=None, *args, format=None, **kwargs):
 
@@ -943,6 +943,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 **kwargs)
 
         format, _, storage_format = md['format'].partition(':')
+
         if format=='scd':
             return self.save_scd(obj, path, provider, format=storage_format, mode=mode, **kwargs)
 
@@ -976,8 +977,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
-        options['mode'] = options['mode'] or 'overwrite'
+        mode = options['mode'] or 'append'
         format = md['format'] or 'parquet'
+
+        where  = where or []
+        where = where if isinstance(where, (list, tuple)) else [where]
 
         ts_start = timer()
 
@@ -997,22 +1001,40 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             return True
 
         # append
-
         df_src = obj
+
         # trg dataframe (if exists)
         try:
             df_trg = self.load(md, format=format, catch_exception=False)
         except:
             df_trg = dataframe.empty(df_src)
+            df_trg = df_trg.withColumn('_state', F.lit(0))
+            df_trg = dataframe.add_update_column(df_trg, '_updated')
+
+        # filter src and trg (mainly speed reason: reduce diff time, but compare only a portion of all records)
+        for predicate in where:
+            df_src = df_src.filter(predicate)
+            df_trg = df_trg.filter(predicate)
 
         # create a view from the extracted log
-        df_trg = dataframe.view(df_trg)
+        df_trg = dataframe.view(df_trg, merge_on=merge_on)
 
         # capture added records
         df_add = dataframe.diff(df_src, df_trg, ['_updated', '_state'])
 
         # capture deleted records
         df_del = dataframe.diff(df_trg, df_src, ['_updated', '_state'])
+
+        # capture updated records
+        cnt_upd = 0
+        if merge_on is not None:
+            on = merge_on if isinstance(merge_on, (list, tuple)) else [merge_on]
+            cnt_upd = df_add.join(df_del, on=on).count()
+
+        cnt_del = df_del.count() - cnt_upd
+        cnt_add = df_add.count() - cnt_upd
+
+        logging.notice(f'merge on={merge_on}, updated={cnt_upd}, added={cnt_add}, deleted={cnt_del}')
 
         df_add = df_add.withColumn('_state', F.lit(0))
         df_del = df_del.withColumn('_state', F.lit(1))

@@ -1,8 +1,7 @@
-import sys
-from random import randint
 from pyspark.sql import DataFrame
-
+from pyspark.sql import functions as F
 from datafaucet.spark import dataframe
+
 
 class Rows:
     def __init__(self, df, scols=None, gcols=None):
@@ -16,9 +15,23 @@ class Rows:
     def columns(self):
         return [x for x in self.df.columns if x in (self.scols + self.gcols)]
 
-    def overwrite(self,data):
+    def overwrite(self, data):
         df = self.df
-        return df.sql_ctx.createDataFrame(data,df.schema)
+        return df.sql_ctx.createDataFrame(data, df.schema)
+
+    def update(self, data, on=None):
+        on = on if isinstance(on, (list, tuple)) else [on]
+        new = self.df.sql_ctx.createDataFrame(data, self.df.schema)
+        cols = [c for c in self.columns if c not in on]
+        j = self.df.alias('a').join(new.alias('b'), on=on, how='left')
+        df = j.select(
+            *on,
+            *[F.coalesce(f'b.{c}', f'a.{c}').alias(c) for c in cols]
+        )
+        return df
+
+    def delete(self, where=None):
+        return self.filter(f'NOT ({where})')
 
     def append(self, data):
         df = self.df
@@ -47,5 +60,6 @@ class Rows:
 
 def _rows(self):
     return Rows(self)
+
 
 DataFrame.rows = property(_rows)
