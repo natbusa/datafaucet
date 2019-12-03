@@ -334,32 +334,33 @@ class Cols:
 
         funcs = {}
 
-        def string2func(func):
-            if isinstance(func, str):
-                f = functions.all.get(func)
+        def agg2func(item):
+            if isinstance(item, str):
+                f = functions.all.get(item)
+                f = f or functions.all_pandas_udf.get(item)
                 if f:
-                    return (func, f)
+                    return (item, f)
                 else:
-                    raise ValueError(f'function {func} not found')
-            elif isinstance(func, (type(lambda x: x), type(max))):
-                return (func.__name__, func)
+                    raise ValueError(f'function {item} not found')
+            elif isinstance(item, (type(lambda x: x), type(max))):
+                return item.__name__, item
+            elif callable(item):
+                return type(item).__name__, item
             else:
                 raise ValueError('Invalid aggregation function')
 
-        def parse_single_func(func):
-            if isinstance(func, (str, type(lambda x: x), type(max))):
-                return string2func(func)
-            elif isinstance(func, (tuple)):
-                if len(func) == 2:
-                    return (func[0], string2func(func[1])[1])
+        def parse_func(item):
+            if isinstance(item, (tuple)):
+                if len(item) == 2:
+                    return item[0], agg2func(item[1])[1]
                 else:
                     raise ValueError('Invalid list/tuple')
             else:
-                raise ValueError(f'Invalid aggregation item {func}')
+                return agg2func(item)
 
         def parse_list_func(func):
             func = [func] if type(func) != list else func
-            return [parse_single_func(x) for x in func]
+            return [parse_func(x) for x in func]
 
         def parse_dict_func(func):
             func = {0: func} if not isinstance(func, dict) else func

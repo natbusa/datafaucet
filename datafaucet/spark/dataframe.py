@@ -91,22 +91,8 @@ def view(df, state_col='_state', updated_col='_updated', merge_on=None, version=
 
     groupby_columns = [c for c in on if c in colnames]
 
-    # filter version
-    if type(version) == int:
-        pdf = df.select('_updated').groupby('_updated').count().toPandas()
-        pdf = pdf.sort_values('_updated').reset_index(drop=True)
-        total_versions = pdf.shape[0]
-        version = version % total_versions
-        try:
-            version = pdf.iloc[version, 0]
-        except IndexError:
-            raise IndexError('Version index out of bounds: min=0, max = ...')
-
-    if isinstance(version, str):
-        version = dp.isoparse(version) if version else None
-
-    if version and isinstance(version, dt.date):
-        df = df.filter(F.col('_updated') <= version)
+    #filter version
+    df = filter_by_version(df, '_updated', version)
 
     # group by
     row_groups = df.select(*groupby_columns, '_updated').groupBy(groupby_columns)
@@ -202,28 +188,49 @@ def diff(df_a, df_b, exclude_cols=[]):
     else:
         return df_a.select(colnames)
 
+def filter_by_version(df, column, version):
+    # filter version
+    if type(version) == int:
+        pdf = df.select('_updated').groupby('_updated').count().toPandas()
+        pdf = pdf.sort_values('_updated').reset_index(drop=True)
+        total_versions = pdf.shape[0]
+        version = version % total_versions
+        try:
+            version = pdf.iloc[version, 0]
+        except IndexError:
+            raise IndexError('Version index out of bounds: min=0, max = ...')
 
-def filter_by_datetime(df, column=None, start=None, end=None, window=None):
+    if isinstance(version, str):
+        version = dp.isoparse(version) if version else None
+
+    return filter_by_datetime(df, column, end=version, closed='right')
+
+def filter_by_datetime(df, column, start=None, end=None, window=None, closed='left'):
     assert isinstance(df, pyspark.sql.dataframe.DataFrame)
 
-    if not column:
-        return df
+    # cast str to datetime and datedelta
+    if isinstance(window, str):
+        window = pd.to_timedelta(window) if window else None
 
-    # to datetime and datedelta
-    date_window = pd.to_timedelta(window) if window else None
-    date_end = dp.isoparse(end) if end else None
-    date_start = dp.isoparse(start) if start else None
+    if isinstance(end, str):
+        end = dp.isoparse(end) if end else None
+
+    if isinstance(start, str):
+        start = dp.isoparse(start) if start else None
 
     # calculate begin and end
-    if date_start and date_window and not date_end:
-        date_end = date_start + date_window
+    if start and window and not end:
+        end = start + window
 
-    if date_end and date_window and not date_start:
-        date_start = date_end - date_window
+    if end and window and not start:
+        start = end - window
 
     if column in df.columns:
-        df = df.filter(F.col(column) < date_end) if date_end else df
-        df = df.filter(F.col(column) >= date_start) if date_start else df
+        cut_right  = (F.col(column) < end) if closed=='left' else (F.col(column) <= end)
+        cut_left = (F.col(column) > start) if closed=='right' else (F.col(column) >= start)
+
+        df = df.filter(cut_right) if end else df
+        df = df.filter(cut_left) if start else df
 
     return df
 
@@ -270,7 +277,6 @@ def add_hash_column(obj, cols=True, hash_colname='_hash', exclude_cols=[]):
 def empty(df):
     return df.sql_ctx.createDataFrame([], df.schema)
 
-
 def sample(df, n=1000, *col, seed=None):
     # n 0<float<=1 -> fraction of samples
     # n floor(int)>1 -> number of samples
@@ -287,7 +293,6 @@ def sample(df, n=1000, *col, seed=None):
     else:
         return df.sample(False, n, seed=seed)
 
-
 def _topn(df, c, by=None, n=3):
     cnt = f'{c}##cnt'
     rnk = f'{c}##rnk'
@@ -301,15 +306,14 @@ def _topn(df, c, by=None, n=3):
             Window.partitionBy(*_gcols).orderBy(F.col(cnt).desc())
         ).alias(rnk)).filter(F.col(rnk) <= n)
 
-    return a.select(*_gcols, c, cnt)
-
+    return s, a
 
 def topn_count(df, c, by=None, n=3, index='_idx', result='_res'):
     cnt = f'{c}##cnt'
     _gcols = [by] if isinstance(by, str) and by else by or []
 
-    r = _topn(df, c, _gcols, n)
-    r = r.groupby(*_gcols).agg(F.sum(cnt).alias(result))
+    s , a = _topn(df, c, _gcols, n)
+    r = a.select(*_gcols, c, cnt).groupby(*_gcols).agg(F.sum(cnt).alias(result))
 
     # the following forces colname to be nullable
     r = r.withColumn(index, F.udf(lambda x: x, T.StringType())(F.lit(c)))
@@ -321,8 +325,8 @@ def topn_values(df, c, by=None, n=3, index='_idx', result='_res'):
     cnt = f'{c}##cnt'
     _gcols = [by] if isinstance(by, str) and by else by or []
 
-    r = _topn(df, c, _gcols, n)
-    r = r.groupby(*_gcols).agg(F.collect_list(F.col(c)).alias(result))
+    s , a = _topn(df, c, _gcols, n)
+    r = a.select(*_gcols, c, cnt).groupby(*_gcols).agg(F.collect_list(F.col(c)).alias(result))
 
     # the following forces colname to be nullable
     r = r.withColumn(index, F.udf(lambda x: x, T.StringType())(F.lit(c)))
@@ -331,12 +335,24 @@ def topn_values(df, c, by=None, n=3, index='_idx', result='_res'):
 
 
 def topn(df, c, by=None, n=3, others=False, index='_idx', result='_res'):
+    """
+
+    :param df: input dataframe
+    :param c: column to aggregate
+    :param by: group by
+    :param n: top n results
+    :param others: If true, it must be of the same type of the column being aggregated e.g 'others' for strings and -1 for positive numbers
+    :param index:
+    :param result:
+    :return:
+    """
     cnt = f'{c}##cnt'
     cnt_tot = f'{c}##tot'
     cnt_top = f'{c}##top'
 
     _gcols = [by] if isinstance(by, str) and by else by or []
-    r = _topn(df, c, _gcols, n)
+    s , a = _topn(df, c, _gcols, n)
+    r = a.select(*_gcols, c, cnt)
 
     if others:
         # colculate total topn and total
@@ -346,14 +362,14 @@ def topn(df, c, by=None, n=3, others=False, index='_idx', result='_res'):
         # corner case single row
         o = o.join(t, on=_gcols) if _gcols else o.withColumn(cnt_tot, F.lit(t.take(1)[0][0]))
 
-        # collect to list
-        r = r.union(
-            o.select(
-                *_gcols,
-                F.lit(others).alias(c),
-                (F.col(cnt_tot) - F.col(cnt_top)).alias(cnt)
-            )
+        o = o.select(
+            *_gcols,
+            F.lit(others).alias(c),
+            (F.col(cnt_tot) - F.col(cnt_top)).alias(cnt)
         )
+
+        # collect to list
+        r = r.union(o)
 
     r = r.groupby(
         *_gcols

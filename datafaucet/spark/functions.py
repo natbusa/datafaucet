@@ -1,13 +1,7 @@
 import math
 
-import pyspark
 from pyspark.sql import functions as F
 import pyspark.sql.types as T
-
-from datafaucet import logging
-
-import pandas as pd
-import os
 
 import unidecode as ud
 
@@ -20,6 +14,7 @@ from HLL import HyperLogLog
 from datafaucet import crypto
 
 from datafaucet.spark import types
+from datafaucet.spark import dataframe
 
 array_avg = F.udf(lambda x: sum(x) / len(x))
 array_sum = F.udf(lambda x: sum(x))
@@ -312,7 +307,6 @@ def rstrip(chars):
 def lstrip(chars):
     return lambda c: F.regex_replace(c, f'$[{chars}]*', '')
 
-
 all = {
     'typeof': typeof(),
     'integer': integer,
@@ -341,6 +335,9 @@ all = {
     'sum_neg': sum_neg,
     'digits_only': digits_only,
     'spaces_only': spaces_only,
+}
+
+all_pandas_udf = {
     # PyArrow only
     'hll_init_agg': hll_init_agg(),
     'hll_merge': hll_merge(),

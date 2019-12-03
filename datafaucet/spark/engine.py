@@ -628,8 +628,17 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.load_log(md, options, ts_start)
         return obj
 
-    def load_scd(self, path, provider, format=None, merge_on=None, version=None, **kwargs):
+    def load_scd(self, path, provider, format=None, merge_on=None, version=None, where=None, **kwargs):
+        where  = where or []
+        where = where if isinstance(where, (list, tuple)) else [where]
+
         obj = self.load(path, provider, format=format, **kwargs)
+
+        # push down filters asap
+        for predicate in where:
+            obj = obj.filter(predicate)
+            
+        # create view from history log
         return dataframe.view(obj, merge_on=merge_on, version=version)
 
     def load(self, path=None, provider=None, *args, format=None, **kwargs):
