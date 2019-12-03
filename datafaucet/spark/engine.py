@@ -681,7 +681,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         filename = list(filter(lambda x: x.startswith('part-'), os.listdir(path)))
         if len(filename) != 1:
             if len(filename)>1:
-                logging.warning('cannot convert if more than a partition present')
+                logging.warning(
+                    'In local mode, ',
+                    'save will not flatten the directory to file,',
+                    'if more than a partition present')
             return
         else:
             filename = filename[0]
@@ -693,8 +696,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         shutil.move(os.path.join(dirname, filename), os.path.join(dirname, basename))
         return
 
-    def save_parquet(self, obj, path=None, provider=None, *args,
-                 mode=None, **kwargs):
+    def save_parquet(self, obj, path=None, provider=None, *args, mode=None, **kwargs):
 
         result = True
         md = Resource(
@@ -706,7 +708,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options = md['options']
 
         # after collecting from metadata, or method call, define defaults
-        options['mode'] = options['mode'] or 'overwrite'
+        options['mode'] = options.get('mode', None) or 'overwrite'
+
+        pcols = options.pop('partitionBy', None) or []
+        pcols = pcols if isinstance(pcols, (list, tuple)) else [pcols]
 
         local = self.is_spark_local()
 
@@ -715,10 +720,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             #three approaches: file-local, local+cluster, and service
             if md['service'] == 'file' and local:
                 obj.coalesce(1).write\
+                    .partitionBy(*pcols)\
                     .format('parquet')\
                     .mode(options['mode'])\
                     .options(**options)\
-                    .parquet(md['url'])
+                    .parquet(md['url'], **options)
 
             elif md['service'] == 'file':
                 if os.path.exists(md['url']) and os.path.isdir(md['url']):
@@ -731,10 +737,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
             elif md['service'] in ['hdfs', 's3a']:
                obj.write\
+                    .partitionBy(*pcols)\
                     .format('parquet')\
                     .mode(options['mode'])\
                     .options(**options)\
-                    .parquet(md['url'])
+                    .parquet(md['url'], **options)
             else:
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
@@ -769,9 +776,12 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
-        options['header'] = options['header'] or 'true'
-        options['sep'] = options['sep'] or ','
-        options['mode'] = options['mode'] or 'overwrite'
+        options['header'] = options.get('header', None) or 'true'
+        options['sep'] = options.get('sep', None) or ','
+        options['mode'] = options.get('mode', None) or 'overwrite'
+
+        pcols = options.pop('partitionBy', None) or []
+        pcols = pcols if isinstance(pcols, (list, tuple)) else [pcols]
 
         local = self.is_spark_local()
 
@@ -780,10 +790,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             #three approaches: file+local, file+cluster, and service
             if md['service'] == 'file' and local:
                 obj.coalesce(1).write\
+                    .partitionBy(*pcols)\
                     .format('csv')\
                     .mode(options['mode'])\
                     .options(**options)\
-                    .csv(md['url'])
+                    .csv(md['url'], **options)
                 self.directory_to_file(md['url'])
 
             elif md['service'] == 'file':
@@ -798,11 +809,12 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     sep=options['sep'])
 
             elif md['service'] in ['hdfs', 's3a']:
-                obj.write\
+                obj.write \
+                    .partitionBy(*pcols) \
                     .format('csv')\
                     .mode(options['mode'])\
                     .options(**options)\
-                    .csv(md['url'])
+                    .csv(md['url'], **options)
             else:
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
@@ -837,8 +849,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
-        options['mode'] = options['mode'] or 'overwrite'
-        options['lines'] = options['lines'] or True
+        options['mode'] = options.get('mode', None) or 'overwrite'
+        options['lines'] = options.get('lines', None) or True
+
+        pcols = options.pop('partitionBy', None) or []
+        pcols = pcols if isinstance(pcols, (list, tuple)) else [pcols]
 
         local = self.is_spark_local()
 
@@ -847,6 +862,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             #three approaches: local, cluster, and service
             if local and md['service'] == 'file' and options['lines']:
                 obj.coalesce(1).write\
+                    .partitionBy(*pcols)\
                     .format('json')\
                     .mode(options['mode'])\
                     .options(**options)\
@@ -866,7 +882,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     lines=options['lines'])
 
             elif md['service'] in ['hdfs', 's3a']:
-                obj.write\
+                obj.write \
+                    .partitionBy(*pcols) \
                     .format('json')\
                     .mode(options['mode'])\
                     .options(**options)\
@@ -901,7 +918,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
-        options['mode'] = options['mode'] or 'overwrite'
+        options['mode'] = options.get('mode', None) or 'overwrite'
+
+        #partition is meaningless here
+        pcols = options.pop('partitionBy', None) or []
 
         ts_start = timer()
         try:
@@ -977,7 +997,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
-        mode = options['mode'] or 'append'
+        options['mode'] = options.get('mode', None) or 'append'
         format = md['format'] or 'parquet'
 
         where  = where or []
@@ -993,11 +1013,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             return True
 
         # overwrite target, save, log notice/error and return
-        if mode == 'overwrite':
+        if options['mode'] == 'overwrite':
             obj = obj.withColumn('_state', F.lit(0))
             obj = dataframe.add_update_column(obj, '_updated')
 
-            result = self.save(obj, md, mode='overwrite')
+            result = self.save(obj, md, mode=options['mode'])
             return True
 
         # append
@@ -1042,7 +1062,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         df = df_add.union(df_del)
         df = dataframe.add_update_column(df, '_updated')
 
-        result = self.save(df, md, mode='append', format=format)
+        result = self.save(df, md, format=format, **options)
 
         self.save_log(md, options, ts_start)
         return result

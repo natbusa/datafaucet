@@ -127,6 +127,7 @@ def view(df, state_col='_state', updated_col='_updated', merge_on=None, version=
 def scd_analyze(df, merge_on=None, state_col='_state', updated_col='_updated'):
     add_ids = '##add_ids'
     del_ids = '##del_ids'
+    upd_ids = '##upd_ids'
 
     c = set(df.columns).difference({state_col, updated_col})
     colnames = [x for x in df.columns if x in c]
@@ -167,12 +168,12 @@ def scd_analyze(df, merge_on=None, state_col='_state', updated_col='_updated'):
     else:
         res = res.withColumn('changes', F.lit(None))
 
-    res = res.select('*', F.array_intersect(add_ids, del_ids).alias('##ad_intersect'))
+    res = res.select('*', F.array_intersect(add_ids, del_ids).alias(upd_ids))
     res = res.select(
         F.col(updated_col).alias('updated'),
-        F.size('##ad_intersect').alias('upd'),
-        F.size(F.array_except(add_ids, '##ad_intersect')).alias('add'),
-        F.size(F.array_except(del_ids, '##ad_intersect')).alias('del'),
+        F.size(upd_ids).alias('upd'),
+        F.size(F.array_except(add_ids, upd_ids)).alias('add'),
+        F.size(F.array_except(del_ids, upd_ids)).alias('del'),
         'changes'
     )
 
