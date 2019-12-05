@@ -215,7 +215,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         #### print debug
         for k in self.submit.keys():
             if self.submit[k]:
-                loggin.notice(f'Configuring {k}:')
+                logging.notice(f'Configuring {k}:')
                 for e in self.submit[k]:
                     v = e
                     if isinstance(e, tuple):
@@ -758,11 +758,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 result = False
 
         except AnalysisException as e:
-            logging.error(str(e), extra={'md': md})
+            logging.error(' '.join(str(e).split('/n')[:2])[:300], extra={'md': md})
             result = False
 
         except Exception as e:
-            logging.error({'md': md, 'error_msg': str(e)})
+            logging.error(' '.join(str(e).split('/n')[:2])[:300], extra={'md': md, 'error_msg': str(e)})
             raise e
 
         self.save_log(md, options, ts_start)
@@ -1037,7 +1037,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             df_trg = self.load(md, format=format, catch_exception=False)
         except:
             df_trg = dataframe.empty(df_src)
+            
+        if '_state' not in df_trg.columns:
             df_trg = df_trg.withColumn('_state', F.lit(0))
+            
+        if '_updated' not in df_trg.columns:
             df_trg = dataframe.add_update_column(df_trg, '_updated')
 
         # filter src and trg (mainly speed reason: reduce diff time, but compare only a portion of all records)

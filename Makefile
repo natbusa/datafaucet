@@ -2,7 +2,7 @@ test:
 	py.test tests --tb=short
 
 dev:
-	pip install --editable .
+	pip install --editable . --upgrade
 
 tox:
 	@tox

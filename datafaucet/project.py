@@ -111,19 +111,6 @@ class Project(metaclass=Singleton):
         # set loaded to false
         self.loaded = False
 
-        # set username
-        self._username = getpass.getuser()
-
-        # get repo data
-        self._repo = repo_data()
-
-        # set session name
-        L = [self._profile, self._repo.get('name')]
-        self._session_name = '-'.join([x for x in L if x])
-
-        # set session id
-        self._session_id = hex(uuid.uuid1().int >> 64)
-
         # get currently running script path
         self._script_path = files.get_script_path(paths.rootdir())
 
@@ -153,8 +140,21 @@ class Project(metaclass=Singleton):
         if metadata.profile is None:
             raise ValueError('No valid metadata to load.')
 
+        # set username
+        self._username = getpass.getuser()
+
+        # get repo data
+        self._repo = repo_data()
+
         # set profile from metadata
-        self._profile_name = metadata.info()['active']
+        self._profile = metadata.info()['active']
+
+        # set session name
+        L = [self._profile, self._repo.get('name')]
+        self._session_name = '-'.join([x for x in L if x])
+
+        # set session id
+        self._session_id = hex(uuid.uuid1().int >> 64)
 
         # initialize logging
         logging.init(
