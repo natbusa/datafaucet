@@ -647,17 +647,19 @@ class Metadata(metaclass=Singleton):
         self._profile = YamlDict(md)
         self._info['active'] = profile_name
 
+        return self
+
     def info(self):
         return YamlDict(self._info)
 
-    def profile(self):
-        return self._profile
+    def profile(self, section=None):
+        return self._profile if section is None else self._profile.get(section, None)
 
 def info():
     return Metadata().info()
 
-def profile():
-    return Metadata().profile()
+def profile(section=None):
+    return Metadata().profile(section)
 
 def load(profile_name='default', metadata_files=None, dotenv_path=None):
     return Metadata().load(profile_name, metadata_files, dotenv_path)
