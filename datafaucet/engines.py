@@ -73,9 +73,6 @@ def Engine(engine_type=None, *args, **kwargs):
 def engine(engine_type=None, *args, **kwargs):
     return Engine(engine_type, *args, **kwargs)
 
-def context():
-    return Engine().context if Engine() else None
-
 class EngineBase:
     def __init__(self, engine_type=None, session_name=None, session_id=None):
 

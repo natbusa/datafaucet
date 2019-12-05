@@ -27,14 +27,9 @@ from datafaucet.io import (
     range
 )
 
-from datafaucet.engines import (
-    #factory for all engines
-    context,
-    engine
-)
-
-# import specific engine directly,
-# if you don't want to use the engine factory
+# import engine factory method
+from datafaucet.engines import engine
+# import specific engine directly
 from datafaucet.spark.engine import SparkEngine
 from datafaucet.pandas.engine import PandasEngine
 from datafaucet.dask.engine import DaskEngine
