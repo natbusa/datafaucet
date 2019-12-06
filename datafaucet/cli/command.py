@@ -1,12 +1,6 @@
 """The root `datafaucet` command.
-
 This does nothing other than dispatch to subcommands or output path info.
 """
-
-# Copyright (c) Datalabframework Development Team.
-# Distributed under the terms of the Modified BSD License.
-
-from __future__ import print_function
 
 import argparse
 import errno
@@ -35,12 +29,12 @@ class DatalabframeworkParser(argparse.ArgumentParser):
 
 def datafaucet_parser():
     parser = DatalabframeworkParser(
-        description="Datalabframework: Interactive Computing",
+        description="Datafaucet: Notebook Milling",
     )
     group = parser.add_mutually_exclusive_group(required=True)
+
     # don't use argparse's version action because it prints to stderr on py2
-    group.add_argument('--version', action='store_true',
-                       help="show the datafaucet command's version and exit")
+    group.add_argument('--version', action='store_true', help="show the datafaucet command's version and exit")
     group.add_argument('subcommand', type=str, nargs='?', help='the subcommand to launch')
 
     return parser

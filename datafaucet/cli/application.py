@@ -1,12 +1,7 @@
-# encoding: utf-8
 """
-A base Application class for datafaucetapplications.
-
-All datafaucetapplications should inherit from this.
+A base Application class for datafaucet applications.
+All datafaucet applications should inherit from this.
 """
-
-# Copyright (c) datafaucetDevelopment Team.
-# Distributed under the terms of the Modified BSD License.
 
 import logging
 import os
@@ -37,7 +32,7 @@ def _log_level_default():
 
 
 class DatafaucetApp(Application):
-    """Base class for datafaucetapplications"""
+    """Base class for datafaucet applications"""
     name = 'datafaucet'  # override in subclasses
     description = "A datafaucetApplication"
 
