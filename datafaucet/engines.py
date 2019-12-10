@@ -13,7 +13,7 @@ class EngineSingleton(type):
             _singleton['instance'] = super(EngineSingleton, cls).__call__(*args, **kwargs)
             _singleton['args']   = args
             _singleton['kwargs'] = kwargs
-            logging.info('Engine created', cls.__name__)
+            logging.debug('Engine created', cls.__name__)
             return _singleton['instance']
 
         # a different Engine or Engine Configuration?
@@ -24,7 +24,7 @@ class EngineSingleton(type):
         diff_kwargs = _singleton['kwargs'] != kwargs
 
         if diff_engine or diff_args or diff_kwargs:
-            logging.info(f"Factory: Stop the current {_singleton['instance'].__class__.__name__} instance" )
+            logging.debug(f"Factory: Stop the current {_singleton['instance'].__class__.__name__} instance" )
 
             _singleton['instance']._stop()
             del _singleton['instance']
@@ -48,7 +48,7 @@ def register(cls, alias):
     _engines[cls.__name__] = cls
     _engines[alias] = cls
 
-    logging.info('Registering names ', cls.__name__, alias, ' for class ', cls)
+    logging.debug('Registering names ', cls.__name__, alias, ' for class ', cls)
 
 def Engine(engine_type=None, *args, **kwargs):
     global _engines
@@ -81,7 +81,7 @@ class EngineBase:
         self.session_id = session_id
 
         # print statement
-        logging.info(f'Init engine "{self.engine_type}"')
+        logging.debug(f'Init engine "{self.engine_type}"')
 
         self.submit = dict()
         self.info = dict()

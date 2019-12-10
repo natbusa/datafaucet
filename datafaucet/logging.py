@@ -1,48 +1,57 @@
 import logging
-
-# extend logging with custom level 'NOTICE'
-NOTICE_LEVELV_NUM = 25
-logging.addLevelName(NOTICE_LEVELV_NUM, "NOTICE")
-
-try:
-    from kafka import KafkaProducer
-except:
-    KafkaProducer = None
-
 import datetime
 import json
 
-import os
 import sys
 from numbers import Number
 from collections import MutableMapping
-
-# import a few help methods
-from datafaucet import paths
-from datafaucet import files
-
 from datafaucet.utils import merge
-from datafaucet.git import repo_data
 
 import inspect
 import ntpath
 
-def func_name(level=1):
+import getpass
+import uuid
+
+from datafaucet import paths
+from datafaucet import files
+from datafaucet import git
+
+try:
+    from kafka import KafkaProducer
+except ImportError:
+    KafkaProducer = None
+
+# extend logging with custom level 'NOTICE'
+NOTICE = 25
+logging.addLevelName(NOTICE, "NOTICE")
+
+
+def get_scope(level=1):
     try:
         frame = inspect.stack(context=0)[level]
-        return f'{ntpath.basename(frame.filename)}:{frame.function}'
+        # the scope is the file in the library where the log is produced
+        scope = ntpath.basename(frame.filename).split(".")[0]
+        func = frame.function
+
+        # for interactive logging, go one level deeper ...
+        if scope.startswith('<ipython'):
+            scope = 'notebook'
+            func = 'cell' if func == '<module>' else func
+
+        return f'{scope}:{func}'
     except:
-        return '-'
+        return '-:-'
 
 
 # logging object is a singleton
 _logger = None
 
 
-def getLogger():
+def getLogger(*args, **kwargs):
     global _logger
     if not _logger:
-        init()
+        init(*args, **kwargs)
     return _logger
 
 
@@ -79,7 +88,7 @@ class LoggerAdapter(logging.LoggerAdapter):
         LoggerAdapter subclass for your specific needs.
         """
         d = self.extra
-        d.update({'dfc_funcname': func_name(5)})
+        d.update({'dfc_funcname': get_scope(5)})
 
         if isinstance(msg, MutableMapping):
             merged = merge(msg, kwargs.get('extra', {}))
@@ -115,10 +124,8 @@ class JsonFormatter(logging.Formatter):
     shipped out to logstash.
     """
 
-    def __init__(self,
-                 fmt=None,
-                 datefmt=None):
-        pass
+    def __init__(self, fmt=None, datefmt=None):
+        super().__init__(fmt=fmt, datefmt=datefmt)
 
     def format(self, record):
         """
@@ -153,14 +160,22 @@ class KafkaLoggingHandler(logging.Handler):
         logging.Handler.__init__(self)
 
         self.topic = topic
-        self.producer = KafkaProducer(bootstrap_servers=bootstrap_servers)
+        self.producer = None
+        try:
+            self.producer = KafkaProducer(bootstrap_servers=bootstrap_servers)
+        except Exception as e:
+            print('ERROR:datafaucet:KafkaLoggingHandler', str(e), ' - disabling kafka logging handler')
 
     def emit(self, record):
-        msg = self.format(record).encode("utf-8")
-        self.producer.send(self.topic, msg)
+        if self.producer:
+            try:
+                msg = self.format(record).encode("utf-8")
+                self.producer.send(self.topic, msg)
+            except Exception as e:
+                print('ERROR:datafaucet:KafkaLoggingHandler', str(e), ' - skip kafka logging statement')
 
     def close(self):
-        if self.producer is not None:
+        if self.producer:
             self.producer.flush()
             if hasattr(KafkaProducer, 'stop'):
                 self.producer.stop()
@@ -171,48 +186,34 @@ class KafkaLoggingHandler(logging.Handler):
 levels = {
     'debug': logging.DEBUG,
     'info': logging.INFO,
-    'notice': NOTICE_LEVELV_NUM,
+    'notice': NOTICE,
     'warning': logging.WARNING,
     'error': logging.ERROR,
     'critical': logging.CRITICAL
 }
 
 
-def init_kafka(logger, level, md):
-    p = md['datafaucet']['kafka']
-    if p and p['enable'] and KafkaProducer:
-        level = levels.get(p['severity'] or level)
-        topic = p['topic'] or 'dfc'
-        hosts = p['hosts']
-    else:
-        return
-
+def init_kafka(logger, level, hosts=None):
     if not hosts:
-        logging.warning('Logging on kafka: no hosts defined')
         return
 
-    # disable logging for 'kafka.KafkaProducer', kafka.conn
-    for i in ['kafka.KafkaProducer', 'kafka.conn']:
-        kafka_logger = logging.getLogger(i)
-        kafka_logger.propagate = False
-        kafka_logger.handlers = []
+    topic = 'dfc'
+
+    # # disable logging for 'kafka.KafkaProducer', kafka.conn
+    # for i in ['kafka.KafkaProducer', 'kafka.conn']:
+    #     kafka_logger = logging.getLogger(i)
+    #     kafka_logger.propagate = False
+    #     kafka_logger.handlers = []
 
     formatter = JsonFormatter()
-    handlerKafka = KafkaLoggingHandler(topic, hosts)
-    handlerKafka.setLevel(level)
-    handlerKafka.setFormatter(formatter)
-    logger.addHandler(handlerKafka)
+    handler_kafka = KafkaLoggingHandler(topic, hosts)
+    handler_kafka.setLevel(level)
+    handler_kafka.setFormatter(formatter)
+    logger.addHandler(handler_kafka)
 
 
-def init_stdout(logger, level, md):
-    p = md['datafaucet']['stdout']
-
-    # legacy param
-    p = p or md['datafaucet']['stream']
-
-    if p and p['enable']:
-        level = levels.get(p['severity'] or level)
-    else:
+def init_stdout(logger, level, enable=True):
+    if not enable:
         return
 
     # '%(asctime)s',
@@ -226,7 +227,7 @@ def init_stdout(logger, level, md):
     # '%(dfc_data)s')
 
     # create console handler and set level to debug
-    formatter = logging.Formatter('%(levelname)s %(name)s %(dfc_funcname)s %(message)s')
+    formatter = logging.Formatter('%(levelname)s:%(name)s:%(dfc_filepath)s:%(dfc_funcname)s | %(message)s')
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(level)
@@ -237,58 +238,59 @@ def init_stdout(logger, level, md):
 file_handler = None
 
 
-def init_file(logger, level, md):
+def init_file(logger, level, filename=None):
     global file_handler
 
-    p = md['datafaucet']['file']
-    if p and p['enable']:
-        level = levels.get(p['severity'] or level)
-    else:
+    if not filename:
         return
 
-    path = p['path'] or f'{logger.name}.log'
     try:
         if file_handler:
             file_handler.close()
 
-        file_handler = open(path, 'w')
+        file_handler = open(filename, 'w')
         formatter = JsonFormatter()
         handler = logging.StreamHandler(file_handler)
         handler.setLevel(level)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-    except e:
+    except Exception as e:
         print(e)
-        print(f'Cannot open log file {path} for writing.')
+        print(f'Cannot open log file {filename} for writing.')
 
 
 def init(
-        md=None,
+        log_level=logging.INFO,
+        log_stdout=None,
+        log_file=None,
+        log_kafka=None,
         sid=None,
         username=None,
         filepath=None,
         reponame=None,
         repohash=None):
+    # dfc logger
     global _logger
 
-    if not md:
-        _logger = logging.getLogger('dfc')
-        return
+    if isinstance(log_level, str):
+        log_level = levels.get(log_level.lower())
 
-    # root logger
-    level = levels.get(md['root']['severity'] or 'info')
-    logging.basicConfig(level=level)
+    sid = sid or hex(uuid.uuid1().int >> 64)
+    username = username or getpass.getuser()
+    filepath = filepath or files.get_script_path(paths.rootdir())
 
-    # dfc logger
-    logger_name = md['datafaucet']['name'] or 'dfc'
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(level)
+    repo = git.repo_data()
+    reponame = reponame or repo['name']
+    repohash = repohash or repo['hash']
+
+    logger = logging.getLogger('datafaucet')
+    logger.setLevel(logging.INFO)
     logger.handlers = []
 
     # init handlers
-    init_kafka(logger, level, md)
-    init_stdout(logger, level, md)
-    init_file(logger, level, md)
+    init_kafka(logger, log_level, log_kafka)
+    init_stdout(logger, log_level, log_stdout)
+    init_file(logger, log_level, log_file)
 
     # stream replaces higher handlers, setting propagate to false
     logger.propagate = False
@@ -311,8 +313,8 @@ def init(
 
 def _notice(msg, extra=None, **kwargs):
     logger = getLogger()
-    if logger.isEnabledFor(NOTICE_LEVELV_NUM):
-        logger.log(NOTICE_LEVELV_NUM, msg, extra=extra, **kwargs)
+    if logger.isEnabledFor(NOTICE):
+        logger.log(NOTICE, msg, extra=extra, **kwargs)
 
 
 def debug(*args, extra=None, **kwargs):

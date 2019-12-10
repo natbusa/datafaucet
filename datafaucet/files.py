@@ -10,6 +10,7 @@ from notebook.notebookapp import list_running_servers
 
 _script_path = None
 
+
 def detect_script_path(f):
     """
     Return the full path of the jupyter notebook.
@@ -65,11 +66,13 @@ def set_script_path(f=None):
     global _script_path
     _script_path = detect_script_path(f)
 
+
 def get_script_path(rootdir=None):
     if _script_path is None:
         set_script_path()
-        
+
     return os.path.relpath(_script_path, rootdir) if rootdir else _script_path
+
 
 def get_files(ext, rootdir, exclude_dirs=None, ignore_dir_with_file=''):
     if exclude_dirs is None:
@@ -94,18 +97,22 @@ def get_files(ext, rootdir, exclude_dirs=None, ignore_dir_with_file=''):
 
     return lst
 
+
 def get_python_files(rootdir):
     return get_files('.py', rootdir)
+
 
 def get_metadata_files(rootdir):
     return get_files('metadata.yml', rootdir, None, 'metadata.ignore.yml')
 
+
 def get_jupyter_notebook_files(rootdir):
     return get_files('.ipynb', rootdir, ['.ipynb_checkpoints'])
+
 
 def get_dotenv_path(rootdir):
     dotenv_filename = '.env'
     dotenv_path = os.path.join(rootdir, dotenv_filename)
     exists = os.path.isfile(dotenv_path)
-    
+
     return dotenv_filename if exists else None

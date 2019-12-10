@@ -26,6 +26,6 @@ try:
     from IPython.display import Javascript, HTML
     # HTML(css)
     # Javascript(js)
-    # print('datafaucet js/css loaded.')
-except:
+    #print('datafaucet js/css loaded.')
+except ImportError:
     pass

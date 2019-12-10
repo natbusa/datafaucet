@@ -1,5 +1,5 @@
 import builtins
-builtins.__DATAFAUCET__ = True
+import logging as python_logging
 
 from ._version import version_info, __version__
 
@@ -36,3 +36,9 @@ from datafaucet.dask.engine import DaskEngine
 
 from datafaucet import web
 from datafaucet import crypto
+
+# define superglobal module name
+builtins.__DATAFAUCET__ = True
+
+# extend logging with custom level 'NOTICE'
+python_logging.addLevelName(logging.NOTICE, "NOTICE")

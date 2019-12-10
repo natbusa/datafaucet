@@ -16,24 +16,10 @@ providers: {}
 resources: {}
 
 loggers:
-    root:
-        severity: info
-    datafaucet:
-        name: dfc
-        stream:
-            enable: false
-            severity: notice
-        stdout:
-            enable: true
-            severity: notice
-        file:
-            enable: false
-            severity: info
-        kafka:
-            enable: false
-            severity: info
-            hosts: []
-            topic: dfc
+    level: info
+    stdout: true
+    file:  null
+    kafka: [ ]
 
 ---
 profile: prod

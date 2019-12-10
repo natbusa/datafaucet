@@ -46,24 +46,11 @@ engine:
     timezone: naive
 
 loggers:
-    root:
-        severity: info
+    level: info
+    stdout: true
+    file:  datafaucet.log
+    kafka: [ kafka-node1:9092, kafka-node2:9092 ]
 
-    datafaucet:
-        name: dfc
-        stdout:
-            enable: true
-            severity: notice
-        file:
-            enable: true
-            severity: notice
-        kafka:
-            enable: false
-            severity: info
-            hosts:
-                - kafka-node1:9092
-                - kafka-node2:9092
-            topic: dfc
 ---
 profile: saveload
 providers:
@@ -142,22 +129,3 @@ engine:
 
 ---
 profile: minimal
-providers:
-    localfs:
-        service: file
-        path: data
-        format: csv
-        options:
-            header: True
-            inferSchema: True
-loggers:
-    root:
-        severity: info
-
-    datafaucet:
-        name: dfc
-        stdout:
-            enable: true
-            severity: notice
-
-            

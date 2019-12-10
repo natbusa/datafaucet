@@ -1,11 +1,13 @@
 import os
 import sys
 import getpass
+import uuid
 
 from datafaucet import __version__
 
 from datafaucet import paths
 from datafaucet import files
+from datafaucet import git
 from datafaucet import logging
 
 # engine
@@ -18,9 +20,7 @@ from datafaucet.resources import Resource
 # utils
 from datafaucet.yaml import YamlDict
 from datafaucet.utils import Singleton, to_ordered_dict, python_version, relpath, abspath
-from datafaucet.git import repo_data
 
-import uuid
 
 
 class Project(metaclass=Singleton):
@@ -47,7 +47,7 @@ class Project(metaclass=Singleton):
         self._session_name = None
         self._profile_name = None
 
-    def load(self, profile='default', rootpath=None):
+    def load(self, profile='default', rootpath=None, reload=True, parameters=None):
         """
         Performs the following steps:
             - set rootpath for the given project
@@ -64,9 +64,12 @@ class Project(metaclass=Singleton):
                root path for the project. If nothing is found, the current 
                working directory, will be the rootpath
 
+        :param reload: if set to false, it prevents to reload a new profile
+        :param parameters: optional dict, available as metadata variables
+
         :return: None
 
-        Notes abount metadata configuration:
+        Notes about metadata configuration:
 
         1)  Metadata files are merged up, so you can split the information in 
             multiple files as long as they end with `metadata.yml`. 
@@ -99,9 +102,9 @@ class Project(metaclass=Singleton):
         type `help(datafaucet.project.metadata)`    
         """
 
-        if self.loaded and self._no_reload:
+        if self.loaded and not self._reload:
             logging.notice(
-                f"Profile {self._profile} already loaded. "
+                f"Profile '{self._profile}' already loaded  with option 'reload=False':"
                 "Skipping project.load()")
             return self
 
@@ -132,7 +135,7 @@ class Project(metaclass=Singleton):
             md_paths = default_md_files + project_md_files
             dotenv_path = abspath(self._dotenv_path, paths.rootdir())
 
-            metadata.load(profile, md_paths, dotenv_path)
+            metadata.load(profile, md_paths, dotenv_path, parameters=parameters)
         except ValueError as e:
             print(e)
 
@@ -144,7 +147,7 @@ class Project(metaclass=Singleton):
         self._username = getpass.getuser()
 
         # get repo data
-        self._repo = repo_data()
+        self._repo = git.repo_data()
 
         # set profile from metadata
         self._profile = metadata.info()['active']
@@ -157,8 +160,12 @@ class Project(metaclass=Singleton):
         self._session_id = hex(uuid.uuid1().int >> 64)
 
         # initialize logging
+        loggers = metadata.profile('loggers')
         logging.init(
-            metadata.profile()['loggers'],
+            loggers['level'],
+            loggers['stdout'],
+            loggers['file'],
+            loggers['kafka'],
             self._session_id,
             self._username,
             self._script_path,
@@ -207,6 +214,7 @@ class Project(metaclass=Singleton):
 
         # set loaded to True
         self.loaded = True
+        self._reload = reload
 
         # return object
         return self
@@ -238,5 +246,5 @@ def info():
     return Project().info()
 
 
-def load(profile='default', rootpath=None):
-    return Project().load(profile, rootpath)
+def load(profile='default', rootpath=None, reload=True, parameters=None):
+    return Project().load(profile, rootpath, reload, parameters)

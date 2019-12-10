@@ -532,29 +532,10 @@ class Metadata(metaclass=Singleton):
             'providers',
             'resources',
             ('loggers', (
-                ('root', ('severity',)),
-                ('datafaucet', (
-                    'name',
-                    ('stream', (
-                        'severity',
-                        'enable',
-                    )),
-                    ('stdout', (
-                        'severity',
-                        'enable',
-                    )),
-                    ('file', (
-                        'severity',
-                        'enable',
-                        'path',
-                    )),
-                    ('kafka', (
-                        'severity',
-                        'enable',
-                        'hosts',
-                        'topic',
-                    ))
-                ))
+                'level',
+                 'stdout',
+                 'file',
+                 'kafka'
             )),
         )
 
@@ -595,7 +576,7 @@ class Metadata(metaclass=Singleton):
         raise ValueError(message)
 
 
-    def load(self, profile_name='default', metadata_files=None, dotenv_path=None):
+    def load(self, profile_name='default', metadata_files=None, dotenv_path=None, parameters=None):
         """
         Load the profile, given a list of yml files and a .env filename
         profiles inherit from the defaul profile, a profile not found will contain the same elements as the default profile
@@ -603,6 +584,7 @@ class Metadata(metaclass=Singleton):
         :param profile_name: the profile to load (default: 'default')
         :param metadata_files: a list of metadata files to read
         :param dotenv_path: the path of a dotenv file to read
+        :param parameters: optional dict, merged with metadata variables
         :return: the loaded metadata profile dict
         """
 
@@ -644,6 +626,10 @@ class Metadata(metaclass=Singleton):
         # format
         md = self.formatted(md)
 
+        # merge parameters from call
+        if isinstance(parameters, dict):
+            md['variables'] = merge(md['variables'], parameters)
+
         self._profile = YamlDict(md)
         self._info['active'] = profile_name
 
@@ -661,5 +647,5 @@ def info():
 def profile(section=None):
     return Metadata().profile(section)
 
-def load(profile_name='default', metadata_files=None, dotenv_path=None):
-    return Metadata().load(profile_name, metadata_files, dotenv_path)
+def load(profile_name='default', metadata_files=None, dotenv_path=None, parameters=None):
+    return Metadata().load(profile_name, metadata_files, dotenv_path, parameters)

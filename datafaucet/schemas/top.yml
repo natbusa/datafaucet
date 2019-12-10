@@ -6,6 +6,9 @@ properties:
         type: string
         default: default
 
+    inherit:
+        type: [string, array]
+
     engine:
         type: object
         properties:
@@ -53,65 +56,16 @@ properties:
     loggers:
         type: object
         properties:
-            root:
-                type: object
-                properties:
-                    severity:
-                        type: string
-                        default: info
-                additionalProperties: false
-            datafaucet:
-                type: object
-                properties:
-                    name:
-                        type: string
-                        default: dfc
-                    stream:
-                        type: object
-                        properties:
-                            severity:
-                                type: string
-                            enable:
-                                type: boolean
-                        additionalProperties: false
-                    stdout:
-                        type: object
-                        properties:
-                            severity:
-                                type: string
-                                default: notice
-                            enable:
-                                type: boolean
-                                default: true
-                        additionalProperties: false
-                    file:
-                        type: object
-                        properties:
-                            severity:
-                                type: string
-                                default: info
-                            path:
-                                type: string
-                            enable:
-                                type: boolean
-                                default: false
-                        additionalProperties: false
-                    kafka:
-                        type: object
-                        properties:
-                            severity:
-                                type: string
-                                default: info
-                            enable:
-                                type: boolean
-                                default: false
-                            hosts:
-                                type: [string, array]
-                                default: []
-                            topic:
-                                type: string
-                                default: dfc
-                        additionalProperties: false
-                additionalProperties: false
+            level:
+                type: string
+                default: info
+            stdout:
+                type: boolean
+                default: true
+            file:
+                type: string
+            kafka:
+                type: [string, array]
+                default: []
         additionalProperties: false
 additionalProperties: false
