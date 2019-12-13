@@ -17,35 +17,11 @@ properties:
     type: string
   password:
     type: string
-          type:
-            type: string
-          date_column:
-            type: string
-          date_start:
-            type: string
-          date_end:
-            type: string
-          date_window:
-            type: string
-          date_timezone:
-            type: string
-          query_sql:
-            type: string
-          cache:
-            type: boolean
-          coalesce:
-            type: number
-          repartition:
-            type: number
-          hash_column:
-            type: string
-          date_column:
-            type: string
-      mapping:
-        type: object
-      options:
-        type: object
-    additionalProperties: false
+  type:
+    type: string
+  options:
+      type: object
+  additionalProperties: false
 required:
   - service
 additionalProperties: false

@@ -53,7 +53,7 @@ properties:
         type: object
         default: {}
 
-    loggers:
+    logging:
         type: object
         properties:
             level:

@@ -32,7 +32,7 @@ Metadata files are composed of 6 sections:
     - providers
     - resources
     - engine
-    - loggers
+    - logging
 
 ##### Profile name
 A metadata configuration supports multiple profiles.
@@ -365,6 +365,7 @@ import jsonschema
 from dotenv import load_dotenv
 from jinja2 import Environment
 
+
 class Metadata(metaclass=Singleton):
     def __init__(self):
         self._info = {
@@ -400,9 +401,10 @@ class Metadata(metaclass=Singleton):
                     except yaml.YAMLError as e:
                         if hasattr(e, 'problem_mark'):
                             mark = e.problem_mark
-                            logging.error("Error loading yml file {} at position: (%s:%s): skipping file".format(filename,
-                                                                                                                 mark.line + 1,
-                                                                                                                 mark.column + 1))
+                            logging.error(
+                                "Error loading yml file {} at position: (%s:%s): skipping file".format(filename,
+                                                                                                       mark.line + 1,
+                                                                                                       mark.column + 1))
                             docs = []
                     finally:
                         for doc in docs:
@@ -412,7 +414,6 @@ class Metadata(metaclass=Singleton):
         self._info['profiles'] = sorted(list(profiles.keys()))
 
         return profiles
-
 
     def inherit(self, profiles):
         """
@@ -428,7 +429,6 @@ class Metadata(metaclass=Singleton):
                 profiles[p][k] = merge(profiles['default'][k], profiles[p].get(k))
 
         return profiles
-
 
     def render(self, metadata, max_passes=5):
         """
@@ -470,7 +470,6 @@ class Metadata(metaclass=Singleton):
 
         return rendered
 
-
     def v(self, d, schema):
         try:
             jsonschema.validate(d, schema)
@@ -483,13 +482,11 @@ class Metadata(metaclass=Singleton):
             msg_error += f'\n{yaml.dump(e.schema)}'
             self.raiseException(msg_error)
 
-
     def validate_schema(self, md, schema_filename):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         filename = os.path.abspath(os.path.join(dir_path, 'schemas/{}'.format(schema_filename)))
         with open(filename) as f:
             self.v(md, yaml.load(f))
-
 
     def validate(self, md):
         # validate data structure
@@ -508,7 +505,6 @@ class Metadata(metaclass=Singleton):
             if resource_provider and resource_provider not in providers:
                 print(f'resource {resource_alias}: given provider "{resource_provider}" '
                       'does not match any metadata provider')
-
 
     def formatted(self, md):
         keys = (
@@ -531,11 +527,11 @@ class Metadata(metaclass=Singleton):
              ),
             'providers',
             'resources',
-            ('loggers', (
+            ('logging', (
                 'level',
-                 'stdout',
-                 'file',
-                 'kafka'
+                'stdout',
+                'file',
+                'kafka'
             )),
         )
 
@@ -545,7 +541,6 @@ class Metadata(metaclass=Singleton):
             d['variables'] = dict(sorted(d['variables'].items()))
 
         return d
-
 
     def debug_metadata_files(self):
         message = '\nList of loaded metadata files:\n'
@@ -557,7 +552,6 @@ class Metadata(metaclass=Singleton):
 
         return message
 
-
     def debug_profiles(self):
         message = '\nList of available profiles:\n'
         if self._info['profiles']:
@@ -568,13 +562,11 @@ class Metadata(metaclass=Singleton):
 
         return message
 
-
     def raiseException(self, message=''):
         message += '\n'
         message += self.debug_metadata_files()
         message += self.debug_profiles()
         raise ValueError(message)
-
 
     def load(self, profile_name='default', metadata_files=None, dotenv_path=None, parameters=None):
         """
@@ -641,11 +633,14 @@ class Metadata(metaclass=Singleton):
     def profile(self, section=None):
         return self._profile if section is None else self._profile.get(section, None)
 
+
 def info():
     return Metadata().info()
 
+
 def profile(section=None):
     return Metadata().profile(section)
+
 
 def load(profile_name='default', metadata_files=None, dotenv_path=None, parameters=None):
     return Metadata().load(profile_name, metadata_files, dotenv_path, parameters)

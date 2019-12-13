@@ -160,17 +160,13 @@ class Project(metaclass=Singleton):
         self._session_id = hex(uuid.uuid1().int >> 64)
 
         # initialize logging
-        loggers = metadata.profile('loggers')
+        log_config = metadata.profile('logging')
         logging.init(
-            loggers['level'],
-            loggers['stdout'],
-            loggers['file'],
-            loggers['kafka'],
-            self._session_id,
-            self._username,
-            self._script_path,
-            self._repo['name'],
-            self._repo['hash']
+            log_config['level'],
+            log_config['stdout'],
+            log_config['file'],
+            log_config['kafka'],
+            self._session_id
         )
 
         # add rootpath to the list of python sys paths

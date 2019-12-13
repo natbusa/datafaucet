@@ -34,7 +34,7 @@ def get_scope(level=1):
         scope = ntpath.basename(frame.filename).split(".")[0]
         func = frame.function
 
-        # for interactive logging, go one level deeper ...
+        # for interactive logging, prettify the scope/func ...
         if scope.startswith('<ipython'):
             scope = 'notebook'
             func = 'cell' if func == '<module>' else func
@@ -48,11 +48,9 @@ def get_scope(level=1):
 _logger = None
 
 
-def getLogger(*args, **kwargs):
+def getLogger():
     global _logger
-    if not _logger:
-        init(*args, **kwargs)
-    return _logger
+    return _logger or logging.getLogger('datafaucet')
 
 
 class LoggerAdapter(logging.LoggerAdapter):
@@ -164,7 +162,7 @@ class KafkaLoggingHandler(logging.Handler):
         try:
             self.producer = KafkaProducer(bootstrap_servers=bootstrap_servers)
         except Exception as e:
-            print('ERROR:datafaucet:KafkaLoggingHandler', str(e), ' - disabling kafka logging handler')
+            print('WARNING:datafaucet:KafkaLoggingHandler', str(e), ' - disabling kafka logging handler')
 
     def emit(self, record):
         if self.producer:
@@ -172,14 +170,22 @@ class KafkaLoggingHandler(logging.Handler):
                 msg = self.format(record).encode("utf-8")
                 self.producer.send(self.topic, msg)
             except Exception as e:
-                print('ERROR:datafaucet:KafkaLoggingHandler', str(e), ' - skip kafka logging statement')
+                print('WARNING:datafaucet:KafkaLoggingHandler', str(e), ' - skip kafka logging statement')
 
     def close(self):
         if self.producer:
-            self.producer.flush()
-            if hasattr(KafkaProducer, 'stop'):
-                self.producer.stop()
-            self.producer.close()
+            try:
+                self.producer.flush()
+            except Exception as e:
+                print('WARNING:datafaucet:KafkaLoggingHandler', str(e), ' - could not flush')
+
+            try:
+                if hasattr(KafkaProducer, 'stop'):
+                    self.producer.stop()
+                self.producer.close()
+            except Exception as e:
+                print('WARNING:datafaucet:KafkaLoggingHandler', str(e), ' - could not stop')
+
         logging.Handler.close(self)
 
 
@@ -262,13 +268,10 @@ def init_file(logger, level, filename=None):
 def init(
         log_level=logging.INFO,
         log_stdout=None,
-        log_file=None,
-        log_kafka=None,
+        log_filename=None,
+        log_kafka_hosts=None,
         sid=None,
-        username=None,
-        filepath=None,
-        reponame=None,
-        repohash=None):
+        propagate=False):
     # dfc logger
     global _logger
 
@@ -276,24 +279,24 @@ def init(
         log_level = levels.get(log_level.lower())
 
     sid = sid or hex(uuid.uuid1().int >> 64)
-    username = username or getpass.getuser()
-    filepath = filepath or files.get_script_path(paths.rootdir())
+    username = getpass.getuser()
+    filepath = files.get_script_path(paths.rootdir())
 
     repo = git.repo_data()
-    reponame = reponame or repo['name']
-    repohash = repohash or repo['hash']
+    reponame = repo['name']
+    repohash = repo['hash']
 
     logger = logging.getLogger('datafaucet')
     logger.setLevel(logging.INFO)
     logger.handlers = []
 
     # init handlers
-    init_kafka(logger, log_level, log_kafka)
     init_stdout(logger, log_level, log_stdout)
-    init_file(logger, log_level, log_file)
+    init_file(logger, log_level, log_filename)
+    init_kafka(logger, log_level, log_kafka_hosts)
 
     # stream replaces higher handlers, setting propagate to false
-    logger.propagate = False
+    logger.propagate = propagate
 
     # configure context
     dfc_extra = {

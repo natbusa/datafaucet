@@ -25,27 +25,29 @@ providers:
             header: True
             inferSchema: True
 
+    sakila:
+        service: mysql
+        hostname: mysql
+        username: sakila
+        password: "{{ env('MYSQL_USER_PASSWORD') }}"
+        path: sakila
+        format: jdbc
+
 resources:
     ascombe:
         path: ascombe.csv
         provider: localfs
-
-    r_test:
-        path: abc.avro
-        options:
-            overwrite_option: overwritten
-            a: True
-            
-    correlation:
-        path: correlation.csv
-        provider: localfs
+    
+    actor:
+        path: actor
+        provider: sakila
 
 engine:
     type: spark
     master: local[*]
     timezone: naive
 
-loggers:
+logging:
     level: info
     stdout: true
     file:  datafaucet.log

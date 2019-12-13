@@ -47,6 +47,12 @@ class Rows:
     def filter(self, *args, **kwargs):
         return self.df.filter(*args, **kwargs)
 
+    def sort(self, cols, ascending=True):
+        def how(c, asc):
+            return F.col(c) if asc else F.col(c).desc()
+        by = [how(c, ascending) for c in cols]
+        return self.df.sort(*by)
+
     @property
     def cols(self):
         from datafaucet.spark.cols import Cols

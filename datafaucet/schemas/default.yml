@@ -15,7 +15,7 @@ engine:
 providers: {}
 resources: {}
 
-loggers:
+logging:
     level: info
     stdout: true
     file:  null

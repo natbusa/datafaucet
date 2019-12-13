@@ -1052,6 +1052,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # create a view from the extracted log
         df_trg = dataframe.view(df_trg, merge_on=merge_on)
 
+        # schema change: add new columns
+        added_cols = set(df_src.columns) - set(df_trg.columns)
+        added_cols = {x.name: x.dataType for x in list(df_src.schema) if x.name in added_cols}
+        for c, t in added_cols.items():
+            df_trg = df_trg.withColumn(c, F.lit(None).cast(t))
+
+        # schema change: removed columns
+        # no need to do anything, diff will take care of that
+
         # capture added records
         df_add = dataframe.diff(df_src, df_trg, ['_updated', '_state'])
 
