@@ -172,13 +172,16 @@ class KafkaLoggingHandler(logging.Handler):
             except Exception as e:
                 print('WARNING:datafaucet:KafkaLoggingHandler', str(e), ' - skip kafka logging statement')
 
-    def close(self):
+    def flush(self):
         if self.producer:
             try:
                 self.producer.flush()
             except Exception as e:
                 print('WARNING:datafaucet:KafkaLoggingHandler', str(e), ' - could not flush')
+        logging.Handler.flush(self)
 
+    def close(self):
+        if self.producer:
             try:
                 if hasattr(KafkaProducer, 'stop'):
                     self.producer.stop()
@@ -198,8 +201,19 @@ levels = {
     'critical': logging.CRITICAL
 }
 
+kafka_handler = None
+
 
 def init_kafka(logger, level, hosts=None):
+    global kafka_handler
+
+    try:
+        if kafka_handler:
+            kafka_handler.flush()
+            kafka_handler.close()
+    except Exception as e:
+        print(e)
+
     if not hosts:
         return
 
@@ -212,10 +226,10 @@ def init_kafka(logger, level, hosts=None):
     #     kafka_logger.handlers = []
 
     formatter = JsonFormatter()
-    handler_kafka = KafkaLoggingHandler(topic, hosts)
-    handler_kafka.setLevel(level)
-    handler_kafka.setFormatter(formatter)
-    logger.addHandler(handler_kafka)
+    kafka_handler = KafkaLoggingHandler(topic, hosts)
+    kafka_handler.setLevel(level)
+    kafka_handler.setFormatter(formatter)
+    logger.addHandler(kafka_handler)
 
 
 def init_stdout(logger, level, enable=True):
@@ -252,17 +266,20 @@ def init_file(logger, level, filename=None):
 
     try:
         if file_handler:
+            file_handler.flush()
             file_handler.close()
-
-        file_handler = open(filename, 'w')
-        formatter = JsonFormatter()
-        handler = logging.StreamHandler(file_handler)
-        handler.setLevel(level)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
     except Exception as e:
         print(e)
-        print(f'Cannot open log file {filename} for writing.')
+
+    try:
+        formatter = JsonFormatter()
+        file_handler = logging.FileHandler(filename)
+        file_handler.setLevel(level)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    except Exception as e:
+        print(e)
+        print(f'Cannot initialize log file {filename}')
 
 
 def init(
