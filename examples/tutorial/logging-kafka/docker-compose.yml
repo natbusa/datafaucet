@@ -1,0 +1,37 @@
+version: '3.5'
+
+services:
+  jupyter:
+    image: datafaucet/pyspark-notebook:spark_2.4.4-hadoop_3.2.1
+    networks:
+    - datafaucet
+    volumes:
+    - ../../../datafaucet:/home/jovyan/work/datafaucet
+    - ./logging.ipynb:/home/jovyan/work/logging.ipynb
+    - ./kafka-consumer-test.ipynb:/home/jovyan/work/kafka-consumer-test.ipynb
+    ports:
+    - 8888:8888
+#    entrypoint: >
+#      /bin/sh -c "
+#
+#      while ! nc -z kafka 9092; do echo 'Wait kafka to startup...' && sleep 1; done;
+#      sleep 5;
+#
+#      kafka-topics.sh  \
+#        --create \
+#        --topic dfc  \
+#        --zookeeper zookeeper:2181 \
+#        --partitions 1 \
+#        --replication-factor 1;
+#
+#      kafka-topics.sh  \
+#        --describe \
+#        --topic dfc  \
+#        --zookeeper zookeeper:2181;
+#
+#      exit 0;
+#      "
+
+networks:
+  datafaucet:
+    external: true

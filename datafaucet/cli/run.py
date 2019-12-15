@@ -34,6 +34,7 @@ def preprocess_cell(self, cell, resources, cell_index):
             raise CellExecutionError.from_cell_and_msg(cell, reply['content'])
     return cell, resources
 
+
 class DfcRunApp(DatafaucetApp):
     name = Unicode(u'datafaucet-run')
     description = "Executing a datafaucet notebook"
@@ -42,7 +43,7 @@ class DfcRunApp(DatafaucetApp):
     classes = List([ExecutePreprocessor])
 
     # config
-    config_file = Unicode(u'',help="Load this config file").tag(config=True)
+    config_file = Unicode(u'', help="Load this config file").tag(config=True)
 
     # app settings
     profile = Unicode(u'default', help="Execute a specific metadata profile").tag(config=True)
@@ -60,7 +61,7 @@ class DfcRunApp(DatafaucetApp):
         'timeout': 'ExecutePreprocessor.timeout',
         'notebooks': 'DfcRunApp.notebooks'})
 
-    #flags
+    # flags
     flags = Dict()
 
     def init_preprocessor(self):

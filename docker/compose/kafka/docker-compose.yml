@@ -1,0 +1,63 @@
+version: '3.5'
+
+services:
+  zookeeper:
+    image: 'bitnami/zookeeper:latest'
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    ports:
+    - 2181
+    networks:
+    - datafaucet
+
+  kafka:
+    image: 'bitnami/kafka:latest'
+    environment:
+      KAFKA_CFG_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    depends_on:
+    - zookeeper
+    ports:
+    - 9092
+    networks:
+    - datafaucet
+
+  create_topics:
+    # run interactively
+    #docker run -it --rm --network datafaucet -e KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181     bitnami/kafka:latest kafka-topics.sh --list  --zookeeper zookeeper:2181
+    #docker run -it --rm --network datafaucet -e KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181     bitnami/kafka:latest kafka-topics.sh --create --topic dfc  --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1
+    #docker run -it --rm --network datafaucet -e KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181     bitnami/kafka:latest kafka-topics.sh --describe --topic dfc  --zookeeper zookeeper:2181
+    #docker run -it --rm --network datafaucet -e KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181     bitnami/kafka:latest kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic dfc --from-beginning
+    image: 'bitnami/kafka:latest'
+    environment:
+      KAFKA_CFG_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    depends_on:
+    - zookeeper
+    - kafka
+    networks:
+    - datafaucet
+    entrypoint: >
+      /bin/sh -c "
+
+      while ! nc -z kafka 9092; do echo 'Wait kafka to startup...' && sleep 1; done;
+      sleep 5;
+
+      kafka-topics.sh  \
+        --create \
+        --topic dfc  \
+        --zookeeper zookeeper:2181 \
+        --partitions 1 \
+        --replication-factor 1;
+
+      kafka-topics.sh  \
+        --describe \
+        --topic dfc  \
+        --zookeeper zookeeper:2181;
+
+      exit 0;
+      "
+
+networks:
+  datafaucet:
+    external: true

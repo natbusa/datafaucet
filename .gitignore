@@ -80,5 +80,8 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# log files
+*.log
+
 ### Custom template
 !.gitkeep
