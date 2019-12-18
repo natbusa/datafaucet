@@ -19,8 +19,7 @@ from datafaucet.resources import Resource
 
 # utils
 from datafaucet.yaml import YamlDict
-from datafaucet.utils import Singleton, to_ordered_dict, python_version, relpath, abspath
-
+from datafaucet.utils import Singleton, abspath
 
 
 class Project(metaclass=Singleton):
@@ -41,7 +40,7 @@ class Project(metaclass=Singleton):
         self._python_files = {}
 
         self.loaded = False
-        self._no_reload = False
+        self._reload = True
 
         self._script_path = None
         self._session_name = None
@@ -96,7 +95,7 @@ class Project(metaclass=Singleton):
             - providers
             - resources
             - engine
-            - loggers
+            - logging
 
         For more information about metadata configuration,
         type `help(datafaucet.project.metadata)`    
@@ -153,8 +152,8 @@ class Project(metaclass=Singleton):
         self._profile = metadata.info()['active']
 
         # set session name
-        L = [self._profile, self._repo.get('name')]
-        self._session_name = '-'.join([x for x in L if x])
+        name_parts = [self._profile, self._repo.get('name')]
+        self._session_name = '-'.join([x for x in name_parts if x])
 
         # set session id
         self._session_id = hex(uuid.uuid1().int >> 64)

@@ -2,23 +2,23 @@ import os
 import tempfile
 from urllib.request import Request, urlopen
 
+
 def download(url, file_format=None, path=None):
     headers = {"User-Agent": "datafaucet downloader/1.0"}
-    
+
     # infer file format from the if file_format is None:
     if file_format is None:
         filename, file_format = os.path.splitext(url)
         file_format = file_format.replace('.', '')
 
-    bytes_downloaded = 0
     req = Request(url, None, headers)
     print(f"Downloading {url}")
 
     if path:
-        f = open(path, 'w') 
+        f = open(path, 'w')
     else:
         f = tempfile.NamedTemporaryFile(suffix="." + file_format, delete=False)
-    
+
     try:
         bytes_downloaded = write(urlopen(req), f)
         path = f.name
@@ -26,12 +26,12 @@ def download(url, file_format=None, path=None):
         if bytes_downloaded > 0:
             print(f"Downloaded {bytes_downloaded} bytes")
     except IOError as e:
-            print(e)
-            raise(e)
+        raise e
     finally:
         f.close()
-        
+
     return path
+
 
 def write(response, file, chunk_size=8192):
     """
@@ -41,7 +41,7 @@ def write(response, file, chunk_size=8192):
     :param chunk_size: size chunk size of the data
     :return:
     """
-    
+
     bytes_written = 0
 
     while 1:

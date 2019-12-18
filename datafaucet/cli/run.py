@@ -35,7 +35,39 @@ def preprocess_cell(self, cell, resources, cell_index):
     return cell, resources
 
 
+def notebook_statistics(data):
+    # todo: check for filetype
+    stats = {'cells': len(data['cells'])}
+
+    h = dict()
+    for c in data['cells']:
+        count = h.get(c['cell_type'], 0)
+        h[c['cell_type']] = count + 1
+    stats.update(h)
+
+    error = {'ename': None, 'evalue': None}
+    for c in data['cells']:
+        if c['cell_type'] == 'code':
+            for o in c['outputs']:
+                if o['output_type'] == 'error':
+                    error = {'ename': o['ename'], 'evalue': o['evalue']}
+                    break
+    stats.update(error)
+
+    count = 0
+    for c in data['cells']:
+        if c['cell_type'] == 'code' and c['execution_count']:
+            count += 1
+    stats.update({'executed': count})
+
+    return stats
+
+
 class DfcRunApp(DatafaucetApp):
+    def __init__(self):
+        self.ep = None
+        super(DfcRunApp, self).__init__()
+
     name = Unicode(u'datafaucet-run')
     description = "Executing a datafaucet notebook"
 
@@ -55,11 +87,14 @@ class DfcRunApp(DatafaucetApp):
         """).tag(config=True)
 
     # aliases
-    aliases = Dict({
+    aliases_dict = {
         'profile': 'DfcRunApp.profile',
         'rootdir': 'DfcRunApp.rootdir',
         'timeout': 'ExecutePreprocessor.timeout',
-        'notebooks': 'DfcRunApp.notebooks'})
+        'notebooks': 'DfcRunApp.notebooks'
+    }
+
+    aliases = Dict(aliases_dict)
 
     # flags
     flags = Dict()
@@ -89,33 +124,6 @@ class DfcRunApp(DatafaucetApp):
                     filenames.append(filename)
         self.notebooks = filenames
 
-    def notebook_statistics(self, data):
-        # todo: check for filetype
-        stats = {'cells': len(data['cells'])}
-
-        h = dict()
-        for c in data['cells']:
-            count = h.get(c['cell_type'], 0)
-            h[c['cell_type']] = count + 1
-        stats.update(h)
-
-        error = {'ename': None, 'evalue': None}
-        for c in data['cells']:
-            if c['cell_type'] == 'code':
-                for o in c['outputs']:
-                    if o['output_type'] == 'error':
-                        error = {'ename': o['ename'], 'evalue': o['evalue']}
-                        break
-        stats.update(error)
-
-        count = 0
-        for c in data['cells']:
-            if c['cell_type'] == 'code' and c['execution_count']:
-                count += 1
-        stats.update({'executed': count})
-
-        return stats
-
     def initialize(self, argv=None):
         self.parse_command_line(argv)
         if self.config_file:
@@ -128,21 +136,23 @@ class DfcRunApp(DatafaucetApp):
         filename_tuple = os.path.split(filename)
 
         fullpath_filename = os.path.join(os.getcwd(), *filename_tuple)
-        cwd = os.path.dirname(fullpath_filename)
         init_str = dedent(f"""
-            # added by dfc-run
+            #parameters from cli
+            __datafaucet_parameters = None
+
+            # loading profile if not None
             import datafaucet
-            datafaucet.files.set_current_filename('{fullpath_filename}')
-            datafaucet.project.load(profile='{self.profile}', rootdir_path='{self.rootdir}')
+            datafaucet.files.set_script_path('{fullpath_filename}')
+            datafaucet.project.load('{self.profile}','{self.rootdir}',reload=False, parameters=__datafaucet_parameters)
             """)
 
         nc = nbformat.v4.new_code_cell(init_str)
         nb['cells'].insert(0, nc)
 
-        resources = {}
+        resources = dict()
         resources['metadata'] = {'path': os.getcwd()}
 
-        (nb_out, resources_out) = self.ep.preprocess(nb, resources)
+        self.ep.preprocess(nb, resources)
 
     def start(self):
         for notebook_filename in self.notebooks:

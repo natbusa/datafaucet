@@ -1,5 +1,4 @@
 import os
-
 import git
 
 
@@ -14,18 +13,18 @@ def repo_data(rootdir=None, search_parent_directories=True):
         rootdir = os.getcwd()
 
     msg = {
-            'type': None,
-            'committer': '',
-            'hash': 0,
-            'commit': 0,
-            'branch': '',
-            # How to get url
-            'url': '',
-            'name': '',
-            # How to get humanable time
-            'date': '',
-            'clean': False
-        }
+        'type': None,
+        'committer': '',
+        'hash': 0,
+        'commit': 0,
+        'branch': '',
+        # How to get url
+        'url': '',
+        'name': '',
+        # How to get humanable time
+        'date': '',
+        'clean': False
+    }
 
     try:
         repo = git.Repo(rootdir, search_parent_directories=search_parent_directories)

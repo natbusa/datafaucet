@@ -1,8 +1,6 @@
 from ruamel.yaml import YAML
 from ruamel.yaml.compat import StringIO
 
-from collections import Mapping
-
 
 class StringDumpYAML(YAML):
     def dump(self, data, stream=None, **kw):
@@ -62,15 +60,15 @@ def to_yaml(obj):
 
 
 # to std python types (hierarchical traverse, deep first)
-def to_stdtype(obj):
+def to_python_type(obj):
     if isinstance(obj, dict):
-        return {k: to_stdtype(v) for k, v in obj.items()}
+        return {k: to_python_type(v) for k, v in obj.items()}
     elif isinstance(obj, list):
-        return [to_stdtype(v) for v in obj]
+        return [to_python_type(v) for v in obj]
     elif isinstance(obj, tuple):
-        return (to_stdtype(v) for v in obj)
+        return (to_python_type(v) for v in obj)
     elif isinstance(obj, set):
-        return {to_stdtype(v) for v in obj}
+        return {to_python_type(v) for v in obj}
     else:
         return obj
 
@@ -78,22 +76,22 @@ def to_stdtype(obj):
 def to_dict(obj):
     if not isinstance(obj, dict):
         raise ValueError('the input is not a valid dict')
-    return to_stdtype(obj)
+    return to_python_type(obj)
 
 
 def to_set(obj):
     if not isinstance(obj, set):
         raise ValueError('the input is not a valid set')
-    return to_stdtype(obj)
+    return to_python_type(obj)
 
 
 def to_list(obj):
     if not isinstance(obj, list):
         raise ValueError('the input is not a valid list')
-    return to_stdtype(obj)
+    return to_python_type(obj)
 
 
 # add the corresponding hierarchical casting to the "Commented" Classes
-CommentedSeq.to_list = lambda self: to_stdtype(self)
-CommentedMap.to_dict = lambda self: to_stdtype(self)
-CommentedSet.to_set = lambda self: to_stdtype(self)
+CommentedSeq.to_list = lambda self: to_python_type(self)
+CommentedMap.to_dict = lambda self: to_python_type(self)
+CommentedSet.to_set = lambda self: to_python_type(self)

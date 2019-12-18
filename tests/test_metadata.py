@@ -36,7 +36,7 @@ class Test_rootdir(object):
     def test_empty(self, tempdir):
         yml = ''
         tempdir.write('loader.yml', dedent(yml).encode())
-        md = { 'profile':'default', 'engine': {}, 'loggers': {}, 'providers': {}, 'resources': {}, 'variables': {}}
+        md = { 'profile':'default', 'engine': {}, 'logging': {}, 'providers': {}, 'resources': {}, 'variables': {}}
         assert(reader.load('default')== md)
 
     def test_minimal(self, tempdir):

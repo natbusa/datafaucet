@@ -46,20 +46,6 @@ engine:
         spark.sql.shuffle.partitions: 
         spark.default.parallelism: 
 
-loggers:
-  root:
-    severity: info
-
-  datafaucet:
-      name: dfc
-      stream:
-        enable: true
-        severity: notice
-      kafka:
-        enable: true
-        severity: info
-        hosts:  
-        topic: dfc
 
 ---
 profile: prod

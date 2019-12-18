@@ -45,12 +45,12 @@ def get_scope(level=1):
 
 
 # logging object is a singleton
-_logger = None
+_logger = logging.getLogger('datafaucet')
 
 
 def getLogger():
     global _logger
-    return _logger or logging.getLogger('datafaucet')
+    return _logger
 
 
 class LoggerAdapter(logging.LoggerAdapter):
@@ -99,6 +99,28 @@ class LoggerAdapter(logging.LoggerAdapter):
 
         kwargs["extra"] = d
         return msg, kwargs
+
+
+def init_adapter(logger=None, sid=None):
+    sid = sid or hex(uuid.uuid1().int >> 64)
+    username = getpass.getuser()
+    filepath = files.get_script_path(paths.rootdir())
+
+    repo = git.repo_data()
+    reponame = repo['name']
+    repohash = repo['hash']
+
+    # configure context
+    extra = {
+        'dfc_sid': sid,
+        'dfc_repohash': repohash,
+        'dfc_reponame': reponame,
+        'dfc_username': username,
+        'dfc_filepath': filepath
+    }
+
+    # setup adapter
+    return LoggerAdapter(logger, extra)
 
 
 def _json_default(obj):
@@ -247,7 +269,7 @@ def init_stdout(logger, level, enable=True):
     # '%(dfc_data)s')
 
     # create console handler and set level to debug
-    formatter = logging.Formatter('%(levelname)s:%(name)s:%(dfc_filepath)s:%(dfc_funcname)s | %(message)s')
+    formatter = logging.Formatter(' [%(name)s] %(levelname)s %(dfc_filepath)s:%(dfc_funcname)s | %(message)s')
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(level)
@@ -289,25 +311,16 @@ def init(
         log_kafka_hosts=None,
         sid=None,
         propagate=False):
-    # dfc logger
     global _logger
 
-    if isinstance(log_level, str):
-        log_level = levels.get(log_level.lower())
-
-    sid = sid or hex(uuid.uuid1().int >> 64)
-    username = getpass.getuser()
-    filepath = files.get_script_path(paths.rootdir())
-
-    repo = git.repo_data()
-    reponame = repo['name']
-    repohash = repo['hash']
-
     logger = logging.getLogger('datafaucet')
-    logger.setLevel(logging.INFO)
-    logger.handlers = []
+
+    # setting log level (str or integer)
+    log_level = levels.get(log_level.lower()) if isinstance(log_level, str) else log_level
+    logger.setLevel(log_level)
 
     # init handlers
+    logger.handlers = []
     init_stdout(logger, log_level, log_stdout)
     init_file(logger, log_level, log_filename)
     init_kafka(logger, log_level, log_kafka_hosts)
@@ -315,20 +328,8 @@ def init(
     # stream replaces higher handlers, setting propagate to false
     logger.propagate = propagate
 
-    # configure context
-    dfc_extra = {
-        'dfc_sid': sid,
-        'dfc_repohash': repohash,
-        'dfc_reponame': reponame,
-        'dfc_username': username,
-        'dfc_filepath': filepath
-    }
-
-    # setup adapter
-    adapter = LoggerAdapter(logger, dfc_extra)
-
     # set global _logger
-    _logger = adapter
+    _logger = init_adapter(logger, sid)
 
 
 def _notice(msg, extra=None, **kwargs):

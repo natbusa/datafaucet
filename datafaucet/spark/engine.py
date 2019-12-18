@@ -4,6 +4,7 @@ import shutil
 import textwrap
 
 import logging as python_logging
+from abc import ABC
 
 from datafaucet import logging
 
@@ -32,6 +33,7 @@ from pyspark.sql.utils import AnalysisException
 
 import pyspark
 
+
 def get_hadoop_version_from_system():
     hadoop_home = get_tool_home('hadoop', 'HADOOP_HOME', 'bin')[0]
     hadoop_abspath = os.path.join(hadoop_home, 'bin', 'hadoop')
@@ -42,11 +44,62 @@ def get_hadoop_version_from_system():
     except:
         return ''
 
+
+def to_pandas_args(kwargs):
+    # conversion of *some* pyspark arguments to pandas
+    kwargs.pop('inferSchema', None)
+
+    kwargs['header'] = 'infer' if kwargs.get('header') else None
+    kwargs['prefix'] = '_c'
+
+    return kwargs
+
+
+def initialize_spark_sql_context(spark_session, spark_context):
+    try:
+        del pyspark.sql.SQLContext._instantiatedContext
+    except:
+        pass
+
+    if spark_context is None:
+        spark_context = spark_session.sparkContext
+
+    pyspark.sql.SQLContext._instantiatedContext = None
+    sql_ctx = pyspark.sql.SQLContext(spark_context, spark_session)
+    return sql_ctx
+
+
+def directory_to_file(path):
+    if os.path.exists(path) and os.path.isfile(path):
+        return
+
+    dirname = os.path.dirname(path)
+    basename = os.path.basename(path)
+
+    filename = list(filter(lambda x: x.startswith('part-'), os.listdir(path)))
+    if len(filename) != 1:
+        if len(filename) > 1:
+            logging.warning(
+                'In local mode, ',
+                'save will not flatten the directory to file,',
+                'if more than a partition present')
+        return
+    else:
+        filename = filename[0]
+
+    shutil.move(os.path.join(path, filename), dirname)
+    if os.path.exists(path) and os.path.isdir(path):
+        shutil.rmtree(path)
+
+    shutil.move(os.path.join(dirname, filename), os.path.join(dirname, basename))
+    return
+
+
 class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
     @staticmethod
     def set_conf_timezone(conf, timezone=None):
-        assert(type(conf) == pyspark.conf.SparkConf)
+        assert (type(conf) == pyspark.conf.SparkConf)
 
         # if timezone set to 'naive',
         # force UTC to override local system and spark defaults
@@ -72,7 +125,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             spark_session = pyspark.sql.SparkSession.builder.getOrCreate()
             hadoop_version = spark_session.sparkContext._gateway.jvm.org.apache.hadoop.util.VersionInfo.getVersion()
             hadoop_detect_from = 'spark'
-            self._stop(spark_session)
+            self.stop(spark_session)
         except Exception as e:
             pass
 
@@ -123,12 +176,12 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
     def detect_submit_params(self, services=None):
         assert (isinstance(services, (type(None), str, list, set)))
-        services = [services] if isinstance(services,str) else services
+        services = [services] if isinstance(services, str) else services
         services = services or []
 
         # if service is a string, make a resource out of it
 
-        resources = [s if isinstance(s, dict) else Resource(service=s) for s in services ]
+        resources = [s if isinstance(s, dict) else Resource(service=s) for s in services]
 
         # create a dictionary of services and versions,
         services = {}
@@ -149,13 +202,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # get hadoop, and configured metadata services
         hadoop_version = self.info['hadoop_version']
 
-        #### submit: repositories
+        # submit: repositories
         repositories = submit_objs['repositories']
 
-        #### submit: jars
+        # submit: jars
         jars = submit_objs['jars']
 
-        #### submit: packages
+        # submit: packages
         packages = submit_objs['packages']
 
         for s, v in services.items():
@@ -184,7 +237,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             else:
                 logging.warning(f'could not autodetect driver to install for {s}, version {v}')
 
-        #### submit: packages
+        # submit: packages
         conf = submit_objs['conf']
 
         for v in resources:
@@ -212,14 +265,14 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         for c in self.submit['conf']:
             submit_args += f' --conf {c[0]}={c[1]}'
 
-        #### print debug
+        # print debug
         for k in self.submit.keys():
             if self.submit[k]:
                 logging.notice(f'Configuring {k}:')
                 for e in self.submit[k]:
                     v = e
                     if isinstance(e, tuple):
-                        if len(e)>1 and str(e[0]).endswith('.key'):
+                        if len(e) > 1 and str(e[0]).endswith('.key'):
                             e = (e[0], '****** (redacted)')
                         v = ' : '.join(list([str(x) for x in e]))
                     logging.notice(f'  -  {v}')
@@ -233,17 +286,17 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             if sys.executable and not os.environ.get(e):
                 os.environ[e] = sys.executable
 
-    def __init__(self, session_name=None, session_id=0, master = 'local[*]',
+    def __init__(self, session_name=None, session_id=0, master='local[*]',
                  timezone=None, jars=None, packages=None, pyfiles=None, files=None,
-                 repositories = None, services=None, conf=None) :
+                 repositories=None, services=None, conf=None):
 
-        #call base class
+        # call base class
         # stop the previous instance,
         # register self a the new instance
         super().__init__('spark', session_name, session_id)
 
         # bundle all submit in a dictionary
-        self.submit= {
+        self.submit = {
             'jars': [jars] if isinstance(jars, str) else jars or [],
             'packages': [packages] if isinstance(packages, str) else packages or [],
             'py-files': [pyfiles] if isinstance(pyfiles, str) else pyfiles or [],
@@ -265,7 +318,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         for k in self.submit.keys():
             self.submit[k] = list(sorted(set(self.submit[k] + detected[k])))
 
-        #set submit args via env variable
+        # set submit args via env variable
         self.set_submit_args()
 
         # set other spark-related environment variables
@@ -285,12 +338,12 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         # config passed through the api call go via the config
         for c in self.submit['conf']:
-            k,v,*_ = list(c)+['']
+            k, v, *_ = list(c) + ['']
             if isinstance(v, (bool, int, float, str)):
                 conf.set(k, v)
 
         # stop the current session if running
-        self._stop()
+        self.stop()
 
         # start spark
         spark_session = self.start_context(conf)
@@ -311,27 +364,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             # session is running
             self.stopped = False
 
-    def initialize_spark_sql_context(self, spark_session, spark_context):
-        try:
-            del pyspark.sql.SQLContext._instantiatedContext
-        except:
-            pass
-
-        if spark_context is None:
-            spark_context = spark_session.sparkContext
-
-        pyspark.sql.SQLContext._instantiatedContext = None
-        sql_ctx = pyspark.sql.SQLContext(spark_context, spark_session)
-        return sql_ctx
-
-
     def start_context(self, conf):
         try:
             # init the spark session
             session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
 
             # fix SQLContext for back compatibility
-            self.initialize_spark_sql_context(session, session.sparkContext)
+            initialize_spark_sql_context(session, session.sparkContext)
 
             # pyspark set log level method
             # (this will not suppress WARN before starting the context)
@@ -349,7 +388,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             logging.error('Could not start the engine context')
             return None
 
-
     def get_environment(self):
         vars = [
             'SPARK_HOME',
@@ -364,8 +402,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         return YamlDict({v: os.environ.get(v) for v in vars})
 
-
-    def _stop(self, spark_session=None):
+    def stop(self, spark_session=None):
         self.stopped = True
         try:
             sc_from_session = spark_session.sparkContext if spark_session else None
@@ -414,34 +451,23 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         }
         logging.info('load', extra=log_data)
 
-    def load_with_pandas(self, kwargs):
-        logging.warning("Fallback dataframe reader")
-
-        # conversion of *some* pyspark arguments to pandas
-        kwargs.pop('inferSchema', None)
-
-        kwargs['header'] = 'infer' if kwargs.get('header') else None
-        kwargs['prefix'] = '_c'
-
-        return kwargs
-
     def load_csv(self, path=None, provider=None, *args,
                  sep=None, header=None, **kwargs):
 
-        #return None
+        # return None
         obj = None
 
         md = Resource(
-                path,
-                provider,
-                sep=sep,
-                header=header,
-                **kwargs)
+            path,
+            provider,
+            sep=sep,
+            header=header,
+            **kwargs)
 
         # download if necessary
         md = get_local(md)
 
-        options =  md['options']
+        options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
         options['header'] = options.get('header') or True
@@ -453,7 +479,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # start the timer for logging
         ts_start = timer()
         try:
-            #three approaches: local, cluster, and service
+            # three approaches: local, cluster, and service
             if md['service'] == 'file' and local:
                 obj = self.context.read.options(**options).csv(md['url'])
             elif md['service'] == 'file':
@@ -462,9 +488,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     extra={'md': to_dict(md)})
 
                 df = pd.read_csv(
-                        md['url'],
-                        sep=options['sep'],
-                        header=options['header'])
+                    md['url'],
+                    sep=options['sep'],
+                    header=options['header'])
                 obj = self.context.createDataFrame(df)
             elif md['service'] in ['hdfs', 's3a']:
                 obj = self.context.read.options(**options).csv(md['url'])
@@ -481,24 +507,23 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.load_log(md, options, ts_start)
         return obj
 
-
     def load_parquet(self, path=None, provider=None, *args,
-                 mergeSchema=None, **kwargs):
+                     mergeSchema=None, **kwargs):
 
-        #return None
+        # return None
         obj = None
 
         md = Resource(
-                path,
-                provider,
-                format='parquet',
-                mergeSchema=mergeSchema,
-                **kwargs)
+            path,
+            provider,
+            format='parquet',
+            mergeSchema=mergeSchema,
+            **kwargs)
 
         # download if necessary
         md = get_local(md)
 
-        options =  md['options']
+        options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
         options['mergeSchema'] = options.get('mergeSchema') or True
@@ -508,14 +533,14 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # start the timer for logging
         ts_start = timer()
         try:
-            #three approaches: local, cluster, and service
+            # three approaches: local, cluster, and service
             if md['service'] == 'file' and local:
                 obj = self.context.read.options(**options).parquet(md['url'])
             elif md['service'] == 'file':
                 logging.warning(
                     f'local file + spark cluster: loading using pandas reader',
                     extra={'md': to_dict(md)})
-                #fallback to the pandas reader, then convert to spark
+                # fallback to the pandas reader, then convert to spark
                 df = pd.read_parquet(md['url'])
                 obj = self.context.createDataFrame(df)
             elif md['service'] in ['hdfs', 's3a']:
@@ -534,22 +559,22 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         return obj
 
     def load_json(self, path=None, provider=None, *args,
-                 lines=True, **kwargs):
+                  lines=True, **kwargs):
 
-        #return None
+        # return None
         obj = None
 
         md = Resource(
-                path,
-                provider,
-                format='json',
-                lines=lines,
-                **kwargs)
+            path,
+            provider,
+            format='json',
+            lines=lines,
+            **kwargs)
 
         # download if necessary
         md = get_local(md)
 
-        options =  md['options']
+        options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
         options['lines'] = options.get('lines') or True
@@ -560,7 +585,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # start the timer for logging
         ts_start = timer()
         try:
-            #three approaches: local, cluster, and service
+            # three approaches: local, cluster, and service
             if md['service'] == 'file' and options['lines']:
                 obj = self.context.read.options(**options).json(md['url'])
             elif md['service'] == 'file':
@@ -570,8 +595,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     f'local file + spark cluster: loading using pandas reader',
                     extra={'md': to_dict(md)})
                 df = pd.read_json(
-                        md['url'],
-                        lines=options['lines'])
+                    md['url'],
+                    lines=options['lines'])
                 obj = self.context.createDataFrame(df)
             elif md['service'] in ['hdfs', 's3a']:
                 obj = self.context.read.options(**options).json(md['url'])
@@ -589,31 +614,31 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         return obj
 
     def load_jdbc(self, path=None, provider=None, *args, **kwargs):
-        #return None
+        # return None
         obj = None
 
         md = Resource(
-                path,
-                provider,
-                format='jdbc',
-                **kwargs)
+            path,
+            provider,
+            format='jdbc',
+            **kwargs)
 
-        options =  md['options']
+        options = md['options']
 
         # start the timer for logging
         ts_start = timer()
         try:
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
-                    obj = self.context.read \
-                        .format('jdbc') \
-                        .option('url', md['url']) \
-                        .option("dbtable", md['table']) \
-                        .option("driver", md['driver']) \
-                        .option("user", md['user']) \
-                        .option('password', md['password']) \
-                        .options(**options)
-                    # load the data from jdbc
-                    obj = obj.load(**kwargs)
+                obj = self.context.read \
+                    .format('jdbc') \
+                    .option('url', md['url']) \
+                    .option("dbtable", md['table']) \
+                    .option("driver", md['driver']) \
+                    .option("user", md['user']) \
+                    .option('password', md['password']) \
+                    .options(**options)
+                # load the data from jdbc
+                obj = obj.load(**kwargs)
             else:
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
@@ -629,7 +654,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         return obj
 
     def load_scd(self, path, provider, format=None, merge_on=None, version=None, where=None, **kwargs):
-        where  = where or []
+        where = where or []
         where = where if isinstance(where, (list, tuple)) else [where]
 
         obj = self.load(path, provider, format=format, **kwargs)
@@ -637,17 +662,17 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # push down filters asap
         for predicate in where:
             obj = obj.filter(predicate)
-            
+
         # create view from history log
         return dataframe.view(obj, merge_on=merge_on, version=version)
 
     def load(self, path=None, provider=None, *args, format=None, **kwargs):
 
         md = Resource(
-                path,
-                provider,
-                format=format,
-                **kwargs)
+            path,
+            provider,
+            format=format,
+            **kwargs)
 
         format, _, storage_format = md['format'].partition(':')
         if format == 'scd':
@@ -663,8 +688,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             return self.load_jdbc(path, provider, **kwargs)
         else:
             logging.error(
-                    f'Unknown resource format "{md["format"]}"',
-                    extra={'md': to_dict(md)})
+                f'Unknown resource format "{md["format"]}"',
+                extra={'md': to_dict(md)})
         return None
 
     def save_log(self, md, options, ts_start):
@@ -680,40 +705,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
     def is_spark_local(self):
         return self.conf.get('spark.master').startswith('local[')
 
-    def directory_to_file(self, path):
-        if os.path.exists(path) and os.path.isfile(path):
-            return
-
-        dirname = os.path.dirname(path)
-        basename = os.path.basename(path)
-
-        filename = list(filter(lambda x: x.startswith('part-'), os.listdir(path)))
-        if len(filename) != 1:
-            if len(filename)>1:
-                logging.warning(
-                    'In local mode, ',
-                    'save will not flatten the directory to file,',
-                    'if more than a partition present')
-            return
-        else:
-            filename = filename[0]
-
-        shutil.move(os.path.join(path, filename), dirname)
-        if os.path.exists(path) and os.path.isdir(path):
-            shutil.rmtree(path)
-
-        shutil.move(os.path.join(dirname, filename), os.path.join(dirname, basename))
-        return
-
     def save_parquet(self, obj, path=None, provider=None, *args, mode=None, **kwargs):
 
         result = True
         md = Resource(
-                path,
-                provider,
-                format='parquet',
-                mode=mode,
-                **kwargs)
+            path,
+            provider,
+            format='parquet',
+            mode=mode,
+            **kwargs)
         options = md['options']
 
         # after collecting from metadata, or method call, define defaults
@@ -726,13 +726,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         ts_start = timer()
         try:
-            #three approaches: file-local, local+cluster, and service
+            # three approaches: file-local, local+cluster, and service
             if md['service'] == 'file' and local:
-                obj.coalesce(1).write\
-                    .partitionBy(*pcols)\
-                    .format('parquet')\
-                    .mode(options['mode'])\
-                    .options(**options)\
+                obj.coalesce(1).write \
+                    .partitionBy(*pcols) \
+                    .format('parquet') \
+                    .mode(options['mode']) \
+                    .options(**options) \
                     .parquet(md['url'], **options)
 
             elif md['service'] == 'file':
@@ -745,11 +745,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     mode=options['mode'])
 
             elif md['service'] in ['hdfs', 's3a']:
-               obj.write\
-                    .partitionBy(*pcols)\
-                    .format('parquet')\
-                    .mode(options['mode'])\
-                    .options(**options)\
+                obj.write \
+                    .partitionBy(*pcols) \
+                    .format('parquet') \
+                    .mode(options['mode']) \
+                    .options(**options) \
                     .parquet(md['url'], **options)
             else:
                 logging.error(
@@ -774,13 +774,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         result = True
 
         md = Resource(
-                path,
-                provider,
-                format='csv',
-                mode=mode,
-                sep=sep,
-                header=header,
-                **kwargs)
+            path,
+            provider,
+            format='csv',
+            mode=mode,
+            sep=sep,
+            header=header,
+            **kwargs)
 
         options = md['options']
 
@@ -796,15 +796,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         ts_start = timer()
         try:
-            #three approaches: file+local, file+cluster, and service
+            # three approaches: file+local, file+cluster, and service
             if md['service'] == 'file' and local:
-                obj.coalesce(1).write\
-                    .partitionBy(*pcols)\
-                    .format('csv')\
-                    .mode(options['mode'])\
-                    .options(**options)\
+                obj.coalesce(1).write \
+                    .partitionBy(*pcols) \
+                    .format('csv') \
+                    .mode(options['mode']) \
+                    .options(**options) \
                     .csv(md['url'], **options)
-                self.directory_to_file(md['url'])
+                directory_to_file(md['url'])
 
             elif md['service'] == 'file':
                 if os.path.exists(md['url']) and os.path.isdir(md['url']):
@@ -820,9 +820,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             elif md['service'] in ['hdfs', 's3a']:
                 obj.write \
                     .partitionBy(*pcols) \
-                    .format('csv')\
-                    .mode(options['mode'])\
-                    .options(**options)\
+                    .format('csv') \
+                    .mode(options['mode']) \
+                    .options(**options) \
                     .csv(md['url'], **options)
             else:
                 logging.error(
@@ -841,19 +841,18 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.save_log(md, options, ts_start)
         return result
 
-
     def save_json(self, obj, path=None, provider=None, *args,
-                 mode=None, lines=None, **kwargs):
+                  mode=None, lines=None, **kwargs):
 
         result = True
 
         md = Resource(
-                path,
-                provider,
-                format='csv',
-                mode=mode,
-                lines=lines,
-                **kwargs)
+            path,
+            provider,
+            format='csv',
+            mode=mode,
+            lines=lines,
+            **kwargs)
 
         options = md['options']
 
@@ -868,15 +867,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         ts_start = timer()
         try:
-            #three approaches: local, cluster, and service
+            # three approaches: local, cluster, and service
             if local and md['service'] == 'file' and options['lines']:
-                obj.coalesce(1).write\
-                    .partitionBy(*pcols)\
-                    .format('json')\
-                    .mode(options['mode'])\
-                    .options(**options)\
+                obj.coalesce(1).write \
+                    .partitionBy(*pcols) \
+                    .format('json') \
+                    .mode(options['mode']) \
+                    .options(**options) \
                     .json(md['url'])
-                self.directory_to_file(md['url'])
+                directory_to_file(md['url'])
 
             elif md['service'] == 'file':
                 # fallback, use pandas
@@ -893,9 +892,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             elif md['service'] in ['hdfs', 's3a']:
                 obj.write \
                     .partitionBy(*pcols) \
-                    .format('json')\
-                    .mode(options['mode'])\
-                    .options(**options)\
+                    .format('json') \
+                    .mode(options['mode']) \
+                    .options(**options) \
                     .json(md['url'])
             else:
                 logging.error(
@@ -918,18 +917,18 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         result = True
         md = Resource(
-                path,
-                provider,
-                format='jdbc',
-                mode=mode,
-                **kwargs)
+            path,
+            provider,
+            format='jdbc',
+            mode=mode,
+            **kwargs)
 
         options = md['options']
 
         # after collecting from metadata, or method call, define csv defaults
         options['mode'] = options.get('mode', None) or 'overwrite'
 
-        #partition is meaningless here
+        # partition is meaningless here
         pcols = options.pop('partitionBy', None) or []
 
         ts_start = timer()
@@ -943,7 +942,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     .option("user", md['user']) \
                     .option('password', md['password']) \
                     .options(**options) \
-                    .mode(options['mode'])\
+                    .mode(options['mode']) \
                     .save()
             else:
                 logging.error(
@@ -965,15 +964,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
     def save(self, obj, path=None, provider=None, *args, format=None, mode=None, **kwargs):
 
         md = Resource(
-                path,
-                provider,
-                format=format,
-                mode=mode,
-                **kwargs)
+            path,
+            provider,
+            format=format,
+            mode=mode,
+            **kwargs)
 
         format, _, storage_format = md['format'].partition(':')
 
-        if format=='scd':
+        if format == 'scd':
             return self.save_scd(obj, path, provider, format=storage_format, mode=mode, **kwargs)
 
         if md['format'] == 'csv':
@@ -990,18 +989,19 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         elif md['format'] == 'jdbc':
             return self.save_jdbc(obj, path, provider, mode=mode, **kwargs)
         else:
-            logging.error(f'Unknown format "{md["service"]}"', extra={'md':md})
+            logging.error(f'Unknown format "{md["service"]}"', extra={'md': md})
             return False
 
-    def save_scd(self, obj, path=None, provider=None, *args, format=None, mode=None, merge_on=None, where=None, **kwargs):
+    def save_scd(self, obj, path=None, provider=None, *args, format=None, mode=None, merge_on=None, where=None,
+                 **kwargs):
 
         result = True
         md = Resource(
-                path,
-                provider,
-                format=format,
-                mode=mode,
-                **kwargs)
+            path,
+            provider,
+            format=format,
+            mode=mode,
+            **kwargs)
 
         options = md['options']
 
@@ -1009,7 +1009,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         options['mode'] = options.get('mode', None) or 'append'
         format = md['format'] or 'parquet'
 
-        where  = where or []
+        where = where or []
         where = where if isinstance(where, (list, tuple)) else [where]
 
         ts_start = timer()
@@ -1037,10 +1037,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             df_trg = self.load(md, format=format, catch_exception=False)
         except:
             df_trg = dataframe.empty(df_src)
-            
+
         if '_state' not in df_trg.columns:
             df_trg = df_trg.withColumn('_state', F.lit(0))
-            
+
         if '_updated' not in df_trg.columns:
             df_trg = dataframe.add_update_column(df_trg, '_updated')
 
@@ -1096,7 +1096,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         df_empty = self.context.createDataFrame(data=(), schema=df_schema)
 
-        md = Resource(path,provider,**kwargs)
+        md = Resource(path, provider, **kwargs)
 
         try:
             if md['service'] in ['local', 'file']:
@@ -1132,12 +1132,12 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 FileSystem = sc._gateway.jvm.org.apache.hadoop.fs.FileSystem
 
                 parsed = urnparse(md['url'])
-                if md['service']=='s3a':
+                if md['service'] == 's3a':
                     path = parsed.path.split('/')
-                    url = 's3a://'+path[0]
-                    path = '/'+ '/'.join(path[1:]) if len(path)>1 else '/'
+                    url = 's3a://' + path[0]
+                    path = '/' + '/'.join(path[1:]) if len(path) > 1 else '/'
 
-                if md['service']=='hdfs':
+                if md['service'] == 'hdfs':
                     host_port = f"{parsed.host}:{parsed.port}" if parsed.port else parsed.hosts
                     url = f'hdfs://{host_port}'
                     path = '/' + parsed.path
@@ -1178,13 +1178,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 if database and table:
                     try:
                         obj = self.context.read \
-                        .format('jdbc') \
-                        .option('url', md['url']) \
-                        .option("dbtable", table) \
-                        .option("driver", md['driver']) \
-                        .option("user", md['user']) \
-                        .option('password', md['password']) \
-                        .load()
+                            .format('jdbc') \
+                            .option('url', md['url']) \
+                            .option("dbtable", table) \
+                            .option("driver", md['driver']) \
+                            .option("user", md['user']) \
+                            .option('password', md['password']) \
+                            .load()
                         info = [(i.name, i.dataType.simpleString()) for i in obj.schema]
                     except:
                         info = []

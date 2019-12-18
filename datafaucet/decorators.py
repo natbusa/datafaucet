@@ -26,18 +26,21 @@ def baz():
 
 A.foo = property(foo)
 
->>> a = A(2)
->>> a.incr()
+a = A(2)
+a.incr()
 3
->>> a.foo.bar()
+
+a.foo.bar()
 'bar'
 
 """
 
 from functools import wraps
 
+
 def add_method(cls):
     return add_attr(cls)
+
 
 def add_attr(cls):
     def decorator(func):
@@ -45,5 +48,7 @@ def add_attr(cls):
         def wrapper(*args, **kwargs):
             f = func(*args, **kwargs)
             return f
+
         setattr(cls, func.__name__, wrapper)
+
     return decorator

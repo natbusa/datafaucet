@@ -66,6 +66,7 @@ install_requires = [
     'jinja2',
     'jsonschema',
     'ipykernel',
+    'nbconvert',
     'python-dotenv',
 
     # datafaucet logging
@@ -73,7 +74,8 @@ install_requires = [
     'kafka-python',
 
     # utils
-    'python-dateutil'
+    'python-dateutil',
+    'cryptography', 'pyspark'
 ]
 
 try:

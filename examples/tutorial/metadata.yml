@@ -51,7 +51,6 @@ logging:
     level: info
     stdout: true
     file:  datafaucet.log
-    kafka: [ kafka-node1:9092, kafka-node2:9092 ]
 
 ---
 profile: saveload

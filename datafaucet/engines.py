@@ -3,7 +3,8 @@ from datafaucet import logging
 # keep only one object out of a set of classes
 # register to use the factory
 
-_singleton = {'instance':None, 'args':(), 'kwargs':{}}
+_singleton = {'instance': None, 'args': (), 'kwargs': {}}
+
 
 class EngineSingleton(type):
     def __call__(cls, *args, **kwargs):
@@ -11,7 +12,7 @@ class EngineSingleton(type):
 
         if not _singleton['instance']:
             _singleton['instance'] = super(EngineSingleton, cls).__call__(*args, **kwargs)
-            _singleton['args']   = args
+            _singleton['args'] = args
             _singleton['kwargs'] = kwargs
             logging.debug('Engine created', cls.__name__)
             return _singleton['instance']
@@ -24,23 +25,25 @@ class EngineSingleton(type):
         diff_kwargs = _singleton['kwargs'] != kwargs
 
         if diff_engine or diff_args or diff_kwargs:
-            logging.debug(f"Factory: Stop the current {_singleton['instance'].__class__.__name__} instance" )
+            logging.debug(f"Factory: Stop the current {_singleton['instance'].__class__.__name__} instance")
 
-            _singleton['instance']._stop()
+            _singleton['instance'].stop()
             del _singleton['instance']
 
-            #print(f"Factory: Start new {cls.__name__} instance")
+            # print(f"Factory: Start new {cls.__name__} instance")
             _singleton['instance'] = super(EngineSingleton, cls).__call__(*args, **kwargs)
-            _singleton['args']   = args
+            _singleton['args'] = args
             _singleton['kwargs'] = kwargs
             return _singleton['instance']
         else:
-            #print('SAME: returing the current singleton')
+            # print('SAME: returing the current singleton')
             pass
 
         return _singleton['instance']
 
+
 _engines = {}
+
 
 def register(cls, alias):
     global _engines
@@ -49,6 +52,7 @@ def register(cls, alias):
     _engines[alias] = cls
 
     logging.debug('Registering names ', cls.__name__, alias, ' for class ', cls)
+
 
 def Engine(engine_type=None, *args, **kwargs):
     global _engines
@@ -61,21 +65,22 @@ def Engine(engine_type=None, *args, **kwargs):
             logging.error('Could not create the Engine:')
             logging.error('No matching engine type in', ', '.join(_engines.keys()))
 
-    engine = _singleton['instance']
+    eng = _singleton['instance']
 
-    if not engine:
+    if not eng:
         logging.error(
             'No Engine running yet. \n'
             'try datafaucet.engine(...) or datafaucet.project.load(...)')
 
-    return engine
+    return eng
+
 
 def engine(engine_type=None, *args, **kwargs):
     return Engine(engine_type, *args, **kwargs)
 
+
 class EngineBase:
     def __init__(self, engine_type=None, session_name=None, session_id=None):
-
         self.engine_type = engine_type
         self.session_name = session_name
         self.session_id = session_id
@@ -94,7 +99,7 @@ class EngineBase:
     def load(self, *args, **kwargs):
         raise NotImplementedError
 
-    def save(self, obj, path=None, provider=None, *args,  mode='error', **kwargs):
+    def save(self, obj, path=None, provider=None, *args, mode='error', **kwargs):
         raise NotImplementedError
 
     def copy(self, *args, **kwargs):
@@ -106,5 +111,5 @@ class EngineBase:
     def range(self, provider, path):
         raise NotImplementedError
 
-    def _stop(self):
+    def stop(self):
         self.stopped = True

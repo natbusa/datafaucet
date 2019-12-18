@@ -2,8 +2,8 @@ import os
 
 _rootdir = os.getcwd()
 
-def find_rootdir(filenames = ('__main__.py', 'main.ipynb')):
-    
+
+def find_rootdir(filenames=('__main__.py', 'main.ipynb')):
     path = os.getcwd()
     while os.path.isdir(path):
         ls = os.listdir(path)
@@ -14,6 +14,7 @@ def find_rootdir(filenames = ('__main__.py', 'main.ipynb')):
 
     # nothing found: using the current working dir
     return os.getcwd()
+
 
 def set_rootdir(path=None):
     global _rootdir
@@ -26,7 +27,7 @@ def set_rootdir(path=None):
     else:
         # do nothing
         pass
-        
+
 
 def rootdir():
     return _rootdir

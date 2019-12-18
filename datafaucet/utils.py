@@ -6,10 +6,12 @@ from copy import deepcopy
 import traceback
 from subprocess import Popen, PIPE
 
-def print_trace(limit=None): 
-    stack =([str([x[0], x[1], x[2]]) for x in traceback.extract_stack(limit=limit)])
+
+def print_trace(limit=None):
+    stack = ([str([x[0], x[1], x[2]]) for x in traceback.extract_stack(limit=limit)])
     print('trace')
     print('   \n'.join(stack))
+
 
 class Singleton(type):
     _instances = {}
@@ -18,6 +20,7 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
+
 
 def to_ordered_dict(d, keys):
     def to_ordered_dict_generator(d, keys):
@@ -34,6 +37,7 @@ def to_ordered_dict(d, keys):
 
     return dict(to_ordered_dict_generator(d, keys))
 
+
 def merge(a, b):
     """
     Hierarchical merge of dictionaries, lists, tuples and sets.
@@ -46,7 +50,7 @@ def merge(a, b):
         a_and_b = set(a.keys()) & set(b.keys())
         every_key = set(a.keys()) | set(b.keys())
         return {k: merge(a[k], b[k]) if k in a_and_b else deepcopy(a[k] if k in a else b[k]) for k in every_key}
-    
+
     if isinstance(b, list) and isinstance(a, list):
         return deepcopy(a) + deepcopy(b)
 
@@ -56,16 +60,17 @@ def merge(a, b):
     if isinstance(b, set) and isinstance(a, set):
         return deepcopy(a) | deepcopy(b)
 
-    #if b is None, inherit from a
+    # if b is None, inherit from a
     return deepcopy(a if b is None else b)
 
 
 def find(filename, directory):
     for dirpath, dirnames, files in os.walk(directory):
         for name in files:
-            if name==filename:
+            if name == filename:
                 return True
     return False
+
 
 def relpath(paths, basepath):
     def r(path, basepath):
@@ -73,27 +78,31 @@ def relpath(paths, basepath):
             return path
         else:
             return os.path.relpath(path, basepath)
+
     if isinstance(paths, list):
         return [r(path, basepath) for path in paths if path]
     else:
         return r(paths, basepath)
 
+
 def abspath(paths, basepath):
     if isinstance(paths, list):
         return [os.path.join(basepath, path) for path in paths if path]
-    else: 
+    else:
         return os.path.join(basepath, paths) if paths else None
-                     
+
+
 def get_home_dirname(command_abspath, subpath='bin'):
-    pos = command_abspath.find(f'/{subpath}/') 
-    if pos==-1:
+    pos = command_abspath.find(f'/{subpath}/')
+    if pos == -1:
         # assume that the homedir is the dirname of the command path
         return os.path.dirname(command_abspath)
     else:
         # if the subpath is found in the command path, 
         # the home dir is anythng before the subpath
-        return os.path.dirname(command_abspath[:pos+1])
-    
+        return os.path.dirname(command_abspath[:pos + 1])
+
+
 def get_tool_home(command, env_variable, subpath='bin'):
     try:
         command_abspath = os.path.join(os.environ[env_variable], subpath, command)
@@ -101,22 +110,25 @@ def get_tool_home(command, env_variable, subpath='bin'):
         return (get_home_dirname(command_abspath, subpath), env_variable)
     except:
         pass
-    
+
     try:
         output = run_command('which', command)
         command_abspath = output[0]
         return (get_home_dirname(command_abspath, subpath), 'PATH')
     except:
-        return ('','')
+        return ('', '')
+
 
 def run_command(*args):
     process = Popen(' '.join(args), shell='/bin/bash', stdout=PIPE)
     (output, err) = process.communicate()
     exit_code = process.wait()
     return output.decode('ascii').splitlines()
-    
+
+
 def python_version():
     return '.'.join([str(x) for x in sys.version_info[0:3]])
+
 
 def str_join(lst, sep=' '):
     return sep.join([x for x in lst if x])

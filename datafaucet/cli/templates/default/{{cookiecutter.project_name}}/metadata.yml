@@ -22,14 +22,3 @@ resources:
 engine:
     type: spark
     master: local[1]
-
-loggers:
-    datafaucet:
-        name: dfc
-        stream:
-            enable: true
-            severity: notice
-        file:
-            path: 'dfc.log'
-            enable: true
-            severity: info

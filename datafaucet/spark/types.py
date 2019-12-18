@@ -1,8 +1,5 @@
 # Mapping Python types to Spark SQL DataType
-import os
-
 from pyspark.sql import types as T
-from pyspark.sql import functions as F
 
 import decimal
 import datetime
@@ -40,14 +37,15 @@ string_type_mapping = {
     'string': T.StringType,
 }
 
+
 def get_type(obj):
     if obj is None:
         return T.NullType()
 
-    if type(obj)==type(type):
+    if type(obj) == type(type):
         return python_type_mappings.get(obj)()
 
-    if type(obj)==str:
+    if type(obj) == str:
         return string_type_mapping.get(obj)()
 
     raise TypeError('type ', type(obj), 'cannot be mapped')
