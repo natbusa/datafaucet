@@ -77,10 +77,10 @@ def path_to_jdbc(md, provider=False):
     database = md['database']
     table = md['table']
     path = md['path'] or ''
-
-    if md['format']!='jdbc':
+    
+    if md['format']!='jdbc' or md['service']=='sqlite':
         return database, table, path
-
+    
     e = filter_empty(path.split('/'))
 
     if len(e)==0:
@@ -352,7 +352,7 @@ def get_url(md):
     if  service in ['local', 'file']:
         url = path
     elif service == 'sqlite':
-        url = f"jdbc:sqlite:{path}"
+        url = f"jdbc:sqlite:{md['database']}"
     elif service == 'hdfs':
         url = f"hdfs://{host_port}{md['path']}"
     elif service in ['http', 'https']:
@@ -408,6 +408,9 @@ def process_metadata(md):
     md['host'] = md['host'] or '127.0.0.1'
 
     # if local file system and rel path, prepend rootdir
+    if md['service'] in ['file', 'sqlite'] and not md['path']:
+        md['path'] = rootdir()
+        
     if md['service'] in ['file', 'sqlite'] and not os.path.isabs(md['path']):
         md['path'] = os.path.join(rootdir(), md['path'])
 
@@ -417,7 +420,10 @@ def process_metadata(md):
 
     # generate database, table from path
     if md['format']=='jdbc':
-        md['database'], md['table'], md['path'] = path_to_jdbc(md)
+        if md['service'] == 'sqlite':
+            md['database'], _, md['table'] = md['path'].rpartition('/')
+        else:
+            md['database'], md['table'], md['path'] = path_to_jdbc(md)
 
         # set driver
         md['driver'] = md['driver'] or get_driver(md['service'])
@@ -509,7 +515,6 @@ def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
 
     # merge provider and resource metadata
     md = merge(pmd,rmd)
-
 
     # concatenate paths, if no table is defined
     if md['table']:

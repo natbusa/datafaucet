@@ -19,7 +19,7 @@ logging:
     level: info
     stdout: true
     file:  null
-    kafka: [ ]
+    kafka: null
 
 ---
 profile: prod

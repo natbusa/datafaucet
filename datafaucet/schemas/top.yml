@@ -63,9 +63,10 @@ properties:
                 type: boolean
                 default: true
             file:
-                type: string
+                type: ["null", "string"]
+                default: null
             kafka:
-                type: [string, array]
-                default: []
+                type: ["null", "string", "array"]
+                default: null
         additionalProperties: false
 additionalProperties: false

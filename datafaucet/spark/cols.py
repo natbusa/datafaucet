@@ -43,9 +43,6 @@ class Cols:
         self.scols = [x for x in self.scols if x not in self.gcols]
 
     def _getcols(self, *colnames):
-        for c in set(colnames) - set(self.df.columns):
-            logging.warning(f'Column not found: {c}')
-
         return [x for x in colnames if x in self.df.columns]
 
     ## columns get/find/create/alias/drop

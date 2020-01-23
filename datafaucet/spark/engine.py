@@ -3,6 +3,8 @@ import os, time
 import shutil
 import textwrap
 
+from pathlib import Path
+            
 import logging as python_logging
 from abc import ABC
 
@@ -249,7 +251,41 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 conf.append(("spark.hadoop.fs.s3a.access.key", v['user']))
                 conf.append(("spark.hadoop.fs.s3a.secret.key", v['password']))
                 conf.append(("spark.hadoop.fs.s3a.impl", s3a))
-                conf.append(("spark.hadoop.fs.s3a.path.style.access", "true"))
+                conf.append(("spark.hadoop.fs.s3a.path.style.access", "true"))              
+                conf.append(("spark.hadoop.fs.s3a.buffer.dir","/tmp/hadoop-s3a"))
+                
+                conf.append(("spark.hadoop.fs.s3a.block.size","64M"))
+                conf.append(("spark.hadoop.fs.s3a.multipart.size","64M")) # size of each multipart chunk
+                conf.append(("spark.hadoop.fs.s3a.multipart.threshold","64M")) # size before using multipart uploads
+                conf.append(("spark.hadoop.fs.s3a.fast.upload.active.blocks","2048")) # 2048 number of parallel uploads
+                conf.append(("spark.hadoop.fs.s3a.fast.upload.buffer","disk")) # use disk as the buffer for uploads
+                conf.append(("spark.hadoop.fs.s3a.fast.upload","true")) # turn on fast upload mode
+                
+                conf.append(("spark.hadoop.fs.s3a.connection.establish.timeout","5000"))
+                conf.append(("spark.hadoop.fs.s3a.connection.ssl.enabled", "false"))
+                conf.append(("spark.hadoop.fs.s3a.connection.timeout", "200000"))
+
+                conf.append(("spark.hadoop.fs.s3a.committer.magic.enabled","false"))
+                conf.append(("spark.hadoop.fs.s3a.committer.name","directory"))
+                conf.append(("spark.hadoop.fs.s3a.committer.staging.abort.pending.uploads","true"))
+                conf.append(("spark.hadoop.fs.s3a.committer.staging.conflict-mode","append"))
+                conf.append(("spark.hadoop.fs.s3a.committer.staging.tmp.path","/tmp/staging"))
+                conf.append(("spark.hadoop.fs.s3a.committer.staging.unique-filenames","true"))
+                conf.append(("spark.hadoop.fs.s3a.committer.threads","2048")) # 2048 number of threads writing to MinIO
+
+                conf.append(("spark.hadoop.fs.s3a.socket.recv.buffer","65536")) # read socket buffer hint
+                conf.append(("spark.hadoop.fs.s3a.socket.send.buffer","65536")) # write socket buffer hint
+                
+                conf.append(("spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version","2"))
+                conf.append(("spark.hadoop.mapreduce.fileoutputcommitter.cleanup-failures.ignored","true"))
+                
+                #conf.append(("spark.sql.sources.commitProtocolClass","org.apache.spark.internal.io.cloud.PathOutputCommitProtocol"))
+                #conf.append(("spark.sql.parquet.output.committer.class","org.apache.spark.internal.io.cloud.BindingParquetOutputCommitter"))
+
+
+# spark.hadoop.fs.s3a.connection.maximum 8192 # maximum number of concurrent conns
+# spark.hadoop.fs.s3a.max.total.tasks 2048 # maximum number of parallel tasks
+# spark.hadoop.fs.s3a.threads.max 2048 # maximum number of threads for S3A
                 break
 
         return submit_objs
@@ -627,16 +663,31 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         # start the timer for logging
         ts_start = timer()
+        
+        # avoid multi-processing and distributed writes on sqlite
+        if md['service'] == 'sqlite':
+            local = self.is_spark_local()
+            if not local:
+                raise ValueError('load to sqlite can only be done from a local cluster')
+                #todo:
+                # sketched solution obj.toPandas().to_sql(md['url']
+            
         try:
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
                 obj = self.context.read \
                     .format('jdbc') \
                     .option('url', md['url']) \
                     .option("dbtable", md['table']) \
-                    .option("driver", md['driver']) \
-                    .option("user", md['user']) \
-                    .option('password', md['password']) \
-                    .options(**options)
+                    .option("driver", md['driver'])
+
+                if md['user']:
+                    obj = obj.option("user", md['user'])
+                    
+                if md['password']:
+                    obj = obj.option('password', md['password'])
+
+                obj = obj.options(**options)
+                
                 # load the data from jdbc
                 obj = obj.load(**kwargs)
             else:
@@ -927,6 +978,18 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
         # after collecting from metadata, or method call, define csv defaults
         options['mode'] = options.get('mode', None) or 'overwrite'
+        
+        # avoid multi-processing and distributed writes on sqlite
+        if md['service'] == 'sqlite':
+            local = self.is_spark_local()
+            if not local:
+                raise ValueError('write to sqlite can only be done from a local cluster')
+                #todo:
+                # sketched solution obj.toPandas().to_sql(md['url']
+            
+            #calesce to a single writer
+            obj = obj.coalesce(1)
+
 
         # partition is meaningless here
         pcols = options.pop('partitionBy', None) or []
@@ -934,16 +997,20 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         ts_start = timer()
         try:
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
-                obj.write \
+                obj = obj.write \
                     .format('jdbc') \
                     .option('url', md['url']) \
                     .option("dbtable", md['table']) \
-                    .option("driver", md['driver']) \
-                    .option("user", md['user']) \
-                    .option('password', md['password']) \
-                    .options(**options) \
-                    .mode(options['mode']) \
-                    .save()
+                    .option("driver", md['driver'])
+                
+                if md['user']:
+                    obj = obj.option("user", md['user'])
+                    
+                if md['password']:
+                    obj = obj.option('password', md['password'])
+                    
+                obj.options(**options).mode(options['mode']).save()
+                
             else:
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
