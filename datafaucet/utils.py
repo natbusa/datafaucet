@@ -132,3 +132,17 @@ def python_version():
 
 def str_join(lst, sep=' '):
     return sep.join([x for x in lst if x])
+
+def flatten_dict(dictionary, accumulator=None, parent_key=None, separator="."):
+    if accumulator is None:
+        accumulator = {}
+
+    for k, v in dictionary.items():
+        k = f"{parent_key}{separator}{k}" if parent_key else k
+        if isinstance(v, dict):
+            flatten_dict(dictionary=v, accumulator=accumulator, parent_key=k)
+            continue
+
+        accumulator[k] = v
+
+    return accumulator

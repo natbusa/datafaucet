@@ -9,7 +9,7 @@ from datafaucet import logging
 
 from datafaucet.resources import Resource, get_local, urnparse
 from datafaucet.yaml import YamlDict, to_dict
-from datafaucet.utils import python_version, str_join, merge
+from datafaucet.utils import python_version, str_join, merge, flatten_dict
 
 import pandas as pd
 
@@ -22,7 +22,7 @@ from timeit import default_timer as timer
 # and move this information to metadata
 
 # it does not make the code fully engine agnostic though.
-from pandas.io.json._normalize import nested_to_record
+
 def get_options(m, lvl='options'):
     deprecated = ['use_inf_as_null']
     m = getattr(m,lvl)
@@ -141,7 +141,7 @@ class PandasEngine(EngineBase, metaclass=EngineSingleton):
         session = self.start_context(conf)
 
         # record the data in the engine object for debug and future references
-        self.conf = YamlDict(nested_to_record(get_options(pd))
+        self.conf = YamlDict(flatten_dict(get_options(pd))
 )
 
         if session:
@@ -152,7 +152,7 @@ class PandasEngine(EngineBase, metaclass=EngineSingleton):
             self.env = self.get_environment()
 
             # record the data in the engine object for debug and future references
-            self.conf = YamlDict(nested_to_record(get_options(pd)))
+            self.conf = YamlDict(flatten_dict(get_options(pd)))
 
             # set version if spark is loaded
             print(f'Engine context {self.engine_type}:{self.version} successfully started')

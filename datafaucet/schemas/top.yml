@@ -15,9 +15,6 @@ properties:
             type:
                 type: string
                 default: spark
-            config:
-                type: object
-                default: {}
             master:
                 type: string
                 default: "local[*]"
@@ -40,6 +37,9 @@ properties:
                     py-files:
                         type: array
                         default: []
+                    conf:
+                        type: object
+                        default: {}
                 additionalProperties: false
         additionalProperties: false
 

@@ -5,12 +5,12 @@ variables: {}
 engine:
     type: spark
     master: local[*]
-    config: {}
     submit: 
         detect: true
         jars: []
         packages: []
         py-files: []
+        conf: {}
         
 providers: {}
 resources: {}

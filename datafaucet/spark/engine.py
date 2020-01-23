@@ -251,8 +251,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 conf.append(("spark.hadoop.fs.s3a.access.key", v['user']))
                 conf.append(("spark.hadoop.fs.s3a.secret.key", v['password']))
                 conf.append(("spark.hadoop.fs.s3a.impl", s3a))
+
                 conf.append(("spark.hadoop.fs.s3a.path.style.access", "true"))              
-                conf.append(("spark.hadoop.fs.s3a.buffer.dir","/tmp/hadoop-s3a"))
+                conf.append(("spark.hadoop.fs.s3a.buffer.dir","/tmp/hadoop.fs.s3a.buffer.dir"))
                 
                 conf.append(("spark.hadoop.fs.s3a.block.size","64M"))
                 conf.append(("spark.hadoop.fs.s3a.multipart.size","64M")) # size of each multipart chunk
@@ -264,14 +265,18 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 conf.append(("spark.hadoop.fs.s3a.connection.establish.timeout","5000"))
                 conf.append(("spark.hadoop.fs.s3a.connection.ssl.enabled", "false"))
                 conf.append(("spark.hadoop.fs.s3a.connection.timeout", "200000"))
-
+                conf.append(("spark.hadoop.fs.s3a.connection.maximum","8192")) # maximum number of concurrent conns
+ 
                 conf.append(("spark.hadoop.fs.s3a.committer.magic.enabled","false"))
-                conf.append(("spark.hadoop.fs.s3a.committer.name","directory"))
+                conf.append(("spark.hadoop.fs.s3a.committer.name","partitioned"))
                 conf.append(("spark.hadoop.fs.s3a.committer.staging.abort.pending.uploads","true"))
                 conf.append(("spark.hadoop.fs.s3a.committer.staging.conflict-mode","append"))
                 conf.append(("spark.hadoop.fs.s3a.committer.staging.tmp.path","/tmp/staging"))
                 conf.append(("spark.hadoop.fs.s3a.committer.staging.unique-filenames","true"))
+
                 conf.append(("spark.hadoop.fs.s3a.committer.threads","2048")) # 2048 number of threads writing to MinIO
+                conf.append(("spark.hadoop.fs.s3a.max.total.tasks","2048")) # maximum number of parallel tasks
+                conf.append(("spark.hadoop.fs.s3a.threads.max","2048")) # maximum number of threads for S3A
 
                 conf.append(("spark.hadoop.fs.s3a.socket.recv.buffer","65536")) # read socket buffer hint
                 conf.append(("spark.hadoop.fs.s3a.socket.send.buffer","65536")) # write socket buffer hint
@@ -279,13 +284,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 conf.append(("spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version","2"))
                 conf.append(("spark.hadoop.mapreduce.fileoutputcommitter.cleanup-failures.ignored","true"))
                 
-                #conf.append(("spark.sql.sources.commitProtocolClass","org.apache.spark.internal.io.cloud.PathOutputCommitProtocol"))
-                #conf.append(("spark.sql.parquet.output.committer.class","org.apache.spark.internal.io.cloud.BindingParquetOutputCommitter"))
+                conf.append(("spark.sql.sources.commitProtocolClass","org.apache.spark.internal.io.cloud.PathOutputCommitProtocol"))
+                conf.append(("spark.sql.parquet.output.committer.class","org.apache.spark.internal.io.cloud.BindingParquetOutputCommitter"))
 
-
-# spark.hadoop.fs.s3a.connection.maximum 8192 # maximum number of concurrent conns
-# spark.hadoop.fs.s3a.max.total.tasks 2048 # maximum number of parallel tasks
-# spark.hadoop.fs.s3a.threads.max 2048 # maximum number of threads for S3A
                 break
 
         return submit_objs
@@ -311,8 +312,11 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                         if len(e) > 1 and str(e[0]).endswith('.key'):
                             e = (e[0], '****** (redacted)')
                         v = ' : '.join(list([str(x) for x in e]))
-                    logging.notice(f'  -  {v}')
-
+                    if k=='conf':
+                        logging.info(f'  -  {v}')
+                    else:
+                        logging.notice(f'  -  {v}')
+                        
         # set PYSPARK_SUBMIT_ARGS env variable
         submit_args = '{} pyspark-shell'.format(submit_args)
         os.environ['PYSPARK_SUBMIT_ARGS'] = submit_args

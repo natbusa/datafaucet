@@ -41,9 +41,9 @@ install_requires = [
     'cookiecutter',
 
     #datafaucet
-    'numpy',
+    'numpy>=1.14',
     'pandas',
-    'dask[complete]',
+    'dask[complete]>=2.9.0',
 
     #datafaucet io
     'pyarrow',

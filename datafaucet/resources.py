@@ -132,21 +132,21 @@ def metadata_overrides(md, host=None, service=None, port=None, user=None, passwo
     d['path'] = md.get('url') or md.get('path')
     d['provider'] = md.get('provider')
 
-    d['host'] = host or hostname or md['host'] or md.get('hostname')
-    d['port'] = port or md['port']
+    d['host'] = host or hostname or md.get('host') or md.get('hostname')
+    d['port'] = port or md.get('port')
 
-    d['service'] = service or md['service']
-    d['format'] = format or md['format']
-    d['version'] = version or md['version']
+    d['service'] = service or md.get('service')
+    d['format'] = format or md.get('format')
+    d['version'] = version or md.get('version')
 
-    d['user'] =  user or username or md['user'] or md.get('username')
-    d['password'] =  password or md['password']
+    d['user'] =  user or username or md.get('user') or md.get('username')
+    d['password'] =  password or md.get('password')
 
-    d['database'] =  database or md['database']
-    d['schema'] =  schema or md['schema']
-    d['table'] = table or md['table']
-    d['driver'] =  driver or md['driver']
-    d['options'] = merge(md['options'], options)
+    d['database'] =  database or md.get('database')
+    d['schema'] =  schema or md.get('schema')
+    d['table'] = table or md.get('table')
+    d['driver'] =  driver or md.get('driver')
+    d['options'] = merge(md.get('options'), options)
 
     if database or table:
         d['path'] = None
@@ -246,7 +246,7 @@ def to_resource(url_alias=None, *args, **kwargs):
         md = get_default_md()
 
     # sanitize path if it's a url or a query
-    if md['path']:
+    if md.get('path', None):
         url_md = resource_from_urn(urnparse(md['path']))
         md = merge(url_md, md)
         md['path'] = url_md['path']

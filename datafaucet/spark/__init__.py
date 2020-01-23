@@ -9,7 +9,9 @@ from datafaucet.engines import register
 import pyarrow
 import os
 
-if int(pyarrow.__version__.split('.')[1])>=15:
+from pyspark import version
+spark_version = version.__version__.split('.')
+if spark_version[0]<'3' and int(pyarrow.__version__.split('.')[1])>=15:
     os.environ['ARROW_PRE_0_15_IPC_FORMAT']='1'
 
 # monkey patching: try to limit to a minimum
