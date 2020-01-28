@@ -192,19 +192,20 @@ class Project(metaclass=Singleton):
 
         # initialize the engine
         md = metadata.profile()['engine']
+        
         engines.Engine(
             md['type'],
             session_name=self._session_name,
             session_id=self._session_id,
             master=md['master'],
             timezone=md['timezone'],
-            jars=md['submit']['jars'],
-            packages=md['submit']['packages'],
-            pyfiles=md['submit']['pyfiles'],
-            files=md['submit']['files'],
-            repositories=md['submit']['repositories'],
-            conf=md['submit']['conf'],
-            services=services
+            jars=md['jars'],
+            packages=md['packages'],
+            files=md['files'],
+            repositories=md['repositories'],
+            services=services,
+            conf=md['conf'],
+            detect=md['detect']
         )
 
         # set loaded to True

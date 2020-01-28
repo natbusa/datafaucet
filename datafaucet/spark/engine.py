@@ -13,7 +13,7 @@ from datafaucet import logging
 from datafaucet.resources import Resource, get_local, urnparse
 
 from datafaucet.yaml import YamlDict, to_dict
-from datafaucet.utils import python_version, get_tool_home, run_command
+from datafaucet.utils import merge, python_version, get_tool_home, run_command
 
 import pandas as pd
 from datafaucet.spark import dataframe
@@ -254,7 +254,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
                 conf.append(("spark.hadoop.fs.s3a.path.style.access", "true"))              
                 conf.append(("spark.hadoop.fs.s3a.buffer.dir","/tmp/hadoop.fs.s3a.buffer.dir"))
-                
                 conf.append(("spark.hadoop.fs.s3a.block.size","64M"))
                 conf.append(("spark.hadoop.fs.s3a.multipart.size","64M")) # size of each multipart chunk
                 conf.append(("spark.hadoop.fs.s3a.multipart.threshold","64M")) # size before using multipart uploads
@@ -327,8 +326,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 os.environ[e] = sys.executable
 
     def __init__(self, session_name=None, session_id=0, master='local[*]',
-                 timezone=None, jars=None, packages=None, pyfiles=None, files=None,
-                 repositories=None, services=None, conf=None):
+                 timezone=None, repositories=None, jars=None, packages=None, files=None,
+                 services=None, conf=None, detect=True):
 
         # call base class
         # stop the previous instance,
@@ -339,7 +338,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.submit = {
             'jars': [jars] if isinstance(jars, str) else jars or [],
             'packages': [packages] if isinstance(packages, str) else packages or [],
-            'py-files': [pyfiles] if isinstance(pyfiles, str) else pyfiles or [],
             'files': [files] if isinstance(files, str) else files or [],
             'repositories': [repositories] if isinstance(repositories, str) else repositories or [],
             'conf': [conf] if isinstance(conf, tuple) else conf or [],
@@ -352,11 +350,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.set_info()
 
         # detect packages and configuration from services
-        detected = self.detect_submit_params(services)
-
-        # merge up with those passed with the init
-        for k in self.submit.keys():
-            self.submit[k] = list(sorted(set(self.submit[k] + detected[k])))
+        if detect:
+            detected = self.detect_submit_params(services)
+            self.submit = merge(detected, self.submit)
 
         # set submit args via env variable
         self.set_submit_args()

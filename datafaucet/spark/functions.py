@@ -19,6 +19,7 @@ from datafaucet.spark import dataframe
 array_avg = F.udf(lambda x: sum(x) / len(x))
 array_sum = F.udf(lambda x: sum(x))
 
+import pandas as pd
 
 def std(x, dof=1):
     avg = sum(x) / len(x)
@@ -140,8 +141,8 @@ def mask(s, e, c):
     return _mask
 
 
-@F.pandas_udf(T.StringType(), F.PandasUDFType.SCALAR)
-def unidecode(series):
+@F.pandas_udf(T.StringType())
+def unidecode(series: pd.Series) -> pd.Series:
     return series.apply(lambda s: _unidecode(s))
 
 
@@ -149,8 +150,8 @@ def fake(generator, *args, **kwargs):
     # run one sample to detect type for the udf
     d = getattr(Faker(), generator)(*args, **kwargs)
 
-    @F.pandas_udf(types.get_type(type(d)), F.PandasUDFType.SCALAR)
-    def fake_generator(series):
+    @F.pandas_udf(types.get_type(type(d)))
+    def fake_generator(series: pd.Series) -> pd.Series:
         fake = Faker()
         f = getattr(fake, generator)
         return series.apply(lambda s: f(*args, **kwargs))
@@ -161,16 +162,16 @@ def fake(generator, *args, **kwargs):
 def randchoice(lst, p=None, seed=None, dtype=None):
     t = types.get_type(dtype) if dtype is not None else types.get_type(type(lst[0]))
 
-    @F.pandas_udf(t, F.PandasUDFType.SCALAR)
-    def choice_generator(series):
+    @F.pandas_udf(t)
+    def choice_generator(series: pd.Series) -> pd.Series:
         return series.apply(lambda s: random.choice(lst, p).item())
 
     return choice_generator
 
 
 def hll_init(k=12):
-    @F.pandas_udf(T.BinaryType(), F.PandasUDFType.SCALAR)
-    def _hll_init(v):
+    @F.pandas_udf(T.BinaryType())
+    def _hll_init(v: pd.Series) -> pd.Series:
         hll = HyperLogLog(k)
         zero = hll.registers()
 
@@ -186,8 +187,8 @@ def hll_init(k=12):
 
 
 def hll_init_agg(k=12):
-    @F.pandas_udf(T.BinaryType(), F.PandasUDFType.GROUPED_AGG)
-    def _hll_init_agg(v):
+    @F.pandas_udf(T.BinaryType())
+    def _hll_init_agg(v: pd.DataFrame) -> bytes:
         hll_res = HyperLogLog(k)
         hll = HyperLogLog(k)
         for x in v:
@@ -202,8 +203,8 @@ def hll_init_agg(k=12):
 
 
 def hll_count(k=12):
-    @F.pandas_udf(T.LongType(), F.PandasUDFType.SCALAR)
-    def _hll_count(v):
+    @F.pandas_udf(T.LongType())
+    def _hll_count(v: pd.Series) -> pd.Series:
         hll = HyperLogLog(k)
 
         def count(hll, x):
@@ -216,8 +217,8 @@ def hll_count(k=12):
 
 
 def hll_merge(k=12):
-    @F.pandas_udf(T.BinaryType(), F.PandasUDFType.GROUPED_AGG)
-    def _hll_merge(v):
+    @F.pandas_udf(T.BinaryType())
+    def _hll_merge(v: pd.DataFrame) -> bytes:
         hll_res = HyperLogLog(k)
         hll = HyperLogLog(k)
         for x in v:

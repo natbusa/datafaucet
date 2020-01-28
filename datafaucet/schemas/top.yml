@@ -18,29 +18,27 @@ properties:
             master:
                 type: string
                 default: "local[*]"
-            jobname:
-                type: string
             timezone:
-                type: string
-            submit:
+                type: ["null", "string"]
+                default: null
+            detect:
+                type: boolean
+                default: true
+            repositories:
+                type: array
+                default: []
+            jars:
+                type: array
+                default: []
+            packages:
+                type: array
+                default: []
+            files:
+                type: array
+                default: []
+            conf:
                 type: object
-                properties:
-                    detect:
-                        type: boolean
-                        default: true
-                    jars:
-                        type: array
-                        default: []
-                    packages:
-                        type: array
-                        default: []
-                    py-files:
-                        type: array
-                        default: []
-                    conf:
-                        type: object
-                        default: {}
-                additionalProperties: false
+                default: {}
         additionalProperties: false
 
     providers:

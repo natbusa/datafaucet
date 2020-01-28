@@ -1,16 +1,19 @@
 %YAML 1.2
 ---
 profile: default
+
 variables: {}
+
 engine:
     type: spark
     master: local[*]
-    submit: 
-        detect: true
-        jars: []
-        packages: []
-        py-files: []
-        conf: {}
+    timezone: null
+    detect: true
+    repositories: []
+    jars: []
+    packages: []
+    files: []
+    conf: {}
         
 providers: {}
 resources: {}

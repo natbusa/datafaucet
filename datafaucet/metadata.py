@@ -513,18 +513,15 @@ class Metadata(metaclass=Singleton):
             ('engine', (
                 'type',
                 'master',
-                'jobname',
                 'timezone',
-                ('submit', (
-                    'jars',
-                    'packages',
-                    'pyfiles',
-                    'files',
-                    'repositories',
-                    'conf',
-                )),
-            )
-             ),
+                'repositories',
+                'jars',
+                'packages',
+                'files',
+                'conf',
+                'detect'
+                ),
+            ),
             'providers',
             'resources',
             ('logging', (
