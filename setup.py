@@ -28,11 +28,7 @@ setup_args = dict(
     zip_safe=False,
     platforms="Linux, Mac OS X, Windows",
     keywords=['Interactive', 'Interpreter', 'Shell', 'Web'],
-    classifiers=[
-        'Intended Audience :: Developers',
-        'Intended Audience :: Data Engineers',
-        'Intended Audience :: Data Scientists',
-        'Intended Audience :: Science/Research'],
+    classifiers=['Intended Audience :: Developers'],
 )
 
 install_requires = [
@@ -75,13 +71,13 @@ install_requires = [
 
     # utils
     'python-dateutil',
-    'cryptography', 'pyspark'
+    'cryptography'
 ]
 
 try:
-    #if pyspark is already installed skip pyspark
+    # if pyspark is already installed skip pyspark
     import pyspark
-except:
+except ImportError:
     install_requires.append('pyspark')
 
 
