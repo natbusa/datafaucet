@@ -228,7 +228,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 packages.append(f'ru.yandex.clickhouse:clickhouse-jdbc:{v}')
             elif s == 's3a':
                 if hadoop_version:
-                    packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
+                    #packages.append(f"org.apache.hadoop:hadoop-aws:{hadoop_version}")
+                    pass
                 else:
                     logging.warning('The Hadoop installation is not detected. '
                                     'Could not load hadoop-aws (s3a) package ')
@@ -382,28 +383,15 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.stop()
 
         # start spark
-        spark_session = self.start_context(conf)
+        self.start_session(conf)
 
-        # record the data in the engine object for debug and future references
-        self.conf = YamlDict(dict(conf.getAll()))
-
-        if spark_session:
-            self.conf = dict(dict(spark_session.sparkContext.getConf().getAll()))
-
-            # set version if spark is loaded
-            self._version = spark_session.version
-            logging.notice(f'Engine context {self.engine_type}:{self.version} successfully started')
-
-            # store the spark session
-            self.context = spark_session
-
-            # session is running
-            self.stopped = False
-
-    def start_context(self, conf):
+    def start_session(self, conf):
         try:
             # init the spark session
             session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
+            
+            # store the spark session
+            self.session = session
 
             # fix SQLContext for back compatibility
             initialize_spark_sql_context(session, session.sparkContext)
@@ -411,6 +399,16 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             # pyspark set log level method
             # (this will not suppress WARN before starting the context)
             session.sparkContext.setLogLevel("ERROR")
+            
+            # bootstrap datafaucet.zip in the cluster
+            if not self.is_spark_local():
+                dir_path = os.path.dirname(os.path.realpath(__file__))
+                filename = os.path.abspath(os.path.join(dir_path, 'dist/datafaucet.zip'))
+                print(filename)
+                session.sparkContext.addPyFile(filename)
+
+            # collect configuration
+            self.conf = dict(dict(session.sparkContext.getConf().getAll()))
 
             # set the engine version
             self.version = session.version
@@ -418,7 +416,13 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             # set environment
             self.env = self.get_environment()
 
-            return session
+            # set version if spark is loaded
+            logging.notice(f'Engine context {self.engine_type}:{self.version} successfully started')
+
+
+            # session is running
+            self.stopped = False
+
         except Exception as e:
             print(e)
             logging.error('Could not start the engine context')
@@ -442,7 +446,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         self.stopped = True
         try:
             sc_from_session = spark_session.sparkContext if spark_session else None
-            sc_from_engine = self.context.sparkContext if self.context else None
+            sc_from_engine = self.session.sparkContext if self.session else None
             sc_from_module = pyspark.SparkContext._active_spark_context or None
 
             scs = [
@@ -451,8 +455,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 sc_from_module
             ]
 
-            if self.context:
-                self.context.stop()
+            if self.session:
+                self.session.stop()
 
             if spark_session:
                 spark_session.stop()
@@ -475,7 +479,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             logging.warning(f'Could not fully stop the {self.engine_type} context')
 
     def range(self, *args):
-        return self.context.range(*args)
+        return self.session.range(*args)
 
     def load_log(self, md, options, ts_start):
         ts_end = timer()
@@ -517,7 +521,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         try:
             # three approaches: local, cluster, and service
             if md['service'] == 'file' and local:
-                obj = self.context.read.options(**options).csv(md['url'])
+                obj = self.session.read.options(**options).csv(md['url'])
             elif md['service'] == 'file':
                 logging.warning(
                     f'local file + spark cluster: loading using pandas reader',
@@ -527,9 +531,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     md['url'],
                     sep=options['sep'],
                     header=options['header'])
-                obj = self.context.createDataFrame(df)
+                obj = self.session.createDataFrame(df)
             elif md['service'] in ['hdfs', 's3a']:
-                obj = self.context.read.options(**options).csv(md['url'])
+                obj = self.session.read.options(**options).csv(md['url'])
             else:
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
@@ -571,16 +575,16 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         try:
             # three approaches: local, cluster, and service
             if md['service'] == 'file' and local:
-                obj = self.context.read.options(**options).parquet(md['url'])
+                obj = self.session.read.options(**options).parquet(md['url'])
             elif md['service'] == 'file':
                 logging.warning(
                     f'local file + spark cluster: loading using pandas reader',
                     extra={'md': to_dict(md)})
                 # fallback to the pandas reader, then convert to spark
                 df = pd.read_parquet(md['url'])
-                obj = self.context.createDataFrame(df)
+                obj = self.session.createDataFrame(df)
             elif md['service'] in ['hdfs', 's3a']:
-                obj = self.context.read.options(**options).parquet(md['url'])
+                obj = self.session.read.options(**options).parquet(md['url'])
             else:
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
@@ -623,7 +627,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         try:
             # three approaches: local, cluster, and service
             if md['service'] == 'file' and options['lines']:
-                obj = self.context.read.options(**options).json(md['url'])
+                obj = self.session.read.options(**options).json(md['url'])
             elif md['service'] == 'file':
                 # fallback to the pandas reader,
                 # then convert to spark
@@ -633,9 +637,9 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 df = pd.read_json(
                     md['url'],
                     lines=options['lines'])
-                obj = self.context.createDataFrame(df)
+                obj = self.session.createDataFrame(df)
             elif md['service'] in ['hdfs', 's3a']:
-                obj = self.context.read.options(**options).json(md['url'])
+                obj = self.session.read.options(**options).json(md['url'])
             else:
                 logging.error(
                     f'Unknown resource service "{md["service"]}"',
@@ -674,7 +678,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             
         try:
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
-                obj = self.context.read \
+                obj = self.session.read \
                     .format('jdbc') \
                     .option('url', md['url']) \
                     .option("dbtable", md['table']) \
@@ -754,7 +758,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         logging.info('save', extra=log_data)
 
     def is_spark_local(self):
-        return self.conf.get('spark.master').startswith('local[')
+        return self.session.sparkContext.master.startswith('local[')
 
     def save_parquet(self, obj, path=None, provider=None, *args, mode=None, **kwargs):
 
@@ -1161,7 +1165,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             T.StructField('name', T.StringType(), True),
             T.StructField('type', T.StringType(), True)])
 
-        df_empty = self.context.createDataFrame(data=(), schema=df_schema)
+        df_empty = self.session.createDataFrame(data=(), schema=df_schema)
 
         md = Resource(path, provider, **kwargs)
 
@@ -1186,14 +1190,14 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     lst += [(obj_name, obj_type)]
 
                 if lst:
-                    df = self.context.createDataFrame(lst, ['name', 'type'])
+                    df = self.session.createDataFrame(lst, ['name', 'type'])
                 else:
                     df = df_empty
 
                 return df
 
             elif md['service'] in ['hdfs', 's3a']:
-                sc = self.context._sc
+                sc = self.session._sc
                 URI = sc._gateway.jvm.java.net.URI
                 Path = sc._gateway.jvm.org.apache.hadoop.fs.Path
                 FileSystem = sc._gateway.jvm.org.apache.hadoop.fs.FileSystem
@@ -1229,7 +1233,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     lst += [(obj_name, obj_type)]
 
                 if lst:
-                    df = self.context.createDataFrame(lst, ['name', 'type'])
+                    df = self.session.createDataFrame(lst, ['name', 'type'])
                 else:
                     df = df_empty
 
@@ -1244,7 +1248,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
                 if database and table:
                     try:
-                        obj = self.context.read \
+                        obj = self.session.read \
                             .format('jdbc') \
                             .option('url', md['url']) \
                             .option("dbtable", table) \
@@ -1257,7 +1261,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                         info = []
 
                     if info:
-                        return self.context.createDataFrame(info, ['name', 'type'])
+                        return self.session.createDataFrame(info, ['name', 'type'])
 
                 if md['service'] == 'mssql':
                     query = f"""
@@ -1295,7 +1299,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                                 ) as query
                                 """
 
-                obj = self.context.read \
+                obj = self.session.read \
                     .format('jdbc') \
                     .option('url', md['url']) \
                     .option("dbtable", query) \
@@ -1310,7 +1314,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                     lst.append((x.TABLE_NAME, x.TABLE_TYPE))
 
                 if lst:
-                    df = self.context.createDataFrame(lst, ['name', 'type'])
+                    df = self.session.createDataFrame(lst, ['name', 'type'])
                 else:
                     df = df_empty
 

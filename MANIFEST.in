@@ -3,6 +3,7 @@ include datafaucet/schemas/default.yml
 include datafaucet/schemas/top.yml
 include datafaucet/schemas/provider.yml
 include datafaucet/schemas/resource.yml
+include datafaucet/spark/dist/datafaucet.zip
 include datafaucet/cli/templates/metadata.ignore.yml
 recursive-include datafaucet/cli/templates/ingest *
 recursive-include datafaucet/cli/templates/default *

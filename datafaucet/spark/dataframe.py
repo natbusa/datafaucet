@@ -287,7 +287,7 @@ def sample(df, n=1000, *col, seed=None):
     # if a stratum is not specified, provide equally with what is left over form the total of the other quota
 
     if n > 1:
-        count = df.count()
+        count = df.count() or 1
         fraction = n / count
         return df if fraction > 1 else df.sample(False, fraction, seed=seed)
     else:

@@ -91,7 +91,7 @@ class EngineBase:
         self.submit = dict()
         self.info = dict()
         self.conf = dict()
-        self.context = None
+        self.session = None
         self.version = None
         self.env = dict()
         self.stopped = True
