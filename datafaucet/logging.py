@@ -306,7 +306,7 @@ def init_file(logger, level, filename=None):
 
 def init(
         log_level=logging.INFO,
-        log_stdout=None,
+        log_stdout=True,
         log_filename=None,
         log_kafka_hosts=None,
         sid=None,

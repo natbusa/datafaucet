@@ -27,6 +27,8 @@ import pyspark.sql.types as T
 
 from pyspark.sql.utils import AnalysisException
 
+import sqlite3
+
 # purpose of engines
 # abstract engine init, data read and data write
 # and move this information to metadata
@@ -253,40 +255,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 conf.append(("spark.hadoop.fs.s3a.secret.key", v['password']))
                 conf.append(("spark.hadoop.fs.s3a.impl", s3a))
 
-                conf.append(("spark.hadoop.fs.s3a.path.style.access", "true"))              
-                conf.append(("spark.hadoop.fs.s3a.buffer.dir","/tmp/hadoop.fs.s3a.buffer.dir"))
-                conf.append(("spark.hadoop.fs.s3a.block.size","64M"))
-                conf.append(("spark.hadoop.fs.s3a.multipart.size","64M")) # size of each multipart chunk
-                conf.append(("spark.hadoop.fs.s3a.multipart.threshold","64M")) # size before using multipart uploads
-                conf.append(("spark.hadoop.fs.s3a.fast.upload.active.blocks","2048")) # 2048 number of parallel uploads
-                conf.append(("spark.hadoop.fs.s3a.fast.upload.buffer","disk")) # use disk as the buffer for uploads
-                conf.append(("spark.hadoop.fs.s3a.fast.upload","true")) # turn on fast upload mode
-                
-                conf.append(("spark.hadoop.fs.s3a.connection.establish.timeout","5000"))
-                conf.append(("spark.hadoop.fs.s3a.connection.ssl.enabled", "false"))
-                conf.append(("spark.hadoop.fs.s3a.connection.timeout", "200000"))
-                conf.append(("spark.hadoop.fs.s3a.connection.maximum","8192")) # maximum number of concurrent conns
- 
-                conf.append(("spark.hadoop.fs.s3a.committer.magic.enabled","false"))
-                conf.append(("spark.hadoop.fs.s3a.committer.name","partitioned"))
-                conf.append(("spark.hadoop.fs.s3a.committer.staging.abort.pending.uploads","true"))
-                conf.append(("spark.hadoop.fs.s3a.committer.staging.conflict-mode","append"))
-                conf.append(("spark.hadoop.fs.s3a.committer.staging.tmp.path","/tmp/staging"))
-                conf.append(("spark.hadoop.fs.s3a.committer.staging.unique-filenames","true"))
-
-                conf.append(("spark.hadoop.fs.s3a.committer.threads","2048")) # 2048 number of threads writing to MinIO
-                conf.append(("spark.hadoop.fs.s3a.max.total.tasks","2048")) # maximum number of parallel tasks
-                conf.append(("spark.hadoop.fs.s3a.threads.max","2048")) # maximum number of threads for S3A
-
-                conf.append(("spark.hadoop.fs.s3a.socket.recv.buffer","65536")) # read socket buffer hint
-                conf.append(("spark.hadoop.fs.s3a.socket.send.buffer","65536")) # write socket buffer hint
-                
-                conf.append(("spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version","2"))
-                conf.append(("spark.hadoop.mapreduce.fileoutputcommitter.cleanup-failures.ignored","true"))
-                
-                conf.append(("spark.sql.sources.commitProtocolClass","org.apache.spark.internal.io.cloud.PathOutputCommitProtocol"))
-                conf.append(("spark.sql.parquet.output.committer.class","org.apache.spark.internal.io.cloud.BindingParquetOutputCommitter"))
-
                 break
 
         return submit_objs
@@ -404,7 +372,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             if not self.is_spark_local():
                 dir_path = os.path.dirname(os.path.realpath(__file__))
                 filename = os.path.abspath(os.path.join(dir_path, 'dist/datafaucet.zip'))
-                print(filename)
                 session.sparkContext.addPyFile(filename)
 
             # collect configuration
@@ -415,6 +382,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
 
             # set environment
             self.env = self.get_environment()
+            
+            # set info 
+            self.info['spark_classpath'] = self.info['spark_classpath'][0].split(' ')
+            self.info = YamlDict(self.info)
 
             # set version if spark is loaded
             logging.notice(f'Engine context {self.engine_type}:{self.version} successfully started')
@@ -441,7 +412,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         ]
 
         return YamlDict({v: os.environ.get(v) for v in vars})
-
+    
     def stop(self, spark_session=None):
         self.stopped = True
         try:
@@ -668,14 +639,17 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         # start the timer for logging
         ts_start = timer()
         
-        # avoid multi-processing and distributed writes on sqlite
+        # cluster mode and local sqlite db: use pandas/sqlite
         if md['service'] == 'sqlite':
             local = self.is_spark_local()
             if not local:
-                raise ValueError('load to sqlite can only be done from a local cluster')
-                #todo:
-                # sketched solution obj.toPandas().to_sql(md['url']
+                con = sqlite3.connect(md['database'])
+                pdf = pd.read_sql(f"select * from {md['table']}", con=con)
+                obj = self.session.createDataFrame(pdf)
+                self.load_log(md, options, ts_start)
+                return obj
             
+        # all the other cases:
         try:
             if md['service'] in ['sqlite', 'mysql', 'postgres', 'mssql', 'clickhouse', 'oracle']:
                 obj = self.session.read \
@@ -1041,10 +1015,10 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             mode=mode,
             **kwargs)
 
-        format, _, storage_format = md['format'].partition(':')
-
-        if format == 'scd':
-            return self.save_scd(obj, path, provider, format=storage_format, mode=mode, **kwargs)
+        #composite formats
+        if md['format'].startswith('scd:'):
+            _1, _2, format = md['format'].partition(':')
+            return self.save_scd(obj, path, provider, format=format, mode=mode, **kwargs)
 
         if md['format'] == 'csv':
             return self.save_csv(obj, path, provider, mode=mode, **kwargs)
@@ -1098,16 +1072,14 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
             obj = dataframe.add_update_column(obj, '_updated')
 
             result = self.save(obj, md, mode=options['mode'])
+            self.save_log(md, options, ts_start)
             return True
 
         # append
         df_src = obj
 
         # trg dataframe (if exists)
-        try:
-            df_trg = self.load(md, format=format, catch_exception=False)
-        except:
-            df_trg = dataframe.empty(df_src)
+        df_trg = self.load(md, format=format) or dataframe.empty(df_src)
 
         if '_state' not in df_trg.columns:
             df_trg = df_trg.withColumn('_state', F.lit(0))
@@ -1156,8 +1128,6 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         df = dataframe.add_update_column(df, '_updated')
 
         result = self.save(df, md, format=format, **options)
-
-        self.save_log(md, options, ts_start)
         return result
 
     def list(self, provider, path=None, **kwargs):
@@ -1172,7 +1142,8 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
         try:
             if md['service'] in ['local', 'file']:
                 lst = []
-                rootpath = md['url']
+                
+                rootpath  = md['url'][len('file://'):] if md['url'].startswith('file://') else md['url']
                 for f in os.listdir(rootpath):
                     fullpath = os.path.join(rootpath, f)
                     if os.path.isfile(fullpath):
@@ -1211,7 +1182,7 @@ class SparkEngine(EngineBase, metaclass=EngineSingleton):
                 if md['service'] == 'hdfs':
                     host_port = f"{parsed.host}:{parsed.port}" if parsed.port else parsed.hosts
                     url = f'hdfs://{host_port}'
-                    path = '/' + parsed.path
+                    path = '/' + parsed.path.lstrip('/')
 
                 try:
                     fs = FileSystem.get(URI(url), sc._jsc.hadoopConfiguration())

@@ -339,7 +339,7 @@ def get_version(service):
         'mssql': '6.4.0.jre8',
         'oracle': '19.3.0.0',
         'clickhouse':'0.1.54',
-        's3a':'3.1.1'
+        's3a':'3.2.0'
     }
     return versions.get(service)
 
@@ -350,9 +350,9 @@ def get_url(md):
     host_port = f"{md['host']}:{md['port']}" if md['port'] else md['host']
 
     if  service in ['local', 'file']:
-        url = path
+        url = f"file://{path}"
     elif service == 'sqlite':
-        url = f"jdbc:sqlite:{md['database']}"
+        url = f"jdbc:sqlite://{md['database']}"
     elif service == 'hdfs':
         url = f"hdfs://{host_port}{md['path']}"
     elif service in ['http', 'https']:
@@ -371,6 +371,9 @@ def get_url(md):
         url = f"jdbc:oracle:thin:@//{host_port}/{md['database']}"
     elif service == 'elastic':
         url = f"http://{host_port}/{md['database']}"
+    else:
+        print(service, path, host_port)
+        url = f"{service}://{host_port}{path}"
 
     return url
 
@@ -413,17 +416,19 @@ def process_metadata(md):
         
     if md['service'] in ['file', 'sqlite'] and not os.path.isabs(md['path']):
         md['path'] = os.path.join(rootdir(), md['path'])
-
+        
     # if service is s3a, remove leading '/'
     if md['service'] == 's3a' and md['path']:
         md['path'] = md['path'].lstrip('/')
 
     # generate database, table from path
     if md['format']=='jdbc':
-        if md['service'] == 'sqlite':
+        
+        if md['service'] == 'sqlite' and (not md['database']) and (not md['table']):
             md['database'], _, md['table'] = md['path'].rpartition('/')
-        else:
-            md['database'], md['table'], md['path'] = path_to_jdbc(md)
+        
+        if md['service'] != 'sqlite':
+                md['database'], md['table'], md['path'] = path_to_jdbc(md)
 
         # set driver
         md['driver'] = md['driver'] or get_driver(md['service'])
@@ -448,7 +453,7 @@ def process_metadata(md):
 
     md['port'] = md['port'] or get_port(md['service'])
     md['port'] = int(md['port']) if md['port'] else None
-    md['url'] = get_url(md)
+    md['url'] = md.get('url') or get_url(md)
 
     if not isinstance(md['options'], dict):
         md['options'] = {}
@@ -490,16 +495,33 @@ def assemble_metadata(md):
     keys.append('options')
     return YamlDict(to_ordered_dict(md, keys))
 
-def Resource(path_or_alias_or_url=None, provider_path_or_alias_or_url=None,
+def Resource(path_or_alias_or_url_or_dict=None, provider_path_or_alias_or_url=None,
         host=None, service=None, port=None, user=None, password=None,
         driver=None, database=None, schema=None, table=None, format=None,
         version=None, hostname=None, username=None, **options):
 
     prov = provider_path_or_alias_or_url
-    path = path_or_alias_or_url
-
+    res = path_or_alias_or_url_or_dict
+    
+    if isinstance(res,dict):
+        host = host or res.get('host')
+        service = service or res.get('service')
+        port = port or res.get('port')
+        user = user or res.get('user')
+        password = password or res.get('password')
+        driver = driver or res.get('driver')
+        database = database or res.get('database')
+        schema = schema or res.get('schema')
+        table = table or res.get('table')
+        format = format or res.get('format')
+        version = version or res.get('version')
+        hostname = hostname or res.get('hostname')
+        username = username or res.get('username')
+        res = res.get('url')
+        
+        
     # get the resource, by alias metadata or by url
-    rmd = to_resource(path, host=host, service=service, port=port,
+    rmd = to_resource(res, host=host, service=service, port=port,
         user=user, password=password, driver=driver, database=database,
         schema=schema, table=table, format=format, version=version,
         hostname=hostname, username=username, **options)
